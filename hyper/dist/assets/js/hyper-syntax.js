@@ -1,0 +1,1 @@
+var clipboard;window.ClipboardJS&&(clipboard=new ClipboardJS(".btn-copy-clipboard",{target:function(e){e=e.closest(".tab-pane.active");return el=e.querySelector("pre.language-markup")}})).on("success",function(e){var r=e.trigger.innerHTML;e.trigger.innerHTML="Copied",setTimeout(function(){e.trigger.innerHTML=r},3e3),e.clearSelection()});
