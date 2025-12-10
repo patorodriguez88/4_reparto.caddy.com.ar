@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <!-- <meta name="viewport" content="width=device-width, initial-scale=1"> -->
+        <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1"/>
+        <title>Sistema Caddy | Panel Visual</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta content="A fully featured admin theme which can be used to build CRM, CMS, etc." name="description" />
+        <meta content="Coderthemes" name="author" />
+        <!-- App favicon -->
+        <link rel="shortcut icon" href="images/favicon.ico">
+        <!-- third party css -->
+        <link href="../hyper/dist/saas/assets/css/vendor/responsive.bootstrap5.css" rel="stylesheet" type="text/css" />
+        <link href="../hyper/dist/saas/assets/css/vendor/buttons.bootstrap5.css" rel="stylesheet" type="text/css" />
+        <link href="../hyper/dist/saas/assets/css/vendor/select.bootstrap5.css" rel="stylesheet" type="text/css" />
+        <!-- third party css end -->
+        <!-- App css -->
+        <link href="../hyper/dist/saas/assets/css/icons.min.css" rel="stylesheet" type="text/css" />
+        <link href="../hyper/dist/saas/assets/css/app.min.css" rel="stylesheet" type="text/css" id="light-style" />
+        <link href="../hyper/dist/saas/assets/css/app-dark.min.css" rel="stylesheet" type="text/css" id="dark-style" />
+        <!-- Dropzone -->
+         <link href="../hyper/dist/saas/assets/css/vendor/dropzone.css" rel="stylesheet">
+    </head>     
+    <body class="loading" data-layout="topnav" data-layout-config='{"navbar":false,"layoutBoxed":false,"darkMode":false}'>
+        <!-- Begin page -->
+        <div class="wrapper">
+            <!-- ============================================================== -->
+            <!-- Start Page Content here -->
+            <!-- ============================================================== -->
+            <div class="content-page">
+                <div class="content">
+                    <div class="content-page">
+                        <div class="content">
+                            <!-- Topbar Start -->
+                            <div class="navbar-custom topnav-navbar" id="navbar" style="display:none">
+                                <div class="container-fluid">
+                                    <ul class="list-unstyled topbar-menu float-end mb-0">
+                                        <li class="dropdown notification-list mt-2">
+                                            <h4 class="page-title"> <span class="badge bg-warning text-light" id="hdr-header"> </span> 
+                                                <span id="badge-total" class="badge bg-secondary text-light">0</span>     
+                                                <span id="badge-entregados" class="badge bg-danger text-light">0</span> 
+                                                <span id="badge-sinentregar" class="badge bg-success text-light">0</span> 
+                                            </h4>  
+                                        </li>
+                                        <li class="dropdown notification-list mr-0">
+                                            <a class="nav-link dropdown-toggle arrow-none" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">
+                                                <i class="dripicons-search noti-icon"></i>
+                                            </a>
+                                            <div class="dropdown-menu dropdown-menu-animated dropdown-lg p-0">
+                                                <div class="p-3">
+                                                    <input id="buscarnombre" type="text" class="form-control" placeholder="Search ..." aria-label="Recipient's username">
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                                                        <button id="btn-search" type="button" class="btn btn-primary">Aceptar</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </li>
+                                        <!-- <li class="dropdown notification-list">
+                                            <a class="nav-link dropdown-toggle arrow-none" data-bs-toggle="dropdown" href="#" id="topbar-notifydrop" role="button" aria-haspopup="true" aria-expanded="false">
+                                                <i class="dripicons-bell noti-icon"></i>
+                                                <span class="noti-icon-badge"></span>
+                                            </a>
+
+                                        </li> -->
+                                    </ul>
+                                    <a class="navbar-toggle"  data-bs-toggle="collapse" data-bs-target="#topnav-menu-content">
+                                        <div class="lines">
+                                            <span></span>
+                                            <span></span>
+                                            <span></span>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                            <!-- end Topbar -->
+                
+                    <div class="topnav">
+                        <div class="container-fluid">
+                            <nav class="navbar navbar-dark navbar-expand-lg topnav-menu">        
+                                <div class="collapse navbar-collapse" id="topnav-menu-content">
+                                    <ul class="navbar-nav">
+                                        <li class="nav-item">
+                                            <a class="nav-link dropdown-toggle arrow-none" id="mi_recorrido">
+                                                
+                                                <i class="mdi mdi-map-marker-multiple-outline"></i>  Ver Recorrido <div class="arrow-down"></div>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item dropdown">
+                                            <a class="nav-link dropdown-toggle arrow-none" href="#" id="" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                <i class="mdi mdi-map-marker-off-outline"></i>  Cerrar Recorrido <div class="arrow-down"></div>
+                                            </a>                                            
+                                        </li>
+                                        <li class="nav-item dropdown">
+                                            <a class="nav-link dropdown-toggle arrow-none" id="mi_cuenta" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                <i class="uil-calender"></i>  Mi Cuenta <div class="arrow-down"></div>
+                                            </a>                                            
+                                        </li>
+                                        <li class="nav-item dropdown">
+                                            <a class="nav-link dropdown-toggle arrow-none" id="salir" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                <i class="mdi mdi-reply-outline"></i>  Salir <div class="arrow-down"></div>
+                                            </a>
+                                        </li>
+
+                                    </ul>
+                                </div>
+                            </nav>
+                        </div>
+                    </div>
+                
+                  <div id="info-alert-modal" class="modal fade" data-controls-modal="info-alert-modal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+                    <div class="modal-dialog modal-sm modal-dialog-centered">
+                      <div class="modal-content">
+                          <div class="modal-body p-4">
+                              <div class="text-center">
+                                  <i class="dripicons-information h1 text-info"></i>
+                                  <h4 id="info-alert-modal-header" class="mt-2">Actualizando...</h4>
+                                  <p id="info-alert-body" class="mt-3"></p>
+                                  <div class="spinner-grow text-primary" role="status"></div>
+<!--                                   <button type="button" class="btn btn-info my-2" data-dismiss="modal">Continue</button> -->
+                                </div>
+                            </div>
+                        </div><!-- /.modal-content -->
+                    </div><!-- /.modal-dialog -->
+                </div><!-- /.modal -->
+                 <!--LOGIN-->
+           <div id="login" class="account-pages mt-2 mb-5" style="display:none">
+            <div class="container">
+                <div class="row justify-content-center">
+                    <div class="col-xxl-4 col-lg-5">
+                        <div class="card">
+
+                            <!-- Logo -->
+                            <div class="card-header pt-4 pb-4 text-center bg-white">
+                                <a href="index.html">
+                                    <span><img src="images/LogoCaddy.png" alt="" height="88"></span>
+                                </a>
+                            </div>
+                            <div class="card-body p-4">
+                                <div class="text-center w-75 m-auto">
+                                    <h4 class="text-dark-50 text-center mt-0 fw-bold">Ingreso Recorridos</h4>
+                                    <p class="text-muted mb-4">Ingrese su Usuario y Contraseña.</p>
+                                </div>
+
+                                <form action="" class="needs-validation">
+                                    <div class="mb-3">
+                                        <label for="user" class="form-label">Usuario</label>
+                                        <input class="form-control" type="text" id="user" name="user" required="" placeholder="Ingrese su Usuario">
+                                        <div class="valid-feedback">
+                                            Looks good!
+                                        </div>  
+                                  </div>
+
+                                    <div class="mb-3">
+                                        <label for="password" class="form-label">Contraseña</label>
+                                        <div class="input-group input-group-merge">
+                                            <input type="password" id="password" name="password" class="form-control" placeholder="Ingrese su Contraseña">
+                                            <div class="input-group-text" data-password="false">
+                                                <span class="password-eye"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3 mb-0 text-center">
+                                      <a class="btn btn-primary" id="ingreso"> Ingresar </a>
+                                    </div>
+
+                                </form>
+                            </div> <!-- end card-body -->
+                        </div>
+                        <!-- end card -->
+
+                    </div> <!-- end col -->
+                </div>
+                <!-- end row -->
+            </div>
+            <!-- end container -->
+        </div>
+                  
+                  <!--LOGIN-->
+                  <div class="container-fluid mt-2" id="hdr" style="display:none">
+                      <div class="row">
+                            <div class="col-12">
+                                <div class="page-title-box">
+                                  <div class="dropdown float-start">
+                                  </div>
+                              </div>
+                              </div>
+                       </div>
+              <!--DESDE ACA UN SOLO ENVIO-->
+                <div class="col-xl-7" id="card-envio" style="display:none">
+                  <div class="card" >
+                      <div class="card-body">
+                      <h2 class="header-title mb-3" id="posicioncliente"></h2>
+                        <i class="mdi mdi-card-search-outline"> </i><a id="card-seguimiento"></a>
+                        <i id="icon-servicio" class="mdi mdi-calendar"> </i><a id="card-servicio"></a> 
+                        <div class="row">
+                            <div class="col-md-7">
+                                <ul class="list-unstyled">
+                                    <li class="mb-2">
+                                        <p class="text-muted mb-1 font-15">
+                                        <i id="icon-direccion" class="mdi mdi-map-marker"> </i><a id="direccion" ></a>
+                                        </p>
+                                    </li>
+                                  <div class="tab-content" id="botonera" style="display:none">
+                                    <div class="tab-pane show button-list active" id="block-buttons-preview">
+                                        <div class="d-grid">
+                                          <select class="form-select form-select-lg mb-3" id="razones">
+                                              <option value="" selected>Seleccione un motivo</option>
+                                              <option value="NADIE EN CASA">NADIE EN CASA</option>
+                                              <option value="DIRECCION EQUIVOCADA">DIRECCION EQUIVOCADA</option>
+                                              <option value="OTRAS RAZONES">OTRAS RAZONES</option>
+                                          </select>
+                                        </div>
+                                    </div> <!-- end preview-->
+                                  </div>                                  
+                                    <li class="mb-2" id="card-receptor-name">
+                                        <p class="text-muted mb-1 font-13">
+                                            <i class="mdi mdi-account"> </i> NOMBRE RECEPTOR
+                                        </p>
+                                        <input class="form-control" type="text" id="receptor-name" required>
+                                    </li>
+                                    <li class="mb-2" id="card-receptor-dni">
+                                        <p class="text-muted mb-1 font-13">
+                                            <i class="mdi mdi-passport"> </i> DNI RECEPTOR
+                                        </p>
+                                        <input class="form-control" type="number" id="receptor-dni">
+                                    </li>
+                                    <li class="mb-2" id="card-receptor-observaciones">
+                                        <p class="text-muted mb-1 font-13">
+                                            <i class="mdi mdi-fountain-pen-tip"> </i> OBSERVACIONES
+                                        </p>
+                                        <input class="form-control" type="text" id="receptor-observaciones">
+                                    </li>
+
+                                    <!-- ITEMS -->
+                                    <div id="card-receptor-items" style="display:none">
+                                        <li class="mb-2">
+                                            <p class="text-muted mb-1 font-13">
+                                                <i class="mdi mdi-fountain-pen-tip"> </i> ITEMS  <span class="badge bg-success" id="totalt"> 0 </span>
+                                                <!-- <div class="float-end"> -->
+                                                    <i id="btnEscanear" class="mdi mdi-24px mdi-barcode-scan text-primary mr-0 float-end"></i>
+                                                <!-- </div> -->
+                                            </p>
+                                            <div class="input-group input-group-merge">
+                                                <select id="prueba" name="codigo[]" class="select2 form-control select2-multiple" data-toggle="select2" multiple="multiple" data-placeholder="Seleccione ..."></select>
+                                            </div>
+                                        </li>
+                                    </div>
+                                </ul>
+                            </div> <!-- end col -->
+                        </div>
+                        <!-- end row -->
+                      <div class="mb-2 form-group agregarMultimedia"> 
+                        <div class="multimediaFisica needsclick dz-clickable">
+                          <div class="dz-message needsclick">
+                            <i class="h1 text-muted mdi mdi-camera-plus"></i>
+                            <h4>Dar click para subir imagenes.</h4>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="tab-content" id="botones-entrega" style="display:none">
+                        <div class="tab-pane show button-list active" id="block-buttons-preview">
+                            <div class="d-grid">
+
+                                <button id="boton-entrega-wrong" type="button" class="btn btn-xs btn-danger"> Cancelar </button>
+                                <button id="boton-entrega-success"type="button" class="btn btn-xs btn-success guardarProducto"> Aceptar </button>
+                            </div>
+                        </div> <!-- end preview-->
+                      </div>
+                      <div class="tab-content" id="botones-no-entrega" style="display:none">
+                        <div class="tab-pane show button-list active" id="block-buttons-preview">
+                            <div class="d-grid">
+                                <button id="boton-no-entrega-wrong" type="button" class="btn btn-xs btn-danger"> Cancelar </button>
+                                <button id="boton-no-entrega-success" type="button" class="btn btn-xs btn-success guardarNoEntrega"> Aceptar </button>
+                            </div>
+                        </div> <!-- end preview-->
+                      </div>
+                  </div> <!-- end card body-->
+                </div> <!-- end card -->
+              </div><!-- end col-->
+
+               <!--HASTA ACA UN SOLO ENVIO-->                      
+                            <div class="row" id="hdractivas"></div>
+                            <div class="map" id="map"></div>
+
+                      <div class="row" id="mis_envios" style="display:none">
+                        <!-- <div class="col-xl-5 col-lg-6"> -->
+                            <div class="col-12 ml-2">
+                                <div class="card tilebox-one">
+                                    <div class="card-body">
+                                        <div class="float-end">
+                                            <i class="uil uil-24 uil-smile-wink float-end"></i>
+                                        </div>
+                                        <h5 class="text-muted fw-normal mt-0" title="Envios Entregados"> Envios Entregados </h5>
+                                        <h3 id="mis_envios_total" class="mt-3 mb-3 text-success">0</h3>
+                                        <p class="mb-0 text-muted">
+                                            <span class="text-success me-2"><span class="mdi mdi-arrow-up-bold"></span> 5.27%</span>
+                                            <span class="text-nowrap">Since last month</span>  
+                                        </p>
+                                    </div> <!-- end card-body-->
+                                </div> <!-- end card-->
+                            </div> <!-- end col-->
+
+                            <div class="col-12 ml-2">
+                                <div class="card tilebox-one">
+                                    <div class="card-body">
+                                        <div class="float-end">
+                                            <i class='uil uil-24 uil-sad float-end'></i>
+                                            <!-- <i class="mdi mdi-cart-plus widget-icon"></i> -->
+                                        </div>
+                                        <h5 class="text-muted fw-normal mt-0" title="Envios No Entregados"> Envios No Entregados </h5>
+                                        <h3 id="mis_noenvios_total" class="mt-3 mb-3 text-danger">0</h3>
+                                        <p class="mb-0 text-muted">
+                                            <span class="text-success me-2"><span class="mdi mdi-arrow-up-bold"></span> 5.27%</span>
+                                            <span class="text-nowrap">Since last month</span>  
+                                        </p>
+                                    </div> <!-- end card-body-->
+                                </div> <!-- end card-->
+                            </div> <!-- end col-->
+                        </div> <!-- end row -->
+                     </div>
+                </div>
+                <!-- content -->
+              <div class="spinner-border avatar-md text-primary" role="status" style="display:none"></div>
+              <!-- <div class="spinner-grow avatar-md text-secondary" role="status"></div> -->
+                <!-- Footer Start -->
+                <footer class="footer">
+                    <div class="container-fluid">
+                        <div class="row w-auto">
+                            <div class="col-md-12 fixed-bottom">
+                                <button style="display:none" id="btn-dark-el" type="button" class="btn btn-lg btn-dark fixed-bottom w-auto"><i class="mdi mdi-account-search"></i> Sacar Filtro</button>          
+                                <script>document.write(new Date().getFullYear())</script> © Triangular S.A.
+                            </div>
+                        </div>
+                    </div>
+                </footer>
+                <!-- end Footer -->
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Page content -->
+            <!-- ============================================================== -->
+        </div>
+        <!-- END wrapper -->
+        <!-- bundle -->
+        <script src="../hyper/dist/saas/assets/js/vendor.min.js"></script>
+        <script src="../hyper/dist/saas/assets/js/app.min.js"></script>
+
+        <script src="../hyper/dist/saas/assets/js/vendor/responsive.bootstrap5.min.js"></script>
+        <!-- plugin js -->
+        <script src="../hyper/dist/saas/assets/js/vendor/dropzone.min.js"></script>
+        <!-- init js -->
+        <script src="../hyper/dist/saas/assets/js/ui/component.fileupload.js"></script>
+        <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB17Mk6S2Yfzjl3HPQ1usMMC8R29fYFQm8">
+        </script>
+        <!-- funciones -->
+        <script src="Mapas/js/hojaderuta.js"></script>
+        <script src="Proceso/js/funciones_hdr.js"></script>
+        <script src="Proceso/js/dropzone.js"></script>
+        <script src="Proceso/js/mail.js"></script>
+        
+        
+        <!-- Cargamos Quagga y luego nuestro script -->
+         <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
+         <script src="script.js"></script>
+         
+  </body>
+</html>
