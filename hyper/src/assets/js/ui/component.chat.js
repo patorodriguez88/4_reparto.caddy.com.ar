@@ -4,18 +4,18 @@
 * Component: Chat init js
 */
 
-!function ($) {
+!function($) {
     "use strict";
 
-    var ChatApp = function () {
+    var ChatApp = function() {
         this.$body = $("body"),
-            this.$chatInput = $('.chat-input'),
-            this.$chatList = $('.conversation-list'),
-            this.$chatSendBtn = $('.chat-send'),
-            this.$chatForm = $("#chat-form")
+        this.$chatInput = $('.chat-input'),
+        this.$chatList = $('.conversation-list'),
+        this.$chatSendBtn = $('.chat-send'),
+        this.$chatForm = $("#chat-form")
     };
 
-    ChatApp.prototype.save = function () {
+    ChatApp.prototype.save = function() {
         var chatText = this.$chatInput.val();
         var chatTime = moment().format("h:mm");
         if (chatText == "") {
@@ -51,13 +51,13 @@
             return false;
         });
     },
-        //init ChatApp
-        $.ChatApp = new ChatApp, $.ChatApp.Constructor = ChatApp
-
+    //init ChatApp
+    $.ChatApp = new ChatApp, $.ChatApp.Constructor = ChatApp
+    
 }(window.jQuery),
 
-    //initializing main application module
-    function ($) {
-        "use strict";
-        $.ChatApp.init();
-    }(window.jQuery);
+//initializing main application module
+function($) {
+    "use strict";
+    $.ChatApp.init();
+}(window.jQuery);

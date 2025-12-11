@@ -23,13 +23,13 @@
             }
         });
     },
-        //init SimpleMDE
-        $.SimpleMDEEditor = new SimpleMDEEditor, $.SimpleMDEEditor.Constructor = SimpleMDEEditor
+     //init SimpleMDE
+     $.SimpleMDEEditor = new SimpleMDEEditor, $.SimpleMDEEditor.Constructor = SimpleMDEEditor
 
 }(window.jQuery),
-
-    //initializing 
-    function ($) {
-        "use strict";
-        $.SimpleMDEEditor.init();
-    }(window.jQuery);
+    
+//initializing 
+function ($) {
+    "use strict";
+    $.SimpleMDEEditor.init();
+}(window.jQuery);

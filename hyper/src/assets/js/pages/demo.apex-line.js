@@ -174,13 +174,11 @@ for (var i = 0; i < 120; i++) {
     var innerArr = [ts2, dataSeries[1][i].value];
     dates.push(innerArr)
 }
-
 var colors = ["#fa5c7c"];
 var dataColors = $("#line-chart-zoomable").data('colors');
 if (dataColors) {
     colors = dataColors.split(",");
 }
-
 var options = {
     chart: {
         type: 'area',
@@ -247,6 +245,7 @@ var options = {
     xaxis: {
         type: 'datetime',
     },
+
     tooltip: {
         shared: false,
         y: {
@@ -286,48 +285,22 @@ var dataColors = $("#line-chart-annotations").data('colors');
 if (dataColors) {
     colors = dataColors.split(",");
 }
-
 var options = {
-    series: [{
-        data: series.monthDataSeries1.prices
-    }],
-    chart: {
-        height: 350,
-        type: 'line',
-        id: 'areachart-2'
-    },
-    colors: colors,
     annotations: {
         yaxis: [{
             y: 8200,
-            borderColor: '#00E396',
+            borderColor: '#0acf97',
             label: {
-                borderColor: '#00E396',
+                borderColor: '#0acf97',
                 style: {
                     color: '#fff',
-                    background: '#00E396',
+                    background: '#0acf97',
                 },
                 text: 'Support',
-            }
-        }, {
-            y: 8600,
-            y2: 9000,
-            borderColor: '#000',
-            fillColor: '#FEB019',
-            opacity: 0.2,
-            label: {
-                borderColor: '#333',
-                style: {
-                    fontSize: '10px',
-                    color: '#333',
-                    background: '#FEB019',
-                },
-                text: 'Y-axis range',
             }
         }],
         xaxis: [{
             x: new Date('23 Nov 2017').getTime(),
-            strokeDashArray: 0,
             borderColor: '#775DD0',
             label: {
                 borderColor: '#775DD0',
@@ -338,63 +311,55 @@ var options = {
                 text: 'Anno Test',
             }
         }, {
-            x: new Date('26 Nov 2017').getTime(),
-            x2: new Date('28 Nov 2017').getTime(),
-            fillColor: '#B3F7CA',
-            opacity: 0.4,
+            x: new Date('03 Dec 2017').getTime(),
+            borderColor: '#ffbc00',
             label: {
-                borderColor: '#B3F7CA',
+                borderColor: '#ffbc00',
                 style: {
-                    fontSize: '10px',
                     color: '#fff',
-                    background: '#00E396',
+                    background: '#ffbc00',
                 },
-                offsetY: -10,
-                text: 'X-axis range',
+                orientation: 'horizontal',
+                text: 'New Beginning',
             }
         }],
         points: [{
-            x: new Date('01 Dec 2017').getTime(),
-            y: 8607.55,
+            x: new Date('27 Nov 2017').getTime(),
+            y: 8506.9,
             marker: {
                 size: 8,
                 fillColor: '#fff',
-                strokeColor: 'red',
-                radius: 2,
-                cssClass: 'apexcharts-custom-class'
+                strokeColor: '#fa5c7c',
+                radius: 2
             },
             label: {
-                borderColor: '#FF4560',
+                borderColor: '#fa5c7c',
                 offsetY: 0,
                 style: {
                     color: '#fff',
-                    background: '#FF4560',
+                    background: '#fa5c7c',
                 },
+
                 text: 'Point Annotation',
-            }
-        }, {
-            x: new Date('08 Dec 2017').getTime(),
-            y: 9340.85,
-            marker: {
-                size: 0
-            },
-            image: {
-                path: 'assets/images/brands/instagram.png'
             }
         }]
     },
+    chart: {
+        height: 380,
+        type: 'line',
+        id: 'areachart-2'
+    },
+    colors: colors,
     dataLabels: {
         enabled: false
     },
     stroke: {
+        width: [3],
         curve: 'straight'
     },
-    grid: {
-        padding: {
-            right: 30,
-            left: 20
-        }
-    },
+    series: [{
+        data: series.monthDataSeries1.prices
+    }],
     title: {
         text: 'Line with Annotations',
         align: 'left'
@@ -403,7 +368,27 @@ var options = {
     xaxis: {
         type: 'datetime',
     },
-};
+    grid: {
+        row: {
+            colors: ['transparent', 'transparent'], // takes an array which will be repeated on columns
+            opacity: 0.2
+        },
+        borderColor: '#f1f3fa'
+    },
+    responsive: [{
+        breakpoint: 600,
+        options: {
+            chart: {
+                toolbar: {
+                    show: false
+                }
+            },
+            legend: {
+                show: false
+            },
+        }
+    }]
+}
 
 var chart = new ApexCharts(
     document.querySelector("#line-chart-annotations"),
@@ -594,33 +579,32 @@ function generateDayWiseTimeSeries(baseval, count, yrange) {
 //
 
 var options = {
-    series: [{
-        name: 'Sales',
-        data: [4, 3, 10, 9, 29, 19, 22, 9, 12, 7, 19, 5, 13, 9, 17, 2, 7, 5]
-    }],
     chart: {
-        height: 350,
+        height: 374,
         type: 'line',
-    },
-    forecastDataPoints: {
-        count: 7
+        shadow: {
+            enabled: false,
+            color: '#bbb',
+            top: 3,
+            left: 2,
+            blur: 3,
+            opacity: 1
+        },
     },
     stroke: {
         width: 5,
         curve: 'smooth'
     },
+    series: [{
+        name: 'Likes',
+        data: [4, 3, 10, 9, 29, 19, 22, 9, 12, 7, 19, 5, 13, 9, 17, 2, 7, 5]
+    }],
     xaxis: {
         type: 'datetime',
         categories: ['1/11/2000', '2/11/2000', '3/11/2000', '4/11/2000', '5/11/2000', '6/11/2000', '7/11/2000', '8/11/2000', '9/11/2000', '10/11/2000', '11/11/2000', '12/11/2000', '1/11/2001', '2/11/2001', '3/11/2001', '4/11/2001', '5/11/2001', '6/11/2001'],
-        tickAmount: 10,
-        labels: {
-            formatter: function (value, timestamp, opts) {
-                return opts.dateFormatter(new Date(timestamp), 'dd MMM')
-            }
-        }
     },
     title: {
-        text: 'Forecast',
+        text: 'Social Media',
         align: 'left',
         style: {
             fontSize: "16px",
@@ -631,15 +615,53 @@ var options = {
         type: 'gradient',
         gradient: {
             shade: 'dark',
-            gradientToColors: ['#FDD835'],
+            gradientToColors: ['#fa5c7c'],
             shadeIntensity: 1,
             type: 'horizontal',
             opacityFrom: 1,
             opacityTo: 1,
             stops: [0, 100, 100, 100]
         },
-    }
-};
+    },
+    markers: {
+        size: 4,
+        opacity: 0.9,
+        colors: ["#ffbc00"],
+        strokeColor: "#fff",
+        strokeWidth: 2,
+        style: 'inverted', // full, hollow, inverted
+        hover: {
+            size: 7,
+        }
+    },
+    yaxis: {
+        min: -10,
+        max: 40,
+        title: {
+            text: 'Engagement',
+        },
+    },
+    grid: {
+        row: {
+            colors: ['transparent', 'transparent'], // takes an array which will be repeated on columns
+            opacity: 0.2
+        },
+        borderColor: '#f1f3fa'
+    },
+    responsive: [{
+        breakpoint: 600,
+        options: {
+            chart: {
+                toolbar: {
+                    show: false
+                }
+            },
+            legend: {
+                show: false
+            },
+        }
+    }]
+}
 
 var chart = new ApexCharts(
     document.querySelector("#line-chart-gradient"),
@@ -799,7 +821,7 @@ if (dataColors) {
 var options = {
     chart: {
         type: 'line',
-        height: 344
+        height: 350
     },
     stroke: {
         curve: 'stepline',
@@ -829,125 +851,6 @@ var chart = new ApexCharts(
 );
 
 chart.render();
-
-
-
-
-var colors = ["#ffbc00"];
-var dataColors = $("#chart-line2").data('colors');
-if (dataColors) {
-    colors = dataColors.split(",");
-}
-
-/*
-    // this function will generate output in this format
-    // data = [
-        [timestamp, 23],
-        [timestamp, 33],
-        [timestamp, 12]
-        ...
-    ]
-  */
-function generateDayWiseTimeSeries(baseval, count, yrange) {
-    var i = 0;
-    var series = [];
-    while (i < count) {
-        var x = baseval;
-        var y = Math.floor(Math.random() * (yrange.max - yrange.min + 1)) + yrange.min;
-
-        series.push([x, y]);
-        baseval += 86400000;
-        i++;
-    }
-    return series;
-}
-
-var data = generateDayWiseTimeSeries(new Date('11 Feb 2017').getTime(), 185, {
-    min: 30,
-    max: 90
-})
-var options = {
-    series: [{
-        data: data
-    }],
-    chart: {
-        id: 'chart2',
-        type: 'line',
-        height: 230,
-        toolbar: {
-            autoSelected: 'pan',
-            show: false
-        }
-    },
-    colors: colors,
-    stroke: {
-        width: 3
-    },
-    dataLabels: {
-        enabled: false
-    },
-    fill: {
-        opacity: 1,
-    },
-    markers: {
-        size: 0
-    },
-    xaxis: {
-        type: 'datetime'
-    }
-};
-
-var chart = new ApexCharts(document.querySelector("#chart-line2"), options);
-chart.render();
-
-
-var colors = ["#ffbc00"];
-var dataColors = $("#chart-line").data('colors');
-if (dataColors) {
-    colors = dataColors.split(",");
-}
-
-var optionsLine = {
-    series: [{
-        data: data
-    }],
-    chart: {
-        id: 'chart1',
-        height: 130,
-        type: 'area',
-        brush: {
-            target: 'chart2',
-            enabled: true
-        },
-        selection: {
-            enabled: true,
-            xaxis: {
-                min: new Date('19 Jun 2017').getTime(),
-                max: new Date('14 Aug 2017').getTime()
-            }
-        },
-    },
-    colors: colors,
-    fill: {
-        type: 'gradient',
-        gradient: {
-            opacityFrom: 0.91,
-            opacityTo: 0.1,
-        }
-    },
-    xaxis: {
-        type: 'datetime',
-        tooltip: {
-            enabled: false
-        }
-    },
-    yaxis: {
-        tickAmount: 2
-    }
-};
-
-var chartLine = new ApexCharts(document.querySelector("#chart-line"), optionsLine);
-chartLine.render();
 
 
 //

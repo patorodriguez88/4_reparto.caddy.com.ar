@@ -15,24 +15,26 @@
     Profile.prototype.respChart = function (selector, type, data, options) {
 
         var draw3 = Chart.controllers.bar.prototype.draw;
-        Chart.controllers.bar.draw = function () {
-            draw3.apply(this, arguments);
-            var ctx = this.chart.ctx;
-            var _fill = ctx.fill;
-            ctx.fill = function () {
-                ctx.save();
-                ctx.shadowColor = 'rgba(0,0,0,0.01)';
-                ctx.shadowBlur = 20;
-                ctx.shadowOffsetX = 4;
-                ctx.shadowOffsetY = 5;
-                _fill.apply(this, arguments)
-                ctx.restore();
+        Chart.controllers.bar = Chart.controllers.bar.extend({
+            draw: function () {
+                draw3.apply(this, arguments);
+                var ctx = this.chart.chart.ctx;
+                var _fill = ctx.fill;
+                ctx.fill = function () {
+                    ctx.save();
+                    ctx.shadowColor = 'rgba(0,0,0,0.01)';
+                    ctx.shadowBlur = 20;
+                    ctx.shadowOffsetX = 4;
+                    ctx.shadowOffsetY = 5;
+                    _fill.apply(this, arguments)
+                    ctx.restore();
+                }
             }
-        }
+        });
 
         //default config
-        Chart.defaults.color = '#8fa2b3';
-        Chart.defaults.borderColor = "rgba(133, 141, 152, 0.1)";
+        Chart.defaults.global.defaultFontColor = "#8391a2";
+        Chart.defaults.scale.gridLines.color = "#8391a2";
 
         // get selector by context
         var ctx = selector.get(0).getContext("2d");
@@ -95,46 +97,38 @@
                         },
                         {
                             label: "Revenue",
-                            backgroundColor: "#91a6bd40",
-                            borderColor: "#91a6bd40",
-                            hoverBackgroundColor: "#91a6bd40",
-                            hoverBorderColor: "#91a6bd40",
+                            backgroundColor: "#e3eaef",
+                            borderColor: "#e3eaef",
+                            hoverBackgroundColor: "#e3eaef",
+                            hoverBorderColor: "#e3eaef",
                             data: [89, 40, 32, 65, 59, 80, 81, 56, 89, 40, 65, 59]
                         }
                     ]
                 };
                 var barOpts = {
                     maintainAspectRatio: false,
-                    datasets: {
-                        bar: {
-                            barPercentage: 0.7,
-                            categoryPercentage: 0.5,
-                        }
+                    legend: {
+                        display: false
                     },
-                    plugins:{
-                        legend: {
-                            display: false
-                        },
-                    },
-
-
                     scales: {
-                        y: {
-                            grid: {
+                        yAxes: [{
+                            gridLines: {
                                 display: false,
-                                color: "#91a6bd40" 
+                                color: "rgba(0,0,0,0.05)"
                             },
                             stacked: false,
                             ticks: {
                                 stepSize: 20
                             }
-                        },
-                        x: {
+                        }],
+                        xAxes: [{
+                            barPercentage: 0.7,
+                            categoryPercentage: 0.5,
                             stacked: false,
-                            grid: {
+                            gridLines: {
                                 color: "rgba(0,0,0,0.01)"
                             }
-                        }
+                        }]
                     }
                 };
 
@@ -146,7 +140,7 @@
         Profile.prototype.init = function () {
             var $this = this;
             // font
-            Chart.defaults.font.family = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';
+            Chart.defaults.global.defaultFontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';
 
             // init charts
             $this.charts = this.initCharts();

@@ -9,10 +9,10 @@
 
     var AnalyticsDashboard = function () {
         this.$body = $("body"),
-            this.charts = []
+        this.charts = []
     };
 
-    AnalyticsDashboard.prototype.initCharts = function () {
+    AnalyticsDashboard.prototype.initCharts = function() {
         window.Apex = {
             chart: {
                 parentHeightOffset: 0,
@@ -31,7 +31,7 @@
 
         function getRandomData(number) {
             var graphData = [];
-            for (var idx = 0; idx < number; idx++) {
+            for (var idx=0; idx < number; idx++) {
                 graphData.push(Math.floor(Math.random() * Math.floor(90)) + 30);
             }
             return graphData;
@@ -43,22 +43,22 @@
             var idx = 0;
             while (date.getMonth() === month && idx < 15) {
                 var d = new Date(date);
-                days.push(d.getDate() + " " + d.toLocaleString('en-us', { month: 'short' }));
-                date.setDate(date.getDate() + 1);
-                idx += 1;
+               days.push(d.getDate() + " " +  d.toLocaleString('en-us', { month: 'short' }));
+               date.setDate(date.getDate() + 1);
+               idx += 1;
             }
             return days;
-        }
+       }
 
-        var now = new Date();
-        var labels = getDaysInMonth(now.getMonth() + 1, now.getFullYear());
-
+       var now = new Date();
+       var labels = getDaysInMonth(now.getMonth() + 1, now.getFullYear());
+       
         var colors = ["#727cf5", "#0acf97", "#fa5c7c", "#ffbc00"];
         var dataColors = $("#sessions-overview").data('colors');
         if (dataColors) {
             colors = dataColors.split(",");
         }
-        var options = {
+       var options = {
             chart: {
                 height: 309,
                 type: 'area'
@@ -91,7 +91,7 @@
                     show: false
                 },
                 labels: {
-
+                    
                 }
             },
             yaxis: {
@@ -111,7 +111,7 @@
                     opacityFrom: 0.45,
                     opacityTo: 0.05,
                     stops: [45, 100]
-                },
+                  },
             },
         }
 
@@ -124,17 +124,17 @@
 
         // --------------------------------------------------
         var categories = [];
-        for (var i = 10; i >= 1; i--) {
+        for (var i=10; i>=1; i--) {
             categories.push(i + ' min ago');
         }
         function getRandomData(length) {
             var d = [];
-            for (var idx = 0; idx < length; idx++) {
+            for (var idx=0; idx<length; idx ++) {
                 d.push(Math.floor(Math.random() * 90) + 10);
             }
             return d;
         }
-
+        
         var colors = ["#727cf5", "#0acf97", "#fa5c7c", "#ffbc00"];
         var dataColors = $("#views-min").data('colors');
         if (dataColors) {
@@ -149,7 +149,7 @@
             plotOptions: {
                 bar: {
                     horizontal: false,
-                    endingShape: "rounded",
+                    endingShape:"rounded",
                     columnWidth: "22%",
                     dataLabels: {
                         position: 'top', // top, center, bottom
@@ -161,7 +161,7 @@
                 offsetY: -24,
                 style: {
                     fontSize: '12px',
-                    colors: ["#8a969c"]
+                    colors: ["#98a6ad"]
                 }
             },
             series: [{
@@ -195,14 +195,14 @@
             fill: {
                 type: "gradient",
                 gradient: {
-                    inverseColors: !0,
+                    inverseColors:!0,
                     shade: "light",
                     type: "horizontal",
                     shadeIntensity: .25,
                     gradientToColors: void 0,
                     opacityFrom: 1,
                     opacityTo: 1,
-                    stops: [0, 100, 100, 100]
+                    stops: [0,100,100,100]
                 }
             },
             tooltip: {
@@ -221,7 +221,7 @@
 
         chart2.render();
 
-
+        
         // ------------ sessions by browser
         var colors = ["#727cf5", "#0acf97", "#fa5c7c", "#ffbc00"];
         var dataColors = $("#sessions-browser").data('colors');
@@ -230,7 +230,7 @@
         }
         var options = {
             chart: {
-                height: 345,
+                height: 343,
                 type: 'radar',
             },
             series: [{
@@ -240,13 +240,19 @@
             labels: ['Chrome', 'Firefox', 'Safari', 'Opera', 'Edge', 'Explorer'],
             plotOptions: {
                 radar: {
-                    size: 130
+                    size: 130,
+                    polygons: {
+                        strokeColor: '#e9e9e9',
+                        fill: {
+                            colors: ['#f8f8f8', '#fff']
+                        }
+                    }
                 }
             },
             colors: colors,
             yaxis: {
                 labels: {
-                    formatter: function (val) {
+                    formatter: function(val) {
                         return val + "%";
                     }
                 },
@@ -309,11 +315,11 @@
             }
         }
 
-        var chart = new ApexCharts(
+       var chart = new ApexCharts(
             document.querySelector("#country-chart"),
             options
         );
-
+        
         chart.render();
 
         /* ------------- visitors by os */
@@ -324,7 +330,7 @@
         }
         var options = {
             chart: {
-                height: 269,
+                height: 268,
                 type: 'radialBar',
             },
             plotOptions: {
@@ -351,93 +357,75 @@
             series: [44, 55, 67, 83],
             labels: ['Windows', 'Macintosh', 'Linux', 'Android']
         }
-
+        
         var chart = new ApexCharts(
             document.querySelector("#sessions-os"),
             options
         );
-
+        
         chart.render();
-
+        
     },
-        // inits the map
-        AnalyticsDashboard.prototype.initMaps = function () {
-            const map = new jsVectorMap({
-                map: 'world',
-                selector: '#world-map-markers',
-                zoomOnScroll: false,
-                zoomButtons: true,
+    // inits the map
+    AnalyticsDashboard.prototype.initMaps = function() {
+        //various examples
+        if ($('#world-map-markers').length > 0) {
+            $('#world-map-markers').vectorMap({
+                map: 'world_mill_en',
+                normalizeFunction: 'polynomial',
                 hoverOpacity: 0.7,
                 hoverColor: false,
-
                 regionStyle: {
                     initial: {
-                        fill: '#91a6bd40'
+                        fill: 'rgba(93,106,120,0.2)'
                     }
                 },
-
-                // backgroundColor: 'transparent',
                 series: {
-                    regions: [{
-                        attribute: 'fill',
-
-                        scale: {
-                            myScaleKR: "#91a6bd40",
-                            myScaleCA: "#b3c3ff",
-                            myScaleGB: "#809bfe",
-                            myScaleNL: "#4d73fe",
-                            myScaleIT: "#1b4cfe",
-                            myScaleFR: "#727cf5",
-                            myScaleJP: "#e7fef7",
-                            myScaleUS: "#e7e9fd",
-                            myScaleCN: "#8890f7",
-                            myScaleIN: "#727cf5",
-                        },
-
-                        values: {
-                            KR: "myScaleKR",
-                            CA: "myScaleCA",
-                            GB: "myScaleGB",
-                            NL: "myScaleNL",
-                            IT: "myScaleIT",
-                            FR: "myScaleFR",
-                            JP: "myScaleJP",
-                            US: "myScaleUS",
-                            CN: "myScaleCN",
-                            IN: "myScaleIN",
-                        },
-
-                    }]
+                    regions: [{ values: {
+                                 "KR": "#e6ebff",
+                                 "CA": "#b3c3ff",
+                                 "GB": "#809bfe",
+                                 "NL": "#4d73fe",
+                                 "IT": "#1b4cfe",
+                                 "FR": "#727cf5",
+                                 "JP": "#e7fef7",
+                                 "US": "#e7e9fd",
+                                 "CN": "#8890f7",
+                                 "IN": "#727cf5",
+                    }, attribute: 'fill' }]
                 },
+                backgroundColor: 'transparent',
+                zoomOnScroll: false
             });
-        },
-        //initializing various components and plugins
-        AnalyticsDashboard.prototype.init = function () {
-            var $this = this;
-            // font
-            // Chart.defaults.global.defaultFontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';        
+        }
+    },
+    //initializing various components and plugins
+    AnalyticsDashboard.prototype.init = function () {
+        var $this = this;
+        // font
+        // Chart.defaults.global.defaultFontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';        
+        
+        //default date range picker
+        $('#dash-daterange').daterangepicker({
+            singleDatePicker: true
+        });
 
-            //default date range picker
-            $('#dash-daterange').daterangepicker({
-                singleDatePicker: true
-            });
+        // init charts
+        this.initCharts();
 
-            // init charts
-            this.initCharts();
+        //init maps
+        this.initMaps();
 
-            //init maps
-            this.initMaps();
+        // active counts
+        window.setInterval(function() {
+            var ac = Math.floor(Math.random() * 600 + 150);
+            $("#active-users-count").text(ac);
+            $("#active-views-count").text(Math.floor(Math.random() * ac + 200));
+        }, 2000);
+    },
 
-            // active counts
-            window.setInterval(function () {
-                var ac = Math.floor(Math.random() * 600 + 150);
-                $("#active-users-count").text(ac);
-                $("#active-views-count").text(Math.floor(Math.random() * ac + 200));
-            }, 2000);
-        },
-
-        //init flotchart
-        $.AnalyticsDashboard = new AnalyticsDashboard, $.AnalyticsDashboard.Constructor = AnalyticsDashboard
+    //init flotchart
+    $.AnalyticsDashboard = new AnalyticsDashboard, $.AnalyticsDashboard.Constructor = AnalyticsDashboard
 }(window.jQuery),
 
     //initializing Dashboard

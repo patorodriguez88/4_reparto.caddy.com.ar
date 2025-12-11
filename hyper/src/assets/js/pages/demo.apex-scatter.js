@@ -142,7 +142,7 @@ var options = {
         },
     },
     legend: {
-        offsetY: 10,
+        offsetY: 7,
     },
     xaxis: {
         type: 'datetime',
@@ -276,7 +276,7 @@ var options = {
         type: 'image',
         opacity: 1,
         image: {
-            src: ['assets/images/brands/messenger.png', 'assets/images/brands/instagram.png'],
+            src: ['assets/images/ico-messenger.png', 'assets/images/ico-instagram.png'],
             width: 40,
             height: 40
         }
@@ -285,7 +285,16 @@ var options = {
         labels: {
             useSeriesColors: true
         },
-        offsetY: 7
+        offsetY: 7,
+        markers: {
+            customHTML: [
+                function () {
+                    return '<span><i class="mdi mdi-facebook"></i></span>'
+                }, function () {
+                    return '<span><i class="mdi mdi-instagram"></i></span>'
+                }
+            ]
+        }
     }
 }
 

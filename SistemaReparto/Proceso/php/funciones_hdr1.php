@@ -43,9 +43,13 @@ if (isset($_POST['MisEnvios'])) {
         'Totalno' => $TotalMisNoEnvios,
         'Usuario' => $Usuario
     ]);
+
+    exit; // 👈 por prolijidad, cortamos también
+
+
 }
 
-if ($_POST['Paneles'] == 1) {
+if (isset($_POST['Paneles'])) {
     // $recorrido = $_SESSION['RecorridoAsignado'];
     // $usuario = $_SESSION['NombreUsuario'];
     $recorrido = $_SESSION['RecorridoAsignado'] ?? '';
@@ -175,7 +179,7 @@ if ($_POST['Paneles'] == 1) {
                                 <?php endif; ?>
 
                                 <?php
-                                if ($row['CobrarEnvio'] == 1) {
+                                if (isset($row['CobrarEnvio'])) {
                                     $sqlCobranza = $mysqli->query("SELECT SUM(CobrarEnvio) AS Cobrar FROM Ventas WHERE NumPedido='$codSeguimiento' AND Eliminado=0");
                                     $datos = $sqlCobranza->fetch_assoc();
                                     echo "<span class='badge badge-outline-warning'>Atención! Requiere Cobranza de $ " . number_format($datos['Cobrar'], 2) . "</span>";
@@ -187,9 +191,9 @@ if ($_POST['Paneles'] == 1) {
 
                     <div class="row">
                         <div class="col-md-12">
-                            <a style='margin-left:15%;'><img src='images/wrong.png' width='60' height='60' onclick='verwrong(<?= $row['hdrid'] ?>)' /></a>
-                            <a style='margin-left:3%;' href='https://maps.google.com/?q=<?= urlencode($direccionMapa) ?>' target='_blank'><img src='images/goto.png' width='70' height='70' /></a>
-                            <a style='margin-left:6%;'><img src='images/ok.png' width='60' height='60' onclick='verok(<?= $row['hdrid'] ?>)' /></a>
+                            <a style='margin-left:15%;'><img src='images/wrong.png' width='60' height='60' onclick="verwrong(<?php echo $row['hdrid'] ?>)" /></a>
+                            <a style='margin-left:3%;' href="https://www.google.com/maps/search/?api=1&query=<?php echo urlencode($direccionMapa) ?>" target="_blank"><img src="images/goto.png" width="70" height="70" /></a>
+                            <a style='margin-left:6%;'><img src='images/ok.png' width='60' height='60' onclick="verok(<?= $row['hdrid'] ?>)" /></a>
                         </div>
                     </div>
 
@@ -198,5 +202,8 @@ if ($_POST['Paneles'] == 1) {
         </div>
 <?php
     }
+    exit; // 👈 por prolijidad, cortamos también
+
+
 }
 ?>

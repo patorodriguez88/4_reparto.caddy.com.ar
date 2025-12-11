@@ -16,7 +16,7 @@
         var draw = Chart.controllers.line.prototype.draw;
         Chart.controllers.line.prototype.draw = function () {
             draw.apply(this, arguments);
-            var ctx = this.chart.ctx;
+            var ctx = this.chart.chart.ctx;
             var _stroke = ctx.stroke;
             ctx.stroke = function () {
                 ctx.save();
@@ -30,8 +30,8 @@
         };
 
         //default config
-        Chart.defaults.color = '#8fa2b3';
-        Chart.defaults.scale.grid.color = "#8391a2";
+        Chart.defaults.global.defaultFontColor = "#8391a2";
+        Chart.defaults.scale.gridLines.color = "#8391a2";
 
         // get selector by context
         var ctx = selector.get(0).getContext("2d");
@@ -78,8 +78,6 @@
                         label: "Completed Tasks",
                         backgroundColor: 'rgba(10, 207, 151, 0.3)',
                         borderColor: '#0acf97',
-                        fill: true,
-
                         data: [32, 42, 42, 62, 52, 75, 62]
                     }, {
                         label: "Plan Tasks",
@@ -93,48 +91,38 @@
 
                 var lineOpts = {
                     maintainAspectRatio: false,
-
+                    legend: {
+                        display: false
+                    },
+                    tooltips: {
+                        intersect: false
+                    },
+                    hover: {
+                        intersect: true
+                    },
                     plugins: {
                         filler: {
                             propagate: false
-                        },
-                        legend: {
-                            display: false
-                        },
-                        tooltips: {
-                            intersect: false
-                        },
-                        hover: {
-                            intersect: true
-                        },
+                        }
                     },
-                    tension: 0.3,
                     scales: {
-                        x: {
-                            grid: {
+                        xAxes: [{
+                            reverse: true,
+                            gridLines: {
                                 color: "rgba(0,0,0,0.05)"
-                            },
-                            border: {
-                                display: false,             // Hides Y axis line (left)
-                                dash: [5, 5]
                             }
-                        },
-                        y: {
+                        }],
+                        yAxes: [{
                             ticks: {
                                 stepSize: 20
                             },
                             display: true,
                             borderDash: [5, 5],
-                            grid: {
+                            gridLines: {
                                 color: "rgba(0,0,0,0)",
-                                drawBorder: false,          // Hides Y axis border line
                                 fontColor: '#fff'
-                            },
-                            border: {
-                                display: false,             // Hides Y axis line (left)
-                                dash: [5, 5]
                             }
-                        }
+                        }]
                     }
                 };
                 charts.push(this.respChart($("#line-chart-example"), 'Line', lineChart, lineOpts));
@@ -147,7 +135,7 @@
         ChartJs.prototype.init = function () {
             var $this = this;
             // font
-            Chart.defaults.font.family = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';
+            Chart.defaults.global.defaultFontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';
 
             // init charts
             $this.charts = this.initCharts();

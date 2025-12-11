@@ -4,11 +4,9 @@
  * Module/App: Apex Area Charts
  */
 
-
 //
 // Basic Area Chart
 //
-
 var colors = ["#fa6767"];
 var dataColors = $("#basic-area").data('colors');
 if (dataColors) {
@@ -130,7 +128,7 @@ var options = {
     },
     grid: {
         borderColor: '#f1f3fa',
-
+        
     }
 }
 
@@ -144,7 +142,6 @@ chart.render();
 //
 // AREA CHART - DATETIME X-AXIS
 //
-
 $(document).ready(function () {
     var colors = ["#6c757d"];
     var dataColors = $("#area-chart-datetime").data('colors');
@@ -182,10 +179,6 @@ $(document).ready(function () {
         chart: {
             type: 'area',
             height: 350,
-        },
-        stroke: {
-            width: 3,
-            curve: 'smooth'
         },
         colors: colors,
         dataLabels: {
@@ -947,51 +940,53 @@ var dataColors = $("#stacked-area").data('colors');
 if (dataColors) {
     colors = dataColors.split(",");
 }
-
 var options = {
-    series: [
-        {
-            name: 'South',
-            data: generateDayWiseTimeSeries(new Date('11 Feb 2017 GMT').getTime(), 20, {
-                min: 10,
-                max: 60
-            })
-        },
-        {
-            name: 'North',
-            data: generateDayWiseTimeSeries(new Date('11 Feb 2017 GMT').getTime(), 20, {
-                min: 10,
-                max: 20
-            })
-        },
-        {
-            name: 'Central',
-            data: generateDayWiseTimeSeries(new Date('11 Feb 2017 GMT').getTime(), 20, {
-                min: 10,
-                max: 15
-            })
-        }
-    ],
     chart: {
+        height: 422,
         type: 'area',
-        height: 350,
         stacked: true,
         events: {
             selection: function (chart, e) {
                 console.log(new Date(e.xaxis.min))
             }
         },
+
     },
-    colors: ['#008FFB', '#00E396', '#CED4DC'],
+    colors: colors,
     dataLabels: {
         enabled: false
     },
     stroke: {
-        curve: 'monotoneCubic'
+        width: 2,
+        curve: 'smooth'
     },
+
+    series: [{
+        name: 'South',
+        data: generateDayWiseTimeSeries(new Date('11 Feb 2017').getTime(), 20, {
+            min: 10,
+            max: 60
+        })
+    },
+    {
+        name: 'North',
+        data: generateDayWiseTimeSeries(new Date('11 Feb 2017').getTime(), 20, {
+            min: 10,
+            max: 20
+        })
+    },
+
+    {
+        name: 'Central',
+        data: generateDayWiseTimeSeries(new Date('11 Feb 2017').getTime(), 20, {
+            min: 10,
+            max: 15
+        })
+    }
+    ],
     fill: {
-        type: 'gradient',
         gradient: {
+            enabled: true,
             opacityFrom: 0.6,
             opacityTo: 0.8,
         }
@@ -1003,84 +998,24 @@ var options = {
     xaxis: {
         type: 'datetime'
     },
-};
-
-// var options = {
-//     chart: {
-//         height: 422,
-//         type: 'area',
-//         stacked: true,
-//         events: {
-//             selection: function (chart, e) {
-//                 console.log(new Date(e.xaxis.min))
-//             }
-//         },
-
-//     },
-//     colors: colors,
-//     dataLabels: {
-//         enabled: false
-//     },
-//     stroke: {
-//         width: 2,
-//         curve: 'smooth'
-//     },
-
-//     series: [{
-//         name: 'South',
-//         data: generateDayWiseTimeSeries(new Date('11 Feb 2017').getTime(), 20, {
-//             min: 10,
-//             max: 60
-//         })
-//     },
-//     {
-//         name: 'North',
-//         data: generateDayWiseTimeSeries(new Date('11 Feb 2017').getTime(), 20, {
-//             min: 10,
-//             max: 20
-//         })
-//     },
-
-//     {
-//         name: 'Central',
-//         data: generateDayWiseTimeSeries(new Date('11 Feb 2017').getTime(), 20, {
-//             min: 10,
-//             max: 15
-//         })
-//     }
-//     ],
-//     fill: {
-//         gradient: {
-//             enabled: true,
-//             opacityFrom: 0.6,
-//             opacityTo: 0.8,
-//         }
-//     },
-//     legend: {
-//         position: 'top',
-//         horizontalAlign: 'left'
-//     },
-//     xaxis: {
-//         type: 'datetime'
-//     },
-//     grid: {
-//         row: {
-//             colors: ['transparent', 'transparent'], // takes an array which will be repeated on columns
-//             opacity: 0.2
-//         },
-//         borderColor: '#f1f3fa'
-//     },
-//     responsive: [{
-//         breakpoint: 600,
-//         options: {
-//             chart: {
-//                 toolbar: {
-//                     show: false
-//                 }
-//             }
-//         }
-//     }]
-// }
+    grid: {
+        row: {
+            colors: ['transparent', 'transparent'], // takes an array which will be repeated on columns
+            opacity: 0.2
+        },
+        borderColor: '#f1f3fa'
+    },
+    responsive: [{
+        breakpoint: 600,
+        options: {
+            chart: {
+                toolbar: {
+                    show: false
+                }
+            }
+        }
+    }]
+}
 
 var chart = new ApexCharts(
     document.querySelector("#stacked-area"),
@@ -1112,6 +1047,7 @@ function generateDayWiseTimeSeries(baseval, count, yrange) {
     return series;
 }
 
+
 //
 // IRREGULAR TIMESERIES
 //
@@ -1137,123 +1073,28 @@ for (var i = 0; i < 12; i++) {
     var innerArr = [ts3, dataSeries[0][i].value];
     dataSet[2].push(innerArr)
 }
-
 var colors = ["#39afd1", "#fa5c7c", "#727cf5"];
 var dataColors = $("#area-timeSeries").data('colors');
 if (dataColors) {
     colors = dataColors.split(",");
 }
-
-// var options = {
-//     chart: {
-//         type: 'area',
-//         stacked: false,
-//         height: 380,
-//         zoom: {
-//             enabled: false
-//         },
-//     },
-//     plotOptions: {
-//         line: {
-//             curve: 'smooth',
-//         }
-//     },
-//     dataLabels: {
-//         enabled: false
-//     },
-//     series: [{
-//         name: 'Product A',
-//         data: dataSet[0]
-//     }, {
-//         name: 'Product B',
-//         data: dataSet[1]
-//     }, {
-//         name: 'Product C',
-//         data: dataSet[2]
-//     }],
-//     colors: colors,
-//     markers: {
-//         size: 0,
-//         style: 'full',
-//     },
-//     stroke: {
-//         width: 3
-//     },
-//     fill: {
-//         gradient: {
-//             enabled: true,
-//             shadeIntensity: 1,
-//             inverseColors: false,
-//             opacityFrom: 0.45,
-//             opacityTo: 0.05,
-//             stops: [20, 100, 100, 100]
-//         },
-//     },
-//     yaxis: {
-//         //floating: true,
-//         labels: {
-//             style: {
-//                 color: '#8e8da4',
-//             },
-//             offsetX: 0,
-//             formatter: function (val) {
-//                 return (val / 1000000).toFixed(0);
-//             },
-//         },
-//         axisBorder: {
-//             show: false,
-//         },
-//         axisTicks: {
-//             show: false
-//         }
-//     },
-//     xaxis: {
-//         type: 'datetime',
-//         tickAmount: 8,
-//         labels: {
-//             formatter: function (val) {
-//                 return moment(new Date(val)).format("DD MMM YYYY")
-//             }
-//         }
-//     },
-//     title: {
-//         text: 'Irregular Data in Time Series',
-//         align: 'left',
-//         offsetX: 0
-//     },
-//     tooltip: {
-//         shared: true,
-//         y: {
-//             formatter: function (val) {
-//                 return (val / 1000000).toFixed(0) + " points"
-//             }
-//         }
-//     },
-//     legend: {
-//         position: 'top',
-//         horizontalAlign: 'center',
-//         offsetX: -10
-//     },
-//     grid: {
-//         row: {
-//             colors: ['transparent', 'transparent'], // takes an array which will be repeated on columns
-//             opacity: 0.2
-//         },
-//         borderColor: '#f1f3fa'
-//     },
-//     responsive: [{
-//         breakpoint: 600,
-//         options: {
-//             chart: {
-//                 toolbar: {
-//                     show: false
-//                 }
-//             }
-//         }
-//     }]
-// }
-
 var options = {
+    chart: {
+        type: 'area',
+        stacked: false,
+        height: 380,
+        zoom: {
+            enabled: false
+        },
+    },
+    plotOptions: {
+        line: {
+            curve: 'smooth',
+        }
+    },
+    dataLabels: {
+        enabled: false
+    },
     series: [{
         name: 'PRODUCT A',
         data: dataSet[0]
@@ -1264,21 +1105,14 @@ var options = {
         name: 'PRODUCT C',
         data: dataSet[2]
     }],
-    chart: {
-        type: 'area',
-        stacked: false,
-        height: 350,
-        zoom: {
-            enabled: false
-        },
-    },
-    dataLabels: {
-        enabled: false
-    },
+    colors: colors,
     markers: {
         size: 0,
+        style: 'full',
     },
-    colors: colors,
+    stroke: {
+        width: 3
+    },
     fill: {
         gradient: {
             enabled: true,
@@ -1319,17 +1153,39 @@ var options = {
     title: {
         text: 'Irregular Data in Time Series',
         align: 'left',
-        offsetX: 14
+        offsetX: 0
     },
     tooltip: {
-        shared: true
+        shared: true,
+        y: {
+            formatter: function (val) {
+                return (val / 1000000).toFixed(0) + " points"
+            }
+        }
     },
     legend: {
         position: 'top',
-        horizontalAlign: 'right',
+        horizontalAlign: 'center',
         offsetX: -10
-    }
-};
+    },
+    grid: {
+        row: {
+            colors: ['transparent', 'transparent'], // takes an array which will be repeated on columns
+            opacity: 0.2
+        },
+        borderColor: '#f1f3fa'
+    },
+    responsive: [{
+        breakpoint: 600,
+        options: {
+            chart: {
+                toolbar: {
+                    show: false
+                }
+            }
+        }
+    }]
+}
 
 var chart = new ApexCharts(
     document.querySelector("#area-timeSeries"),
@@ -1347,8 +1203,24 @@ var dataColors = $("#area-chart-nullvalues").data('colors');
 if (dataColors) {
     colors = dataColors.split(",");
 }
-
 var options = {
+    chart: {
+        height: 380,
+        type: 'area',
+        animations: {
+            enabled: false
+        },
+        zoom: {
+            enabled: false
+        },
+    },
+    dataLabels: {
+        enabled: false
+    },
+    stroke: {
+        curve: 'straight'
+    },
+    colors: colors,
     series: [{
         name: 'Network',
         data: [{
@@ -1445,23 +1317,6 @@ var options = {
         }
         ],
     }],
-    chart: {
-        type: 'area',
-        height: 350,
-        animations: {
-            enabled: false
-        },
-        zoom: {
-            enabled: false
-        },
-    },
-    dataLabels: {
-        enabled: false
-    },
-    stroke: {
-        curve: 'straight'
-    },
-    colors: colors,
     fill: {
         opacity: 0.8,
         gradient: {
@@ -1497,9 +1352,25 @@ var options = {
         title: {
             text: 'Bytes Received'
         }
-    }
-};
-
+    },
+    grid: {
+        row: {
+            colors: ['transparent', 'transparent'], // takes an array which will be repeated on columns
+            opacity: 0.2
+        },
+        borderColor: '#f1f3fa'
+    },
+    responsive: [{
+        breakpoint: 600,
+        options: {
+            chart: {
+                toolbar: {
+                    show: false
+                }
+            }
+        }
+    }]
+}
 
 var chart = new ApexCharts(
     document.querySelector("#area-chart-nullvalues"),

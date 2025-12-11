@@ -5,18 +5,20 @@
  */
 
 
-!function ($) {
+
+! function ($) {
     "use strict";
 
     var ChartJs = function () {
-        this.$body = $("body"), this.charts = []
+        this.$body = $("body"),
+            this.charts = []
     };
 
     ChartJs.prototype.respChart = function (selector, type, data, options) {
 
         //default config
-        Chart.defaults.color = '#8fa2b3';
-        Chart.defaults.borderColor = "rgba(133, 141, 152, 0.1)";
+        Chart.defaults.global.defaultFontColor = "#8391a2";
+        Chart.defaults.scale.gridLines.color = "#8391a2";
 
         // get selector by context
         var ctx = selector.get(0).getContext("2d");
@@ -40,10 +42,11 @@
                     break;
             }
             return chart;
-        }
+        };
         // run function - render chart at first load
         return generateChart();
-    }, // init various charts and returns
+    },
+        // init various charts and returns
         ChartJs.prototype.initCharts = function () {
             var charts = [];
 
@@ -54,44 +57,106 @@
                 var borderColor = dataBorderColor ? dataBorderColor : '#727cf5';
 
                 var lineChart = {
-                    labels: ["Sprint 1", "Sprint 2", "Sprint 3", "Sprint 4", "Sprint 5", "Sprint 6", "Sprint 7", "Sprint 8", "Sprint 9", "Sprint 10", "Sprint 11", "Sprint 12", "Sprint 13", "Sprint 14", "Sprint 15", "Sprint 16", "Sprint 17", "Sprint 18", "Sprint 19", "Sprint 20", "Sprint 21", "Sprint 22", "Sprint 23", "Sprint 24"],
-                    datasets: [{
-                        label: "This year",
-                        backgroundColor: bgColor,
-                        borderColor: borderColor,
-                        data: [16, 44, 32, 48, 72, 60, 84, 64, 78, 50, 68, 34, 26, 44, 32, 48, 72, 60, 74, 52, 62, 50, 32, 22]
-                    }]
+                  labels: [
+                    "Sprint 1",
+                    "Sprint 2",
+                    "Sprint 3",
+                    "Sprint 4",
+                    "Sprint 5",
+                    "Sprint 6",
+                    "Sprint 7",
+                    "Sprint 8",
+                    "Sprint 9",
+                    "Sprint 10",
+                    "Sprint 11",
+                    "Sprint 12",
+                    "Sprint 13",
+                    "Sprint 14",
+                    "Sprint 15",
+                    "Sprint 16",
+                    "Sprint 17",
+                    "Sprint 18",
+                    "Sprint 19",
+                    "Sprint 20",
+                    "Sprint 21",
+                    "Sprint 22",
+                    "Sprint 23",
+                    "Sprint 24"
+                  ],
+                  datasets: [
+                    {
+                      label: "This year",
+                      backgroundColor: bgColor,
+                      borderColor: borderColor,
+                      data: [
+                        16,
+                        44,
+                        32,
+                        48,
+                        72,
+                        60,
+                        84,
+                        64,
+                        78,
+                        50,
+                        68,
+                        34,
+                        26,
+                        44,
+                        32,
+                        48,
+                        72,
+                        60,
+                        74,
+                        52,
+                        62,
+                        50,
+                        32,
+                        22
+                      ]
+                    }
+                  ]
                 };
 
                 var lineOpts = {
-                    maintainAspectRatio: false, barPercentage: 0.7, categoryPercentage: 0.5, // barSpacing: 10,
+                    maintainAspectRatio: false,
+                    legend: {
+                        display: false
+                    },
+                    tooltips: {
+                        intersect: false
+                    },
+                    hover: {
+                        intersect: true
+                    },
                     plugins: {
                         filler: {
                             propagate: false
-                        }, legend: {
-                            display: false
-                        }, tooltips: {
-                            intersect: false
-                        }, hover: {
-                            intersect: true
-                        },
-
-                    }, scales: {
-                        x: {
-                            grid: {
-                                color: "rgba(0,0,0,0.05)"
-                            },
-                            border: {
-                                display: false,             // Hides Y axis line (left)
-                                dash: [5, 5]
-                            }
-                        }, y: {
-                            ticks: {
-                                stepSize: 10, display: false
-                            }, min: 10, max: 100, display: true, borderDash: [5, 5], grid: {
-                                color: "rgba(0,0,0,0)", fontColor: '#fff',
-                            }
                         }
+                    },
+                    scales: {
+                        xAxes: [{
+                            barPercentage: 0.7,
+                            categoryPercentage: 0.5,
+                            reverse: true,
+                            gridLines: {
+                                color: "rgba(0,0,0,0.05)"
+                            }
+                        }],
+                        yAxes: [{
+                            ticks: {
+                                stepSize: 10,
+                                display: false
+                            },
+                            min: 10,
+                            max: 100,
+                            display: true,
+                            borderDash: [5, 5],
+                            gridLines: {
+                                color: "rgba(0,0,0,0)",
+                                fontColor: '#fff',
+                            }
+                        }]
                     }
                 };
                 charts.push(this.respChart($("#task-area-chart"), 'Bar', lineChart, lineOpts));
@@ -102,48 +167,50 @@
                 var colors = dataColors ? dataColors.split(",") : ["#0acf97", "#727cf5", "#fa5c7c"];
                 //donut chart
                 var donutChart = {
-                    labels: ["Completed", "In-progress", "Behind"], datasets: [{
-                        data: [64, 26, 10], backgroundColor: colors, borderColor: "transparent", borderWidth: "3",
-                    }]
+                    labels: [
+                        "Completed",
+                        "In-progress",
+                        "Behind"
+                    ],
+                    datasets: [
+                        {
+                            data: [64, 26, 10],
+                            backgroundColor: colors,
+                            borderColor: "transparent",
+                            borderWidth: "3",
+                        }]
                 };
                 var donutOpts = {
-                    maintainAspectRatio: false, cutout: 80, plugins: {
-                        cutoutPercentage: 40, legend: {
-                            display: false
-                        }
+                    maintainAspectRatio: false,
+                    cutoutPercentage: 80,
+                    legend: {
+                        display: false
                     }
-
                 };
                 charts.push(this.respChart($("#project-status-chart"), 'Doughnut', donutChart, donutOpts));
             }
             return charts;
-        }, //initializing various components and plugins
+        },
+        //initializing various components and plugins
         ChartJs.prototype.init = function () {
             var $this = this;
             // font
-            Chart.defaults.font.family = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';
+            Chart.defaults.global.defaultFontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';
 
             // init charts
             $this.charts = this.initCharts();
 
             // enable resizing matter
-            $(window).on('resizeEnd', function (e) {
+            $(window).on('resize', function (e) {
                 $.each($this.charts, function (index, chart) {
                     try {
                         chart.destroy();
-                    } catch (err) {
+                    }
+                    catch (err) {
                     }
                 });
                 $this.charts = $this.initCharts();
             });
-
-            $(window).resize(function () {
-                if (this.resizeTO) clearTimeout(this.resizeTO);
-                this.resizeTO = setTimeout(function () {
-                    $(this).trigger('resizeEnd');
-                }, 500);
-            });
-
         },
 
         //init flotchart

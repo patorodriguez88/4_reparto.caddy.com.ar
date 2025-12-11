@@ -35,9 +35,6 @@ var options = {
     colors: colors,
     xaxis: {
         categories: ['South Korea', 'Canada', 'United Kingdom', 'Netherlands', 'Italy', 'France', 'Japan', 'United States', 'China', 'Germany'],
-        axisBorder: {
-            show: false,
-        }
     },
     states: {
         hover: {
@@ -93,7 +90,7 @@ var options = {
     stroke: {
         show: true,
         width: 1,
-        colors: ['transparent']
+        colors: ['#fff']
     },
     series: [{
         name: 'Series 1',
@@ -104,9 +101,6 @@ var options = {
     }],
     xaxis: {
         categories: [2001, 2002, 2003, 2004, 2005, 2006, 2007],
-        axisBorder: {
-            show: false,
-        }
     },
     legend: {
         offsetY: 5,
@@ -180,9 +174,6 @@ var options = {
             formatter: function (val) {
                 return val + "K"
             }
-        },
-        axisBorder: {
-            show: false,
         }
     },
     yaxis: {
@@ -250,7 +241,7 @@ var options = {
     },
     stroke: {
         width: 1,
-        colors: ['transparent']
+        colors: ['#fff']
     },
     series: [{
         name: 'Marine Sprite',
@@ -270,9 +261,6 @@ var options = {
     }],
     xaxis: {
         categories: [2008, 2009, 2010, 2011, 2012, 2013, 2014],
-        axisBorder: {
-            show: false,
-        }
     },
     colors: colors,
     tooltip: {
@@ -341,7 +329,7 @@ var options = {
     },
     stroke: {
         width: 1,
-        colors: ["transparent"]
+        colors: ["#fff"]
     },
     series: [{
         name: 'Males',
@@ -353,7 +341,7 @@ var options = {
     }],
     grid: {
         xaxis: {
-            showLines: false,
+            showLines: false
         }
     },
     yaxis: {
@@ -385,9 +373,6 @@ var options = {
             formatter: function (val) {
                 return Math.abs(Math.round(val)) + "%"
             }
-        },
-        axisBorder: {
-            show: false,
         }
     },
     legend: {
@@ -408,78 +393,93 @@ var chart = new ApexCharts(
 
 chart.render();
 
-
-// 
-// Reversed Bar Chart
 //
-
-var dataColors = $("#reversed-bar").data('colors');
+// TIMELINE CHART
+//
+var colors = ["#6c757d", "#0acf97"];
+var dataColors = $("#timeline-chart").data('colors');
 if (dataColors) {
     colors = dataColors.split(",");
 }
-
 var options = {
-    series: [{
-        data: [400, 430, 448, 470, 540, 580, 690]
-    }],
     chart: {
-        type: 'bar',
-        height: 380
-    },
-    annotations: {
-        xaxis: [{
-            x: 500,
-            borderColor: colors[1],
-            label: {
-                borderColor: colors[1],
-                style: {
-                    color: '#fff',
-                    background: colors[1],
-                },
-                text: 'X annotation',
-            }
-        }],
-        yaxis: [{
-            y: 'July',
-            y2: 'September',
-            label: {
-                text: 'Y annotation'
-            }
-        }]
+        height: 380,
+        type: 'rangeBar',
     },
     plotOptions: {
         bar: {
             horizontal: true,
         }
     },
-    dataLabels: {
-        enabled: true
+    colors: colors,
+    series: [{
+        name: 'Bob',
+        data: [{
+            x: 'Design',
+            y: [new Date('2019-03-02').getTime(), new Date('2019-03-03').getTime()]
+        }, {
+            x: 'Code',
+            y: [new Date('2019-03-02').getTime(), new Date('2019-03-04').getTime()]
+
+        }, {
+            x: 'Test',
+            y: [new Date('2019-03-04').getTime(), new Date('2019-03-07').getTime()]
+        }, {
+            x: 'Bugs',
+            y: [new Date('2019-03-11').getTime(), new Date('2019-03-12').getTime()]
+        }]
+    }, {
+        name: 'Joe',
+        data: [{
+            x: 'Design',
+            y: [new Date('2019-03-01').getTime(), new Date('2019-03-02').getTime()]
+        }, {
+            x: 'Code',
+            y: [new Date('2019-03-03').getTime(), new Date('2019-03-07').getTime()]
+        }, {
+            x: 'Test',
+            y: [new Date('2019-03-06').getTime(), new Date('2019-03-09').getTime()]
+        }, {
+            x: 'Bugs',
+            y: [new Date('2019-03-10').getTime(), new Date('2019-03-11').getTime()]
+        }]
+    }],
+    yaxis: {
+        min: new Date('2019-03-01').getTime(),
+        max: new Date('2019-03-14').getTime()
     },
     xaxis: {
-        categories: ['June', 'July', 'August', 'September', 'October', 'November', 'December'],
-        axisBorder: {
-            show: false,
-        }
+        type: 'datetime'
     },
-    colors: colors,
+    legend: {
+        offsetY: 7
+    },
     grid: {
-        xaxis: {
-            lines: {
-                show: true
-            }
+        padding: {
+            bottom: 5
         }
     },
-    yaxis: {
-        reversed: true,
-        axisTicks: {
-            show: true
+    fill: {
+        type: 'gradient',
+        gradient: {
+            shade: 'light',
+            type: "vertical",
+            shadeIntensity: 0.25,
+            gradientToColors: undefined,
+            inverseColors: true,
+            opacityFrom: 1,
+            opacityTo: 1,
+            stops: [50, 0, 100, 100]
         }
     }
-};
+}
 
-var chart = new ApexCharts(document.querySelector("#reversed-bar"), options);
+var chart = new ApexCharts(
+    document.querySelector("#timeline-chart"),
+    options
+);
+
 chart.render();
-
 
 //
 // PATTERNED BAR CHART
@@ -531,9 +531,7 @@ var options = {
     }],
     xaxis: {
         categories: [2008, 2009, 2010, 2011, 2012, 2013, 2014],
-        axisBorder: {
-            show: false,
-        }
+
     },
     yaxis: {
         title: {
@@ -639,11 +637,6 @@ var options = {
             text: 'Weight',
         },
     },
-    xaxis: {
-        axisBorder: {
-            show: false,
-        }
-    },
     grid: {
         position: 'back',
         borderColor: '#f1f3fa'
@@ -715,9 +708,6 @@ var options = {
     },
     xaxis: {
         categories: ['South Korea', 'Canada', 'United Kingdom', 'Netherlands', 'Italy', 'France', 'Japan', 'United States', 'China', 'India'],
-        axisBorder: {
-            show: false,
-        }
     },
     yaxis: {
         labels: {
@@ -748,145 +738,4 @@ var chart = new ApexCharts(
     options
 );
 
-chart.render();
-
-
-// 
-// Bar with Markers
-//
-
-var dataColors = $("#bar-markers").data('colors');
-if (dataColors) {
-    colors = dataColors.split(",");
-}
-
-var options = {
-    series: [
-        {
-            name: 'Actual',
-            data: [
-                {
-                    x: '2017',
-                    y: 12,
-                    goals: [
-                        {
-                            name: 'Expected',
-                            value: 14,
-                            strokeWidth: 2,
-                            strokeDashArray: 2,
-                            strokeColor: colors[1]
-                        }
-                    ]
-                },
-                {
-                    x: '2018',
-                    y: 44,
-                    goals: [
-                        {
-                            name: 'Expected',
-                            value: 54,
-                            strokeWidth: 5,
-                            strokeHeight: 10,
-                            strokeColor: colors[1]
-                        }
-                    ]
-                },
-                {
-                    x: '2019',
-                    y: 54,
-                    goals: [
-                        {
-                            name: 'Expected',
-                            value: 52,
-                            strokeWidth: 10,
-                            strokeHeight: 0,
-                            strokeLineCap: 'round',
-                            strokeColor: colors[1]
-                        }
-                    ]
-                },
-                {
-                    x: '2020',
-                    y: 66,
-                    goals: [
-                        {
-                            name: 'Expected',
-                            value: 61,
-                            strokeWidth: 10,
-                            strokeHeight: 0,
-                            strokeLineCap: 'round',
-                            strokeColor: colors[1]
-                        }
-                    ]
-                },
-                {
-                    x: '2021',
-                    y: 81,
-                    goals: [
-                        {
-                            name: 'Expected',
-                            value: 66,
-                            strokeWidth: 10,
-                            strokeHeight: 0,
-                            strokeLineCap: 'round',
-                            strokeColor: colors[1]
-                        }
-                    ]
-                },
-                {
-                    x: '2022',
-                    y: 67,
-                    goals: [
-                        {
-                            name: 'Expected',
-                            value: 70,
-                            strokeWidth: 5,
-                            strokeHeight: 10,
-                            strokeColor: colors[1]
-                        }
-                    ]
-                }
-            ]
-        }
-    ],
-    chart: {
-        height: 380,
-        type: 'bar'
-    },
-    plotOptions: {
-        bar: {
-            horizontal: true,
-        }
-    },
-    colors: colors,
-    dataLabels: {
-        dataLabels: {
-            formatter: function (val, opt) {
-                var goals =
-                    opt.w.config.series[opt.seriesIndex].data[opt.dataPointIndex]
-                        .goals
-
-                // if (goals && goals.length) {
-                //   return `${val} / ${goals[0].value}`
-                // }
-                return val
-            }
-        },
-    },
-    legend: {
-        show: true,
-        showForSingleSeries: true,
-        customLegendItems: ['Actual', 'Expected'],
-        markers: {
-            fillColors: colors
-        }
-    },
-    xaxis: {
-        axisBorder: {
-            show: false,
-        }
-    }
-};
-
-var chart = new ApexCharts(document.querySelector("#bar-markers"), options);
 chart.render();

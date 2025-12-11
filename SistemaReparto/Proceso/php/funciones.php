@@ -1,286 +1,556 @@
 <?php
-session_start();
+// 👇 Para que conexioni NO exija sesión web (evitar 401 para la app)
+if (!defined('ALLOW_NO_SESSION')) {
+  define('ALLOW_NO_SESSION', true);
+}
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once "../../Conexion/conexioni.php";
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
+// Helper para responder siempre JSON
+function responder(array $data)
+{
+  header('Content-Type: application/json; charset=utf-8');
+  echo json_encode($data);
+  exit;
+}
+
+// Helper para consultas SQL con control de error
+function consultaOError(mysqli $mysqli, string $query, string $label)
+{
+  $res = $mysqli->query($query);
+  if (!$res) {
+    responder([
+      'success' => 0,
+      'error'   => "Error SQL {$label}: " . $mysqli->error
+    ]);
+  }
+  return $res;
+}
+
+// Variables base
 $Fecha = date("Y-m-d");
-$Hora = date("H:i");
-$Usuario = $_SESSION['Usuario'];
-$idUsuario = $_SESSION['idusuario'];
-$Sucursal = $_SESSION['Sucursal'];
-$Transportista = $_SESSION['Transportista'];
-$NumeroOrden = $_SESSION['hdr'];
-$Recorrido = $_SESSION['RecorridoAsignado'];
+$Hora  = date("H:i");
+
+// Tomamos datos desde sesión o (si no hay) desde POST, con defaults
+$Usuario       = $_SESSION['Usuario']       ?? ($_POST['Usuario']       ?? 'APP');
+$idUsuario     = $_SESSION['idusuario']     ?? ($_POST['idUsuario']     ?? 0);
+$Sucursal      = $_SESSION['Sucursal']      ?? ($_POST['Sucursal']      ?? '');
+$Transportista = $_SESSION['Transportista'] ?? ($_POST['Transportista'] ?? '');
+$NumeroOrden   = $_SESSION['hdr']           ?? ($_POST['NumeroOrden']   ?? '');
+$Recorrido     = $_SESSION['RecorridoAsignado'] ?? ($_POST['Recorrido'] ?? '');
+
 $infoABM = $Usuario . ' ' . $Fecha . ' ' . $Hora;
 
 
-if ($_POST['Datos'] == 1) {
-  if ($_SESSION['idusuario']) {
-    $sql = $mysqli->query("SELECT NumerodeOrden FROM Logistica WHERE idUsuarioChofer='$_SESSION[idusuario]' AND Estado='Cargada' AND Eliminado='0'");
-    $row = $sql->fetch_array(MYSQLI_ASSOC);
+// ==================================================
+// ================  BLOQUE DATOS  ===================
+// ==================================================
+if (isset($_POST['Datos'])) {
+  $idUsuario = $_SESSION['idusuario'] ?? ($_POST['idUsuario'] ?? 0);
 
-    if ($row['NumerodeOrden']) {
-      //CANTIDADES
-      $sqlCantidadTotal = $mysqli->query("SELECT COUNT(id)as Cantidad FROM HojaDeRuta WHERE Recorrido='$_SESSION[RecorridoAsignado]' 
-    AND Eliminado=0 AND NumerodeOrden='$row[NumerodeOrden]' AND Devuelto='0'");
-      $TotalCantidad = $sqlCantidadTotal->fetch_array(MYSQLI_ASSOC);
+  if (empty($idUsuario)) {
+    responder([
+      'success' => 0,
+      'usuario' => $idUsuario,
+      'error'   => 'idUsuario no definido (ni en sesión ni en POST)'
+    ]);
+  }
 
-      //NO ENTREGADOS
-      $sqlNoEntregados = $mysqli->query("SELECT COUNT(HojaDeRuta.id)as Cantidad FROM HojaDeRuta INNER JOIN TransClientes ON HojaDeRuta.Seguimiento=TransClientes.CodigoSeguimiento 
-    WHERE HojaDeRuta.Recorrido='$_SESSION[RecorridoAsignado]' AND HojaDeRuta.Eliminado=0 AND HojaDeRuta.NumerodeOrden='$row[NumerodeOrden]' AND HojaDeRuta.Devuelto='0'
-    AND TransClientes.Entregado=0 AND TransClientes.Eliminado=0");
-      $TotalNoEntregados = $sqlNoEntregados->fetch_array(MYSQLI_ASSOC);
+  // Busco la orden cargada para este chofer
+  $sql = consultaOError(
+    $mysqli,
+    "SELECT NumerodeOrden 
+         FROM Logistica 
+         WHERE idUsuarioChofer = '{$idUsuario}' 
+           AND Estado = 'Cargada' 
+           AND Eliminado = 0 
+         LIMIT 1",
+    'Logistica NumerodeOrden'
+  );
 
-      //ENTREGADOS
-      $sqlEntregados = $mysqli->query("SELECT COUNT(HojaDeRuta.id)as Cantidad FROM HojaDeRuta INNER JOIN TransClientes ON HojaDeRuta.Seguimiento=TransClientes.CodigoSeguimiento 
-    WHERE HojaDeRuta.Recorrido='$_SESSION[RecorridoAsignado]' AND HojaDeRuta.Eliminado=0 AND HojaDeRuta.NumerodeOrden='$row[NumerodeOrden]' AND HojaDeRuta.Devuelto='0'
-    AND TransClientes.Entregado=1");
-      $TotalEntregados = $sqlEntregados->fetch_array(MYSQLI_ASSOC);
+  $row = $sql->fetch_array(MYSQLI_ASSOC) ?: [];
 
+  if (!empty($row['NumerodeOrden'])) {
 
-      echo json_encode(array(
-        'success' => 1,
-        'data' => $row['NumerodeOrden'],
-        'Recorrido' => $_SESSION['RecorridoAsignado'],
-        'Total' => $TotalCantidad['Cantidad'],
-        'Cerrados' => $TotalNoEntregados['Cantidad'],
-        'Abiertos' => $TotalEntregados['Cantidad'],
-        'Usuario' => $Transportista
-      ));
-    } else {
-      echo json_encode(array('success' => 2, 'usuario' => $_SESSION['idusuario'], 'norden' => $row['NumerodeOrden']));
-    }
+    $nOrden = $row['NumerodeOrden'];
+
+    // CANTIDAD TOTAL
+    $sqlCantidadTotal = consultaOError(
+      $mysqli,
+      "SELECT COUNT(id) AS Cantidad 
+             FROM HojaDeRuta 
+             WHERE Recorrido    = '{$Recorrido}'
+               AND Eliminado    = 0 
+               AND NumerodeOrden = '{$nOrden}' 
+               AND Devuelto     = 0",
+      'CantidadTotal HojaDeRuta'
+    );
+    $TotalCantidad = $sqlCantidadTotal->fetch_array(MYSQLI_ASSOC);
+
+    // NO ENTREGADOS
+    $sqlNoEntregados = consultaOError(
+      $mysqli,
+      "SELECT COUNT(HojaDeRuta.id) AS Cantidad 
+             FROM HojaDeRuta 
+             INNER JOIN TransClientes 
+                 ON HojaDeRuta.Seguimiento = TransClientes.CodigoSeguimiento 
+             WHERE HojaDeRuta.Recorrido   = '{$Recorrido}' 
+               AND HojaDeRuta.Eliminado   = 0 
+               AND HojaDeRuta.NumerodeOrden = '{$nOrden}' 
+               AND HojaDeRuta.Devuelto    = 0
+               AND TransClientes.Entregado = 0 
+               AND TransClientes.Eliminado = 0",
+      'NoEntregados HojaDeRuta'
+    );
+    $TotalNoEntregados = $sqlNoEntregados->fetch_array(MYSQLI_ASSOC);
+
+    // ENTREGADOS
+    $sqlEntregados = consultaOError(
+      $mysqli,
+      "SELECT COUNT(HojaDeRuta.id) AS Cantidad 
+             FROM HojaDeRuta 
+             INNER JOIN TransClientes 
+                 ON HojaDeRuta.Seguimiento = TransClientes.CodigoSeguimiento 
+             WHERE HojaDeRuta.Recorrido   = '{$Recorrido}' 
+               AND HojaDeRuta.Eliminado   = 0 
+               AND HojaDeRuta.NumerodeOrden = '{$nOrden}' 
+               AND HojaDeRuta.Devuelto    = 0
+               AND TransClientes.Entregado = 1",
+      'Entregados HojaDeRuta'
+    );
+    $TotalEntregados = $sqlEntregados->fetch_array(MYSQLI_ASSOC);
+
+    responder([
+      'success'    => 1,
+      'data'       => $nOrden,
+      'Recorrido'  => $Recorrido,
+      'Total'      => (int) $TotalCantidad['Cantidad'],
+      'Cerrados'   => (int) $TotalNoEntregados['Cantidad'],
+      'Abiertos'   => (int) $TotalEntregados['Cantidad'],
+      'Usuario'    => $Transportista
+    ]);
   } else {
-    echo json_encode(array('success' => 0, 'usuario' => $_SESSION['idusuario']));
+    responder([
+      'success' => 2,
+      'usuario' => $idUsuario,
+      'norden'  => $row['NumerodeOrden'] ?? null
+    ]);
   }
 }
 
-if ($_POST['ConfirmoEntrega'] == 1) {
 
-  $CodigoSeguimiento = $_POST['Cs'];
-  $sqlhdr = $mysqli->query("SELECT id FROM HojaDeRuta WHERE Seguimiento='$CodigoSeguimiento'");
-  $id = $sqlhdr->fetch_array(MYSQLI_ASSOC);
+// ==================================================
+// ============  CONFIRMO ENTREGA  ===================
+// ==================================================
+if (isset($_POST['ConfirmoEntrega'])) {
 
-  $dni = $_POST['Dni'];
-  $nombre2 = $_POST['Name'];
-  $Observaciones = $_POST['Obs'];
-  $Retirado = $_POST['Retirado'];
-  $Etiquetas = $_POST['Etiquetas'];
+  $CodigoSeguimiento = $_POST['Cs']   ?? '';
+  $dni               = $_POST['Dni']  ?? '';
+  $nombre2           = $_POST['Name'] ?? '';
+  $Observaciones     = $_POST['Obs']  ?? '';
+  $Retirado          = isset($_POST['Retirado']) ? (int) $_POST['Retirado'] : 0;
+  $Etiquetas         = isset($_POST['Etiquetas']) && is_array($_POST['Etiquetas'])
+    ? $_POST['Etiquetas']
+    : [];
 
-  for ($i = 0; $i < count($Etiquetas); $i++) {
-    //ETIQUETAS
-    $mysqli->query("INSERT INTO `Etiquetas`(`CodigoSeguimiento`,`Observaciones`) VALUES 
-('{$CodigoSeguimiento}','{$Etiquetas[$i]}')");
+  if ($CodigoSeguimiento === '') {
+    responder(['success' => 0, 'error' => 'Falta Cs (CodigoSeguimiento)']);
   }
 
-  $sqlLocalizacion = $mysqli->query("SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen 
-FROM TransClientes WHERE CodigoSeguimiento='$CodigoSeguimiento'");
+  // ID de HojaDeRuta
+  $sqlhdr = consultaOError(
+    $mysqli,
+    "SELECT id FROM HojaDeRuta WHERE Seguimiento = '{$CodigoSeguimiento}' LIMIT 1",
+    'HojaDeRuta por Seguimiento'
+  );
+  $id = $sqlhdr->fetch_array(MYSQLI_ASSOC) ?: ['id' => null];
 
-  $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC);
+  // Etiquetas
+  foreach ($Etiquetas as $et) {
+    $et = $mysqli->real_escape_string($et);
+    $mysqli->query(
+      "INSERT INTO Etiquetas (CodigoSeguimiento, Observaciones)
+             VALUES ('{$CodigoSeguimiento}', '{$et}')"
+    );
+    // No corto si falla una etiqueta, pero se podría controlar también
+  }
 
-  $Localizacion = utf8_decode($sqlLocalizacionR['DomicilioDestino']);
-  //BUSCO LOS DATOS PARA EL ENVIO DEL MAIL
-  // $sqlmail=$mysqli->query("SELECT nombrecliente,Mail FROM Clientes WHERE id='$sqlLocalizacionR[IngBrutosOrigen]'");
-  // $datomail=mysql_fetch_array($sqlmail);
-  // $NombreMail=$datomail[nombrecliente];
-  // $EmailMail=$datomail[Mail];
-  // $Fecha= date("Y-m-d");	
-  // $Hora=date("H:i"); 
-  // $Usuario=$_SESSION['Usuario'];
-  // $Sucursal=utf8_decode($_SESSION['Sucursal']);
-  // $Localizacion=$_SESSION[Localizacion];  
+  // Localización base
+  $sqlLocalizacion = consultaOError(
+    $mysqli,
+    "SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen 
+         FROM TransClientes 
+         WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'",
+    'Localizacion TransClientes'
+  );
+  $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC) ?: [];
 
-  //BUSCO QUE NUMERO DE VISITA ES
-  $sqlvisita = $mysqli->query("SELECT MAX(Visitas)as Visita FROM Seguimiento WHERE CodigoSeguimiento='$CodigoSeguimiento'");
-  $visita = $sqlvisita->fetch_array(MYSQLI_ASSOC);
-  $Visita = $visita['Visita'] + 1;
+  $Localizacion = utf8_decode($sqlLocalizacionR['DomicilioDestino'] ?? '');
 
-  //BUSCO LOS DATOS DEL CLIENTE
-  if ($_POST['Retirado'] == 1) {
+  // Número de visita
+  $sqlvisita = consultaOError(
+    $mysqli,
+    "SELECT MAX(Visitas) AS Visita 
+         FROM Seguimiento 
+         WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'",
+    'MAX Visitas Seguimiento'
+  );
+  $visita  = $sqlvisita->fetch_array(MYSQLI_ASSOC) ?: ['Visita' => 0];
+  $Visita  = (int) $visita['Visita'] + 1;
 
-    if ($sqlLocalizacionR['Redespacho'] == 0) {
+  // Lógica de Retirado / Entregado / Redespacho
+  if (isset($_POST['Retirado'])) {
+
+    if (!empty($sqlLocalizacionR) && (int)$sqlLocalizacionR['Redespacho'] === 0) {
       $Entregado = 1;
-      $Estado = 'Entregado al Cliente';
+      $Estado    = 'Entregado al Cliente';
       $Estado_id = 7;
-      //CONTROLO PARA EVITAR DUPLICIDAD DE ESTADO ENTREGADO
-      $resultado = $mysqli->query("SELECT 1 FROM Seguimiento WHERE CodigoSeguimiento = '$CodigoSeguimiento' AND Entregado = $Entregado AND Estado='$Estado' LIMIT 1");
+
+      // Evitar duplicar registro "Entregado al Cliente"
+      $resultado = $mysqli->query(
+        "SELECT 1 
+                 FROM Seguimiento 
+                 WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
+                   AND Entregado = 1
+                   AND Estado    = '{$Estado}'
+                 LIMIT 1"
+      );
 
       if ($resultado && $resultado->num_rows > 0) {
-        echo json_encode(['success' => 0, 'error' => 'Este pedido ya fue marcado como entregado.']);
-        exit;
+        responder([
+          'success' => 0,
+          'error'   => 'Este pedido ya fue marcado como entregado.'
+        ]);
       }
     } else {
       $Entregado = 0;
-      $Estado = 'En Transito';
+      $Estado    = 'En Transito';
       $Estado_id = 5;
-      $Fecha = date("Y-m-d");
-      $Hora = date("H:i");
-      $sqlTransClientes = $mysqli->query("SELECT id,RazonSocial,DomicilioOrigen,Recorrido FROM TransClientes WHERE CodigoSeguimiento='$CodigoSeguimiento' AND Eliminado=0 ");
-      $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC);
-      $NombreCompleto = utf8_decode($datossqlTransClientes['RazonSocial']);
-      $Localizacion = utf8_decode($datossqlTransClientes['DomicilioOrigen']);
-      $idTransClientes = $datossqlTransClientes['id'];
-      $Recorrido = $datossqlTransClientes['Recorrido'];
+
+      $sqlTransClientes = consultaOError(
+        $mysqli,
+        "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 
+                 FROM TransClientes 
+                 WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
+                   AND Eliminado = 0",
+        'TransClientes Redespacho Origen'
+      );
+      $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
+
+      $NombreCompleto = utf8_decode($datossqlTransClientes['RazonSocial'] ?? '');
+      $Localizacion   = utf8_decode($datossqlTransClientes['DomicilioOrigen'] ?? '');
+      $idTransClientes = $datossqlTransClientes['id'] ?? 0;
+      $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
     }
 
-    $sqlTransClientes = $mysqli->query("SELECT id,ClienteDestino,DomicilioDestino,Recorrido FROM TransClientes WHERE CodigoSeguimiento='$CodigoSeguimiento' AND Eliminado=0");
-    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC);
-    $NombreCompleto = utf8_decode($datossqlTransClientes['ClienteDestino']);
-    $Localizacion = utf8_decode($datossqlTransClientes['DomicilioDestino']);
-    $idTransClientes = $datossqlTransClientes['id'];
-    $Recorrido = $datossqlTransClientes['Recorrido'];
+    // Datos destino
+    $sqlTransClientes = consultaOError(
+      $mysqli,
+      "SELECT id,ClienteDestino,DomicilioDestino,Recorrido 
+             FROM TransClientes 
+             WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
+               AND Eliminado = 0",
+      'TransClientes Destino'
+    );
+    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
+
+    $NombreCompleto  = utf8_decode($datossqlTransClientes['ClienteDestino'] ?? '');
+    $Localizacion    = utf8_decode($datossqlTransClientes['DomicilioDestino'] ?? '');
+    $idTransClientes = $datossqlTransClientes['id'] ?? 0;
+    $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
   } else {
 
+    // Caso Retiro
     $Entregado = 0;
-    $Estado = 'Retirado del Cliente';
+    $Estado    = 'Retirado del Cliente';
     $Estado_id = 3;
-    $sqlTransClientes = $mysqli->query("SELECT id,RazonSocial,DomicilioOrigen,Recorrido FROM TransClientes WHERE CodigoSeguimiento='$CodigoSeguimiento' AND Eliminado=0 ");
-    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC);
-    $NombreCompleto = utf8_decode($datossqlTransClientes['RazonSocial']);
-    $Localizacion = utf8_decode($datossqlTransClientes['DomicilioOrigen']);
-    $idTransClientes = $datossqlTransClientes['id'];
-    $Recorrido = $datossqlTransClientes['Recorrido'];
+
+    $sqlTransClientes = consultaOError(
+      $mysqli,
+      "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 
+             FROM TransClientes 
+             WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
+               AND Eliminado = 0",
+      'TransClientes Origen Retiro'
+    );
+    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
+
+    $NombreCompleto  = utf8_decode($datossqlTransClientes['RazonSocial'] ?? '');
+    $Localizacion    = utf8_decode($datossqlTransClientes['DomicilioOrigen'] ?? '');
+    $idTransClientes = $datossqlTransClientes['id'] ?? 0;
+    $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
   }
 
-  $mysqli->query("INSERT INTO Seguimiento(Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden)
-  VALUES('{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}','{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
-  '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}')");
+  // Insert en Seguimiento
+  consultaOError(
+    $mysqli,
+    "INSERT INTO Seguimiento
+            (Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
+             NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden)
+         VALUES
+            ('{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
+             '{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
+             '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}')",
+    'INSERT Seguimiento ConfirmoEntrega'
+  );
 
-  if (($_POST['Retirado'] == 1) || ($Entregado == 1)) {
+  // Cierro HojaDeRuta / Roadmap si corresponde
+  if (($Retirado == 1) || ($Entregado == 1)) {
+    consultaOError(
+      $mysqli,
+      "UPDATE HojaDeRuta 
+             SET Estado = 'Cerrado' 
+             WHERE Eliminado = 0 AND Seguimiento = '{$CodigoSeguimiento}' 
+             LIMIT 1",
+      'UPDATE HojaDeRuta Cerrado'
+    );
 
-    //CIERRO HOJA DE RUTA
-    $mysqli->query("UPDATE HojaDeRuta SET Estado='Cerrado' WHERE Eliminado=0 AND Seguimiento='$CodigoSeguimiento' LIMIT 1");
-    //CIERRO ROADMAP
-    $mysqli->query("UPDATE Roadmap SET Estado='Cerrado' WHERE Eliminado=0 AND Seguimiento='$CodigoSeguimiento' LIMIT 1");
+    consultaOError(
+      $mysqli,
+      "UPDATE Roadmap 
+             SET Estado = 'Cerrado' 
+             WHERE Eliminado = 0 AND Seguimiento = '{$CodigoSeguimiento}' 
+             LIMIT 1",
+      'UPDATE Roadmap Cerrado'
+    );
   }
 
-  //ACTUALIZO TRANSCLIENTES
-  $mysqli->query("UPDATE IGNORE TransClientes SET Estado='$Estado',Entregado='$Entregado',Retirado='1',Transportista='$Transportista', 
-  NumerodeOrden='$NumeroOrden',Recorrido='$Recorrido',Estado='$Estado',idABM='$idUsuario',infoABM='$infoABM',FechaEntrega='$Fecha' 
-  WHERE Eliminado=0 AND CodigoSeguimiento='$CodigoSeguimiento' LIMIT 1");
+  // Actualizo TransClientes
+  consultaOError(
+    $mysqli,
+    "UPDATE IGNORE TransClientes 
+         SET Estado        = '{$Estado}',
+             Entregado     = '{$Entregado}',
+             Retirado      = '1',
+             Transportista = '{$Transportista}', 
+             NumerodeOrden = '{$NumeroOrden}',
+             Recorrido     = '{$Recorrido}',
+             idABM         = '{$idUsuario}',
+             infoABM       = '{$infoABM}',
+             FechaEntrega  = '{$Fecha}' 
+         WHERE Eliminado = 0 
+           AND CodigoSeguimiento = '{$CodigoSeguimiento}' 
+         LIMIT 1",
+    'UPDATE TransClientes ConfirmoEntrega'
+  );
 
-  echo json_encode(array('success' => 1, 'id' => $id['id'], 'estado' => $Estado));
-
-  // $verifico=$mysqli->query("SELECT id FROM Seguimiento WHERE CodigoSeguimiento='$CodigoSeguimiento' AND Entregado=1");
-
-  //ACTUALIZO TRANSCLIENTES
-  // $FechaEntrega=date('Y-m-d');
-  // $sqlT="UPDATE TransClientes SET Entregado='$Entregado',Retirado='$Retirado',FechaEntrega='$FechaEntrega',Estado='$Estado' WHERE CodigoSeguimiento='$CodigoSeguimiento' AND Eliminado=0";
-  // $mysqli->query($sqlT);
-  //ACTUALIZO HOJA DE RUTA SIEMPRE A CERRADO PARA QUE NO FIGURE MAS EN EL SISTEMA DE SMARTPHONE
-  // $sqlhdr="UPDATE HojaDeRuta SET Estado='Cerrado' WHERE Seguimiento='$CodigoSeguimiento' AND Eliminado=0";
-  // $mysqli->query($sqlhdr);	
-
-
-  // $sql=$mysqli->query("UPDATE");
-
-
+  responder([
+    'success' => 1,
+    'id'      => $id['id'] ?? null,
+    'estado'  => $Estado
+  ]);
 }
-//NO ENTREGADO
-if ($_POST['ConfirmoNoEntrega'] == 1) {
 
-  $CodigoSeguimiento = $_POST['Cs'];
-  $sqlhdr = $mysqli->query("SELECT id FROM HojaDeRuta WHERE Seguimiento='$CodigoSeguimiento'");
-  $id = $sqlhdr->fetch_array(MYSQLI_ASSOC);
 
-  $dni = $_POST['Dni'];
-  $nombre2 = $_POST['Name'];
-  $Observaciones = $_POST['Razones'] . ' ' . $_POST['Obs'];
-  $Retirado = $_POST['Retirado'];
-  $Estado = 'No se pudo entregar';
-  $Estado_id = 8;
+// ==================================================
+// ============  CONFIRMO NO ENTREGA  ================
+// ==================================================
+if (isset($_POST['ConfirmoNoEntrega'])) {
 
-  $sqlLocalizacion = $mysqli->query("SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen 
-FROM TransClientes WHERE CodigoSeguimiento='$CodigoSeguimiento'");
+  $CodigoSeguimiento = $_POST['Cs']      ?? '';
+  $dni               = $_POST['Dni']     ?? '';
+  $nombre2           = $_POST['Name']    ?? '';
+  $razones           = $_POST['Razones'] ?? '';
+  $Obs               = $_POST['Obs']     ?? '';
+  $Retirado          = isset($_POST['Retirado']) ? (int) $_POST['Retirado'] : 0;
 
-  $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC);
+  if ($CodigoSeguimiento === '') {
+    responder(['success' => 0, 'error' => 'Falta Cs (CodigoSeguimiento)']);
+  }
 
-  $Localizacion = utf8_decode($sqlLocalizacionR['DomicilioDestino']);
-  //BUSCO LOS DATOS PARA EL ENVIO DEL MAIL
-  // $sqlmail=$mysqli->query("SELECT nombrecliente,Mail FROM Clientes WHERE id='$sqlLocalizacionR[IngBrutosOrigen]'");
-  // $datomail=mysql_fetch_array($sqlmail);
-  // $NombreMail=$datomail[nombrecliente];
-  // $EmailMail=$datomail[Mail];
-  // $Fecha= date("Y-m-d");	
-  // $Hora=date("H:i"); 
-  // $Usuario=$_SESSION['Usuario'];
-  // $Sucursal=utf8_decode($_SESSION['Sucursal']);
-  // $Localizacion=$_SESSION[Localizacion];  
+  $Observaciones = trim($razones . ' ' . $Obs);
+  $Estado        = 'No se pudo entregar';
+  $Estado_id     = 8;
 
-  //BUSCO QUE NUMERO DE VISITA ES
-  $sqlvisita = $mysqli->query("SELECT MAX(Visitas)as Visita FROM Seguimiento WHERE CodigoSeguimiento='$CodigoSeguimiento'");
-  $visita = $sqlvisita->fetch_array(MYSQLI_ASSOC);
-  $Visita = $visita['Visita'] + 1;
+  // ID HojaDeRuta
+  $sqlhdr = consultaOError(
+    $mysqli,
+    "SELECT id FROM HojaDeRuta WHERE Seguimiento = '{$CodigoSeguimiento}' LIMIT 1",
+    'HojaDeRuta por Seguimiento (NoEntrega)'
+  );
+  $id = $sqlhdr->fetch_array(MYSQLI_ASSOC) ?: ['id' => null];
+
+  // Localización base
+  $sqlLocalizacion = consultaOError(
+    $mysqli,
+    "SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen 
+         FROM TransClientes 
+         WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'",
+    'Localizacion NoEntrega'
+  );
+  $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC) ?: [];
+  $Localizacion     = utf8_decode($sqlLocalizacionR['DomicilioDestino'] ?? '');
+
+  // Visitas
+  $sqlvisita = consultaOError(
+    $mysqli,
+    "SELECT MAX(Visitas) AS Visita 
+         FROM Seguimiento 
+         WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'",
+    'MAX Visitas NoEntrega'
+  );
+  $visita = $sqlvisita->fetch_array(MYSQLI_ASSOC) ?: ['Visita' => 0];
+  $Visita = (int) $visita['Visita'] + 1;
+
+  // Por lo que tenías, seteás Recorrido fijo 80
   $Recorrido = '80';
-  //BUSCO LOS DATOS DEL CLIENTE
-  if ($_POST['Retirado'] == 1) {
-    $Entregado = 0;
-    $sqlTransClientes = $mysqli->query("SELECT id,ClienteDestino,DomicilioDestino,Recorrido FROM TransClientes WHERE CodigoSeguimiento='$CodigoSeguimiento'");
-    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC);
-    $NombreCompleto = utf8_decode($datossqlTransClientes['ClienteDestino']);
-    $Localizacion = utf8_decode($datossqlTransClientes['DomicilioDestino']);
-    $idTransClientes = $datossqlTransClientes['id'];
-    // $Recorrido=$datossqlTransClientes[Recorrido];
+  $Entregado = 0;
+
+  // Datos cliente según Retirado
+  if ($Retirado == 1) {
+    $sqlTransClientes = consultaOError(
+      $mysqli,
+      "SELECT id,ClienteDestino,DomicilioDestino,Recorrido 
+             FROM TransClientes 
+             WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'",
+      'TransClientes Destino NoEntrega'
+    );
+    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
+
+    $NombreCompleto  = utf8_decode($datossqlTransClientes['ClienteDestino'] ?? '');
+    $Localizacion    = utf8_decode($datossqlTransClientes['DomicilioDestino'] ?? '');
+    $idTransClientes = $datossqlTransClientes['id'] ?? 0;
   } else {
-    $Entregado = 0;
-    $sqlTransClientes = $mysqli->query("SELECT id,RazonSocial,DomicilioOrigen,Recorrido FROM TransClientes WHERE CodigoSeguimiento='$CodigoSeguimiento'");
-    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC);
-    $NombreCompleto = utf8_decode($datossqlTransClientes['RazonSocial']);
-    $Localizacion = utf8_decode($datossqlTransClientes['DomicilioOrigen']);
-    $idTransClientes = $datossqlTransClientes['id'];
-    // $Recorrido=$datossqlTransClientes[Recorrido];  
+    $sqlTransClientes = consultaOError(
+      $mysqli,
+      "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 
+             FROM TransClientes 
+             WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'",
+      'TransClientes Origen NoEntrega'
+    );
+    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
+
+    $NombreCompleto  = utf8_decode($datossqlTransClientes['RazonSocial'] ?? '');
+    $Localizacion    = utf8_decode($datossqlTransClientes['DomicilioOrigen'] ?? '');
+    $idTransClientes = $datossqlTransClientes['id'] ?? 0;
   }
 
-  $mysqli->query("INSERT IGNORE INTO Seguimiento(Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden)
-  VALUES('{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}','{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
-  '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}')");
+  // Insert Seguimiento
+  consultaOError(
+    $mysqli,
+    "INSERT IGNORE INTO Seguimiento
+            (Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
+             NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden)
+         VALUES
+            ('{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
+             '{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
+             '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}')",
+    'INSERT Seguimiento NoEntrega'
+  );
 
-  //CIERRO EN HOJA DE RUTA
-  if ($CodigoSeguimiento <> "") {
-    $mysqli->query("UPDATE HojaDeRuta SET Estado='Cerrado' WHERE Seguimiento='$CodigoSeguimiento' LIMIT 1");
-    //CIERRO EN ROADMAP
-    $mysqli->query("UPDATE Roadmap SET Estado='Cerrado' WHERE Seguimiento='$CodigoSeguimiento' LIMIT 1");
-    //ACTUALIZO TRANSCLIENTES
-    $mysqli->query("UPDATE IGNORE TransClientes SET Estado='$Estado',Entregado='$Entregado',Transportista='$Transportista',
-  NumerodeOrden='$NumeroOrden',Recorrido='$Recorrido',Estado='$Estado',idABM='$idUsuario',infoABM='$infoABM',FechaEntrega='$Fecha' 
-  WHERE CodigoSeguimiento='$CodigoSeguimiento' LIMIT 1");
+  if ($CodigoSeguimiento !== '') {
+    // Cierro HojaDeRuta
+    consultaOError(
+      $mysqli,
+      "UPDATE HojaDeRuta 
+             SET Estado = 'Cerrado' 
+             WHERE Seguimiento = '{$CodigoSeguimiento}' 
+             LIMIT 1",
+      'UPDATE HojaDeRuta NoEntrega'
+    );
+    // Cierro Roadmap
+    consultaOError(
+      $mysqli,
+      "UPDATE Roadmap 
+             SET Estado = 'Cerrado' 
+             WHERE Seguimiento = '{$CodigoSeguimiento}' 
+             LIMIT 1",
+      'UPDATE Roadmap NoEntrega'
+    );
+    // Actualizo TransClientes
+    consultaOError(
+      $mysqli,
+      "UPDATE IGNORE TransClientes 
+             SET Estado        = '{$Estado}',
+                 Entregado     = '{$Entregado}',
+                 Transportista = '{$Transportista}',
+                 NumerodeOrden = '{$NumeroOrden}',
+                 Recorrido     = '{$Recorrido}',
+                 idABM         = '{$idUsuario}',
+                 infoABM       = '{$infoABM}',
+                 FechaEntrega  = '{$Fecha}' 
+             WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
+             LIMIT 1",
+      'UPDATE TransClientes NoEntrega'
+    );
   }
-  echo json_encode(array('success' => 1, 'id' => $id['id'], 'estado' => $Estado));
 
-  // $verifico=$mysqli->query("SELECT id FROM Seguimiento WHERE CodigoSeguimiento='$CodigoSeguimiento' AND Entregado=1");
-
-  //ACTUALIZO TRANSCLIENTES
-  // $FechaEntrega=date('Y-m-d');
-  // $sqlT="UPDATE TransClientes SET Entregado='$Entregado',Retirado='$Retirado',FechaEntrega='$FechaEntrega',Estado='$Estado' WHERE CodigoSeguimiento='$CodigoSeguimiento' AND Eliminado=0";
-  // $mysqli->query($sqlT);
-  //ACTUALIZO HOJA DE RUTA SIEMPRE A CERRADO PARA QUE NO FIGURE MAS EN EL SISTEMA DE SMARTPHONE
-  // $sqlhdr="UPDATE HojaDeRuta SET Estado='Cerrado' WHERE Seguimiento='$CodigoSeguimiento' AND Eliminado=0";
-  // $mysqli->query($sqlhdr);	
-  // $sql=$mysqli->query("UPDATE");
+  responder([
+    'success' => 1,
+    'id'      => $id['id'] ?? null,
+    'estado'  => $Estado
+  ]);
 }
 
-if ($_POST['BuscoDatos'] == 1) {
-  $sql = $mysqli->query("SELECT Seguimiento FROM HojaDeRuta WHERE id='$_POST[id]'");
-  $row = $sql->fetch_array(MYSQLI_ASSOC);
 
-  $Buscar = $mysqli->query("SELECT id,Fecha,if(Retirado=0,RazonSocial,ClienteDestino)as NombreCliente,
-      if(Retirado=0,DomicilioOrigen,DomicilioDestino)as Domicilio,CodigoSeguimiento,Observaciones,Retirado 
-      FROM TransClientes WHERE CodigoSeguimiento='$row[Seguimiento]'");
-  $rows = array();
+// ==================================================
+// ================  BUSCO DATOS  ====================
+// ==================================================
+if (isset($_POST['BuscoDatos'])) {
+
+  $idHdr = $_POST['id'] ?? null;
+  if (!$idHdr) {
+    responder(['success' => 0, 'error' => 'Falta id en BuscoDatos']);
+  }
+
+  $sql = consultaOError(
+    $mysqli,
+    "SELECT Seguimiento FROM HojaDeRuta WHERE id = '{$idHdr}' LIMIT 1",
+    'HojaDeRuta por id (BuscoDatos)'
+  );
+  $row = $sql->fetch_array(MYSQLI_ASSOC) ?: [];
+
+  if (empty($row['Seguimiento'])) {
+    responder(['success' => 0, 'error' => 'No se encontró Seguimiento para esa HojaDeRuta']);
+  }
+
+  $seguimiento = $row['Seguimiento'];
+
+  $Buscar = consultaOError(
+    $mysqli,
+    "SELECT id,
+                Fecha,
+                IF(Retirado = 0, RazonSocial, ClienteDestino) AS NombreCliente,
+                IF(Retirado = 0, DomicilioOrigen, DomicilioDestino) AS Domicilio,
+                CodigoSeguimiento,
+                Observaciones,
+                Retirado 
+         FROM TransClientes 
+         WHERE CodigoSeguimiento = '{$seguimiento}'",
+    'TransClientes BuscoDatos'
+  );
+
+  $rows = [];
   while ($fila = $Buscar->fetch_array(MYSQLI_ASSOC)) {
     $rows[] = $fila;
   }
-  echo json_encode(array('data' => $rows));
+
+  responder(['data' => $rows]);
 }
 
-if ($_POST['SubirFotos'] == 1) {
+
+// ==================================================
+// ================  SUBIR FOTOS  ====================
+// ==================================================
+if (isset($_POST['SubirFotos'])) {
+
+  if (!isset($_FILES["file"])) {
+    responder(['success' => 0, 'error' => 'No se recibieron archivos']);
+  }
+
   foreach ($_FILES["file"]["error"] as $key => $error) {
-    if ($error == UPLOAD_ERR_OK) {
+    if ($error === UPLOAD_ERR_OK) {
       $tmp_name = $_FILES["file"]["tmp_name"][$key];
-      // basename() may prevent filesystem traversal attacks;
-      // further validation/sanitation of the filename may be appropriate
-      $name = basename($_FILES["file"]["name"][$key]);
-      move_uploaded_file($tmp_name, "data/$name");
+      $name     = basename($_FILES["file"]["name"][$key]);
+
+      // Podrías agregar una carpeta por seguimiento, etc.
+      @move_uploaded_file($tmp_name, "data/{$name}");
     }
   }
+
+  responder(['success' => 1]);
 }

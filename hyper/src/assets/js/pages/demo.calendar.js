@@ -1,8 +1,8 @@
 /**
- * Theme: Hyper - Responsive Bootstrap 5 Admin Dashboard
- * Author: Coderthemes
- * Component: Full-Calendar
- */
+* Theme: Hyper - Responsive Bootstrap 5 Admin Dashboard
+* Author: Coderthemes
+* Component: Full-Calendar
+*/
 
 
 !function ($) {
@@ -76,23 +76,23 @@
                 end: new Date($.now() + 338000000),
                 className: 'bg-warning'
             },
-                {
-                    title: 'Interview - Backend Engineer',
-                    start: today,
-                    end: today,
-                    className: 'bg-success'
-                },
-                {
-                    title: 'Phone Screen - Frontend Engineer',
-                    start: new Date($.now() + 168000000),
-                    className: 'bg-info'
-                },
-                {
-                    title: 'Buy Design Assets',
-                    start: new Date($.now() + 338000000),
-                    end: new Date($.now() + 338000000 * 1.2),
-                    className: 'bg-primary',
-                }];
+            {
+                title: 'Interview - Backend Engineer',
+                start: today,
+                end: today,
+                className: 'bg-success'
+            },
+            {
+                title: 'Phone Screen - Frontend Engineer',
+                start: new Date($.now() + 168000000),
+                className: 'bg-info'
+            },
+            {
+                title: 'Buy Design Assets',
+                start: new Date($.now() + 338000000),
+                end: new Date($.now() + 338000000 * 1.2),
+                className: 'bg-primary',
+            }];
 
             var $this = this;
 

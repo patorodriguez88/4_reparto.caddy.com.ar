@@ -1,9 +1,10 @@
-{
-    "conexion":{
-        "server" : "localhost",
-        "user" : "dinter6_prodrig",
-        "password" : "pato@4986",
-        "database" : "dinter6_triangularcopia",
-        "port": "3306"
-    }
-}
+[
+  {
+    "server": "localhost",
+    "user": "dinter6_prodrig",
+    "password": "pato@4986",
+    "database": "dinter6_triangular",
+    "port": "",
+    "socket": "/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock"
+  }
+]

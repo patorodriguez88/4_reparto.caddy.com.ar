@@ -4,13 +4,13 @@
  * Module/App: Sparkline Charts
  */
 
-$(document).ready(function () {
+$( document ).ready(function() {
 
     var defaultColors = ["#727cf5", "#0acf97", "#fa5c7c", "#ffbc00"];
-
-    var DrawSparkline = function () {
+    
+    var DrawSparkline = function() {
         var dataColors = $("#sparkline1").data('colors');
-        var colors = dataColors ? dataColors.split(",") : defaultColors.concat();
+        var colors = dataColors? dataColors.split(",") : defaultColors.concat();
 
         $('#sparkline1').sparkline([0, 23, 43, 35, 44, 45, 56, 37, 40], {
             type: 'line',
@@ -21,9 +21,9 @@ $(document).ready(function () {
             fillColor: hexToRGB(colors[0], 0.3),
             highlightLineColor: 'rgba(0,0,0,.1)',
             highlightSpotColor: 'rgba(0,0,0,.2)',
-            maxSpotColor: false,
+            maxSpotColor:false,
             minSpotColor: false,
-            spotColor: false,
+            spotColor:false,
             lineWidth: 1
         });
 
@@ -37,14 +37,14 @@ $(document).ready(function () {
             composite: true,
             highlightLineColor: 'rgba(0,0,0,.1)',
             highlightSpotColor: 'rgba(0,0,0,.2)',
-            maxSpotColor: false,
+            maxSpotColor:false,
             minSpotColor: false,
-            spotColor: false,
+            spotColor:false,
             lineWidth: 1
         });
-
+        
         var dataColors = $("#sparkline2").data('colors');
-        colors = dataColors ? dataColors.split(",") : defaultColors.concat();
+        colors = dataColors? dataColors.split(",") : defaultColors.concat();
         $('#sparkline2').sparkline([3, 6, 7, 8, 6, 4, 7, 10, 12, 7, 4, 9, 12, 13, 11, 12], {
             type: 'bar',
             height: '165',
@@ -52,18 +52,18 @@ $(document).ready(function () {
             barSpacing: '3',
             barColor: colors
         });
-
+        
         var dataColors = $("#sparkline3").data('colors');
-        colors = dataColors ? dataColors.split(",") : defaultColors.concat();
+        colors = dataColors? dataColors.split(",") : defaultColors.concat();
         $('#sparkline3').sparkline([20, 40, 30, 10], {
             type: 'pie',
             width: '165',
             height: '165',
             sliceColors: colors
         });
-
+    
         var dataColors = $("#sparkline4").data('colors');
-        colors = dataColors ? dataColors.split(",") : defaultColors.concat();
+        colors = dataColors? dataColors.split(",") : defaultColors.concat();
         $('#sparkline4').sparkline([0, 23, 43, 35, 44, 45, 56, 37, 40], {
             type: 'line',
             width: "100%",
@@ -74,11 +74,11 @@ $(document).ready(function () {
             lineWidth: 2,
             highlightLineColor: 'rgba(0,0,0,.1)',
             highlightSpotColor: 'rgba(0,0,0,.2)',
-            maxSpotColor: false,
+            maxSpotColor:false,
             minSpotColor: false,
-            spotColor: false
+            spotColor:false
         });
-
+    
         $('#sparkline4').sparkline([25, 23, 26, 24, 25, 32, 30, 24, 19], {
             type: 'line',
             width: "100%",
@@ -88,15 +88,15 @@ $(document).ready(function () {
             fillColor: 'transparent',
             composite: true,
             lineWidth: 2,
-            maxSpotColor: false,
+            maxSpotColor:false,
             minSpotColor: false,
-            spotColor: false,
+            spotColor:false,
             highlightLineColor: 'rgba(0,0,0,1)',
             highlightSpotColor: 'rgba(0,0,0,1)'
         });
 
         var dataColors = $("#sparkline6").data('colors');
-        colors = dataColors ? dataColors.split(",") : defaultColors.concat();
+        colors = dataColors? dataColors.split(",") : defaultColors.concat();
         $('#sparkline6').sparkline([3, 6, 7, 8, 6, 4, 7, 10, 12, 7, 4, 9, 12, 13, 11, 12], {
             type: 'line',
             width: "100%",
@@ -131,32 +131,32 @@ $(document).ready(function () {
 
 
 
-    },
+        },
         DrawMouseSpeed = function () {
             var mrefreshinterval = 500; // update display every 500ms
-            var lastmousex = -1;
-            var lastmousey = -1;
+            var lastmousex=-1; 
+            var lastmousey=-1;
             var lastmousetime;
             var mousetravel = 0;
             var mpoints = [];
             var mpoints_max = 30;
-            $('html').mousemove(function (e) {
+            $('html').mousemove(function(e) {
                 var mousex = e.pageX;
                 var mousey = e.pageY;
                 if (lastmousex > -1) {
-                    mousetravel += Math.max(Math.abs(mousex - lastmousex), Math.abs(mousey - lastmousey));
+                    mousetravel += Math.max( Math.abs(mousex-lastmousex), Math.abs(mousey-lastmousey) );
                 }
                 lastmousex = mousex;
                 lastmousey = mousey;
             });
-            var mdraw = function () {
+            var mdraw = function() {
                 var md = new Date();
                 var timenow = md.getTime();
-                if (lastmousetime && lastmousetime != timenow) {
+                if (lastmousetime && lastmousetime!=timenow) {
                     var pps = Math.round(mousetravel / (timenow - lastmousetime) * 1000);
                     mpoints.push(pps);
                     if (mpoints.length > mpoints_max)
-                        mpoints.splice(0, 1);
+                        mpoints.splice(0,1);
                     mousetravel = 0;
                     $('#sparkline5').sparkline(mpoints, {
                         tooltipSuffix: ' pixels per second',
@@ -164,9 +164,9 @@ $(document).ready(function () {
                         width: "100%",
                         height: '165',
                         chartRangeMax: 77,
-                        maxSpotColor: false,
+                        maxSpotColor:false,
                         minSpotColor: false,
-                        spotColor: false,
+                        spotColor:false,
                         lineWidth: 1,
                         lineColor: '#fa5c7c',
                         fillColor: 'rgba(250, 92, 124, 0.3)',
@@ -178,17 +178,17 @@ $(document).ready(function () {
                 setTimeout(mdraw, mrefreshinterval);
             }
             // We could use setInterval instead, but I prefer to do it this way
-            setTimeout(mdraw, mrefreshinterval);
+            setTimeout(mdraw, mrefreshinterval); 
         };
-
+    
     DrawSparkline();
     DrawMouseSpeed();
-
+    
     var resizeChart;
 
-    $(window).resize(function (e) {
+    $(window).resize(function(e) {
         clearTimeout(resizeChart);
-        resizeChart = setTimeout(function () {
+        resizeChart = setTimeout(function() {
             DrawSparkline();
             DrawMouseSpeed();
         }, 300);

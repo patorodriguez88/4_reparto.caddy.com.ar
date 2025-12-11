@@ -9,11 +9,11 @@
 
     var Dashboard = function () {
         this.$body = $("body"),
-            this.charts = []
+        this.charts = []
     };
 
-
-    Dashboard.prototype.initCharts = function () {
+    
+    Dashboard.prototype.initCharts = function() {
         window.Apex = {
             chart: {
                 parentHeightOffset: 0,
@@ -38,7 +38,7 @@
 
         var options = {
             chart: {
-                height: 370,
+                height: 364,
                 type: 'line',
                 dropShadow: {
                     enabled: true,
@@ -79,11 +79,7 @@
                     show: false
                 }
             },
-            grid: {
-                strokeDashArray: 7,
-            },
             yaxis: {
-                stepSize: 9,
                 labels: {
                     formatter: function (val) {
                         return val + "k"
@@ -109,7 +105,7 @@
 
         var options = {
             chart: {
-                height: 256,
+                height: 257,
                 type: 'bar',
                 stacked: true
             },
@@ -124,7 +120,7 @@
             },
             stroke: {
                 show: true,
-                width: 0,
+                width: 2,
                 colors: ['transparent']
             },
             series: [{
@@ -148,7 +144,6 @@
                 },
             },
             yaxis: {
-                stepSize: 40,
                 labels: {
                     formatter: function (val) {
                         return val + "k"
@@ -183,14 +178,14 @@
         }
         var options = {
             chart: {
-                height: 202,
+                height: 208,
                 type: 'donut',
             },
             legend: {
                 show: false
             },
             stroke: {
-                width: 0
+                colors: ['transparent']
             },
             series: [44, 55, 41, 17],
             labels: ["Direct", "Affilliate", "Sponsored", "E-mail"],
@@ -215,24 +210,20 @@
 
         chart.render();
     },
-
-        // inits the map
-        Dashboard.prototype.initMaps = function () {
-            const map = new jsVectorMap({
-                map: 'world',
-                selector: '#world-map-markers',
-                zoomOnScroll: false,
-                zoomButtons: true,
-                markersSelectable: true,
+    // inits the map
+    Dashboard.prototype.initMaps = function() {
+        //various examples
+        if ($('#world-map-markers').length > 0) {
+            $('#world-map-markers').vectorMap({
+                map: 'world_mill_en',
+                normalizeFunction: 'polynomial',
                 hoverOpacity: 0.7,
                 hoverColor: false,
-
                 regionStyle: {
                     initial: {
-                        fill: 'rgba(145, 166, 189, 0.25)'
+                        fill: '#e3eaef'
                     }
                 },
-
                 markerStyle: {
                     initial: {
                         r: 9,
@@ -250,41 +241,49 @@
                     }
                 },
                 backgroundColor: 'transparent',
-                markers: [
-                    { coords: [40.71, -74.00], name: 'New York' },
-                    { coords: [37.77, -122.41], name: 'San Francisco' },
-                    { coords: [-33.86, 151.20], name: 'Sydney' },
-                    { coords: [1.3, 103.8], name: 'Singapore' }
-                ],
+                markers: [{
+                    latLng: [40.71, -74.00],
+                    name: 'New York'
+                }, {
+                    latLng: [37.77, -122.41],
+                    name: 'San Francisco'
+                }, {
+                    latLng: [-33.86, 151.20],
+                    name: 'Sydney'
+                }, {
+                    latLng: [1.3, 103.8],
+                    name: 'Singapore'
+                }],
+                zoomOnScroll: false
             });
-        },
+        }
+    },
+    //initializing various components and plugins
+    Dashboard.prototype.init = function () {
+        var $this = this;
+        // font
+        // Chart.defaults.global.defaultFontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';        
+        
+        //default date range picker
+        $('#dash-daterange').daterangepicker({
+            singleDatePicker: true
+        });
 
-        // initializing various components and plugins
-        Dashboard.prototype.init = function () {
-            var $this = this;
-            // font
-            // Chart.defaults.global.defaultFontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';        
+        // init charts
+        this.initCharts();
 
-            //default date range picker
-            $('#dash-daterange').daterangepicker({
-                singleDatePicker: true
-            });
+        //init maps
+        this.initMaps();
+    },
 
-            // init charts
-            this.initCharts();
-
-            //init maps
-            this.initMaps();
-        },
-
-        //init Flotchart
-        $.Dashboard = new Dashboard, $.Dashboard.Constructor = Dashboard
+    //init flotchart
+    $.Dashboard = new Dashboard, $.Dashboard.Constructor = Dashboard
 }(window.jQuery),
 
     //initializing Dashboard
-    function ($) {
-        "use strict";
-        $(document).ready(function (e) {
-            $.Dashboard.init();
-        });
-    }(window.jQuery);
+function ($) {
+    "use strict";
+    $(document).ready(function(e) {
+        $.Dashboard.init();
+    });
+}(window.jQuery);
