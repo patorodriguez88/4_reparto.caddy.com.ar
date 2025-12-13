@@ -92,7 +92,7 @@ $("#ingreso").click(function () {
   $.ajax({
     data: { Login: 1, user: user, password: pass },
     type: "POST",
-    url: "../../SistemaReparto/Conexion/admision.php",
+    url: "Conexion/admision.php",
     dataType: "json",
     beforeSend: function () {
       $("#info-alert-modal-header").html("Verificando Datos...");
@@ -104,6 +104,8 @@ $("#ingreso").click(function () {
         $("#navbar").show();
         $("#login").hide();
         $("#hdractivas").show();
+        $("#topnav").show(); // 👈 MOSTRAR MENÚ
+
         paneles();
 
         var codigos = jsonData.codigos || [];
@@ -136,7 +138,7 @@ $("#salir").click(function () {
   $.ajax({
     data: { Salir: 1 },
     type: "POST",
-    url: "SistemaReparto/Conexion/admision.php",
+    url: "../../SistemaReparto/Conexion/admision.php",
     beforeSend: function () {
       $("#info-alert-modal-header").html("Cerrando Sesión...");
       // $("#info-alert-modal").modal("show");
@@ -146,6 +148,7 @@ $("#salir").click(function () {
       $("#navbar").hide();
       $("#login").show();
       $("#info-alert-modal").modal("hide");
+      $("#topnav").show(); // 👈 MOSTRAR MENÚ
     },
     error: function (xhr, status, error) {
       $("#info-alert-modal").modal("hide");

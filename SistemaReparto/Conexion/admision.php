@@ -2,9 +2,25 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-
-include_once "conexioni.php";
 date_default_timezone_set('America/Argentina/Buenos_Aires');
+header('Content-Type: application/json; charset=utf-8');
+
+define('ALLOW_NO_SESSION', true);
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once __DIR__ . "/conexioni.php";
+
+if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
+    http_response_code(500);
+    echo json_encode([
+        "success" => 0,
+        "error" => "No se pudo inicializar mysqli. Revisar conexioni.php"
+    ]);
+    exit;
+}
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -23,15 +39,15 @@ if (!empty($_POST['user'])) {
     $user     = $mysqli->real_escape_string($_POST['user']);
     $password = $mysqli->real_escape_string($_POST['password']);
 
-    $sql = "
-        SELECT *
+    $sql = "SELECT *
         FROM usuarios
         WHERE Usuario = '$user'
           AND PASSWORD = '$password'
           AND ACTIVO = '1'
-          AND Nivel = '3'
+          AND NIVEL = '3'
         LIMIT 1
     ";
+
 
     $rec = $mysqli->query($sql);
     $row = $rec ? $rec->fetch_array(MYSQLI_ASSOC) : null;
@@ -85,11 +101,16 @@ if (!empty($_POST['user'])) {
               AND Eliminado = '0'
             LIMIT 1
         ");
+
         $Dato = $sqlC ? $sqlC->fetch_array(MYSQLI_ASSOC) : null;
 
-        $recorridoAsignado = $Dato ? $Dato['Recorrido'] : '';
+        // ✅ Sin warnings aunque no exista Logistica cargada
+        $recorridoAsignado = is_array($Dato) ? ($Dato['Recorrido'] ?? '') : '';
+        $numeroOrden       = is_array($Dato) ? ($Dato['NumerodeOrden'] ?? '') : '';
+
         $_SESSION['RecorridoAsignado'] = $recorridoAsignado;
-        $_SESSION['hdr']               = $Dato ? $Dato['NumerodeOrden'] : '';
+
+        $_SESSION['hdr'] = $Dato['NumerodeOrden'] ?? '';
 
         // BUSCO LOS ENVIOS PENDIENTES EN HOJA DE RUTA PARA EL RECORRIDO
         $rows = array();
@@ -112,7 +133,10 @@ if (!empty($_POST['user'])) {
                 }
             }
         }
-
+        // RESPUESTA EXITOSA
+        if (empty($rows)) {
+            $rows = [];
+        }
         echo json_encode(array(
             'success' => 1,
             'codigos' => $rows
@@ -122,7 +146,8 @@ if (!empty($_POST['user'])) {
         // Usuario o password inválidos
         echo json_encode(array(
             'success' => 0,
-            'user'    => null
+            'user'    => null,
+            'msg'     => "Usuario o contraseña inválidos."
         ));
         exit;
     }
@@ -131,7 +156,8 @@ if (!empty($_POST['user'])) {
     // No llegó user por POST
     echo json_encode(array(
         'success' => 0,
-        'user'    => null
+        'user'    => null,
+        'msg'     => "No se recibió el nombre de usuario."
     ));
     exit;
 }

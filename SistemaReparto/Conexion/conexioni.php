@@ -1,5 +1,9 @@
 <?php
-session_start();
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 
 class Conexion
 {
@@ -139,7 +143,7 @@ if (!defined('ALLOW_NO_SESSION') || ALLOW_NO_SESSION !== true) {
             }
 
             // Carga normal
-            header("Location: /SistemaTriangular/inicio.php");
+            // header("Location: /SistemaReparto/inicio.php");
             exit;
         }
 
