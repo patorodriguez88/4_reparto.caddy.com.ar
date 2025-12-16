@@ -4,96 +4,107 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// =============================
+// Helpers internos
+// =============================
+function destruirSesionSegura()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION = [];
+        session_destroy();
+    }
+}
+
+function redirigirAlLogin()
+{
+    // Si es AJAX → 401
+    if (
+        !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+        strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
+    ) {
+        header('X-Session-Expired: 1');
+        http_response_code(401);
+        exit;
+    }
+
+    // Navegación normal
+    header("Location: /SistemaReparto/hdr.html");
+    exit;
+}
 
 class Conexion
 {
-    private $server;
-    private $user;
-    private $password;
-    private $database;
-    private $port;
-    private $socket;
     private $conexion;
 
     public function __construct()
     {
         $datos = $this->cargarDatosConexion();
 
-        $this->server   = $datos['server'] ?? 'localhost';
-        $this->user     = $datos['user'] ?? 'root';
-        $this->password = $datos['password'] ?? '';
-        $this->database = $datos['database'] ?? '';
-        $this->port     = isset($datos['port']) ? intval($datos['port']) : 3306;
-        $this->socket   = $datos['socket'] ?? null;
+        $server   = $datos['server']   ?? 'localhost';
+        $user     = $datos['user']     ?? 'root';
+        $password = $datos['password'] ?? '';
+        $database = $datos['database'] ?? '';
+        $port     = isset($datos['port']) ? intval($datos['port']) : 3306;
+        $socket   = $datos['socket'] ?? null;
 
         if ($_SERVER['SERVER_NAME'] === 'localhost') {
             $this->conexion = new mysqli(
-                $this->server,
-                $this->user,
-                $this->password,
-                $this->database,
-                $this->port,
-                $this->socket
+                $server,
+                $user,
+                $password,
+                $database,
+                $port,
+                $socket
             );
         } else {
             $this->conexion = new mysqli(
-                $this->server,
-                $this->user,
-                $this->password,
-                $this->database,
-                $this->port
+                $server,
+                $user,
+                $password,
+                $database,
+                $port
             );
         }
 
-        // 🔴 SI FALLA LA CONEXIÓN → REDIRIGE AL LOGIN
+        // ❌ Error de conexión
         if ($this->conexion->connect_error) {
-            echo "❌ Error de conexión: " . $this->conexion->connect_error;
-            session_destroy();
-            header("Location: /SistemaReparto/hdr.php");
-            exit;
+            destruirSesionSegura();
+            redirigirAlLogin();
         }
 
         $this->conexion->set_charset("utf8");
-
-        $_SESSION['server'] = $this->server;
+        $_SESSION['server'] = $server;
     }
 
     private function cargarDatosConexion(): array
     {
-        // 🔄 NUEVO: detectamos host para decidir entorno
         $serverName = $_SERVER['SERVER_NAME'] ?? '';
-        $httpHost   = $_SERVER['HTTP_HOST']   ?? '';
-        $host       = strtolower($httpHost ?: $serverName);
+        $host       = strtolower($_SERVER['HTTP_HOST'] ?? '');
 
         if ($serverName === 'localhost') {
-            // 🖥️ Entorno local
             $archivo = "config_local";
             define('ENTORNO', 'local');
         } elseif (strpos($host, 'sandbox.reparto.caddy.com.ar') !== false) {
-            // 🧪 Entorno sandbox
-            $archivo = "config_sandbox";   // 👈 ESTE ARCHIVO NUEVO
+            $archivo = "config_sandbox";
             define('ENTORNO', 'sandbox');
         } else {
-            // 🔵 Producción
             $archivo = "config";
             define('ENTORNO', 'produccion');
         }
 
-        $path = dirname(__FILE__) . "/" . $archivo;
+        $path = __DIR__ . "/" . $archivo;
 
         if (!file_exists($path)) {
-            session_destroy();
-            header("Location: /SistemaReparto/hdr.php");
-            exit;
+            destruirSesionSegura();
+            redirigirAlLogin();
         }
 
         $json  = file_get_contents($path);
         $datos = json_decode($json, true);
 
-        if (!$datos || !is_array($datos) || !isset($datos[0])) {
-            session_destroy();
-            header("Location: /SistemaReparto/hdr.php");
-            exit;
+        if (!$datos || !isset($datos[0])) {
+            destruirSesionSegura();
+            redirigirAlLogin();
         }
 
         return $datos[0];
@@ -105,49 +116,36 @@ class Conexion
     }
 }
 
-
-// 🧠 INSTANCIAR CONEXIÓN
+// =============================
+// Instanciar conexión
+// =============================
 $miConexion = new Conexion();
 $mysqli = $miConexion->obtenerConexion();
 
-// 🕒 Tiempo máximo de sesión (90 min)
+// =============================
+// Validación de sesión
+// =============================
 $tiempoMaximo = 5400;
-
-// Archivos que no requieren sesión activa
 $archivoActual = basename($_SERVER['PHP_SELF']);
 $excepciones = ['hdr.html'];
 
-// 🔐 Validación completa de sesión (saltear si es API)
 if (!defined('ALLOW_NO_SESSION') || ALLOW_NO_SESSION !== true) {
 
-    // 🔐 Validación completa de sesión
     if (!in_array($archivoActual, $excepciones)) {
-        // Sesión expirada por inactividad
+
+        // Expiración por inactividad
         if (isset($_SESSION['tiempo']) && (time() - $_SESSION['tiempo']) > $tiempoMaximo) {
-            session_destroy();
-            $_SESSION = [];
+            destruirSesionSegura();
+            redirigirAlLogin();
         }
 
         // Sin sesión válida
         if (empty($_SESSION['Usuario'])) {
-            session_destroy();
-
-            // Si es llamada AJAX
-            if (
-                !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
-                strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
-            ) {
-                header('X-Session-Expired: 1');
-                http_response_code(401);
-                exit;
-            }
-
-            // Carga normal
-            // header("Location: /SistemaReparto/inicio.php");
-            exit;
+            destruirSesionSegura();
+            redirigirAlLogin();
         }
 
-        // Si sigue activo, actualizamos el tiempo
+        // Sesión OK → refresco tiempo
         $_SESSION['tiempo'] = time();
     }
 }

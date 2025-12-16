@@ -74,7 +74,35 @@
                                 </div>
                             </div>
                             <!-- end Topbar -->
-                
+                <!-- Modal: Escaneo Colecta -->
+                    <div class="modal fade" id="colectaScanModal" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-md">
+                            <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Escanear bulto (colecta)</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                            </div>
+
+                            <div class="modal-body">
+                                <div class="mb-2">
+                                <span class="badge bg-secondary">Esperado:</span>
+                                <span class="badge bg-primary" id="colecta-expected">–</span>
+                                </div>
+
+                                <div id="colecta-feedback" class="mb-2"></div>
+
+                                <div id="colecta-qr-reader" style="width:100%; max-width:420px; margin:0 auto;"></div>
+                            </div>
+
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-danger" id="btnStopColectaScan">Detener</button>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                            </div>
+                            </div>
+                        </div>
+                    </div>
+
+
                     <div class="topnav" id="topnav" style="display:none">
                         <div class="container-fluid">
                             <nav class="navbar navbar-dark navbar-expand-lg topnav-menu">        
@@ -226,14 +254,11 @@
                                         </p>
                                         <input class="form-control" type="number" id="receptor-dni">
                                     </li>
-                                    <li class="mb-2" id="card-receptor-observaciones">
-                                        <p class="text-muted mb-1 font-13">
-                                            <i class="mdi mdi-fountain-pen-tip"> </i> OBSERVACIONES
-                                        </p>
-                                        <input class="form-control" type="text" id="receptor-observaciones">
-                                    </li>
+                                    
                                     <!-- ITEMS -->
                                     <div id="card-receptor-items" style="display:none">
+                                        <i class="mdi mdi-package-variant"></i> CANTIDAD  <a  id="card-receptor-cantidad"> </a>
+                                        
                                         <li class="mb-2">
                                             <p class="text-muted mb-1 font-13">
                                                 <i class="mdi mdi-fountain-pen-tip"> </i> ITEMS  <span class="badge bg-success" id="totalt"> 0 </span>
@@ -245,7 +270,15 @@
                                                 <select id="prueba" name="codigo[]" class="select2 form-control select2-multiple" data-toggle="select2" multiple="multiple" data-placeholder="Seleccione ..."></select>
                                             </div>
                                         </li>
+                                        <div id="colecta-cantidad-msg" class="mt-2"></div>
                                     </div>
+                                    <li class="mb-2" id="card-receptor-observaciones">
+                                        <p class="text-muted mb-1 font-13">
+                                            <i class="mdi mdi-fountain-pen-tip"> </i> OBSERVACIONES
+                                        </p>
+                                        <input class="form-control" type="text" id="receptor-observaciones">
+                                    </li>
+                                    
                                 </ul>
                             </div> <!-- end col -->
                         </div>
@@ -345,10 +378,10 @@
         <!-- jQuery + bundle Hyper -->
         <script src="../hyper/dist/saas/assets/js/vendor.min.js"></script>
         <script src="../hyper/dist/saas/assets/js/app.min.js"></script>
-
-        <!-- DataTables Responsive (extensión) -->
-        <!-- <script src="../hyper/dist/saas/assets/js/vendor/dataTables.responsive.min.js"></script> -->
-        <!-- <script src="../hyper/dist/saas/assets/js/vendor/responsive.bootstrap5.min.js"></script> -->
+        
+        <!-- <script src="https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js"></script> -->
+        <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
         <!-- Plugins extra -->
         <script src="../hyper/dist/saas/assets/js/vendor/dropzone.min.js"></script>
@@ -357,11 +390,8 @@
         <!-- Tus scripts -->
         <script src="Proceso/js/funciones_hdr.js"></script>
         <script src="Proceso/js/dropzone.js"></script>
-        <script src="Proceso/js/mail.js"></script>
-
-        <!-- 8) Lector de códigos de barra -->
-        <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
-        <script src="script.js"></script>
+        <!-- <script src="Proceso/js/mail.js"></script> -->
+        <script src="Proceso/js/colecta_scan.js"></script>
                 
   </body>
 </html>

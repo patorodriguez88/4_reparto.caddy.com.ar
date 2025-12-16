@@ -5,10 +5,16 @@ if (!defined('ALLOW_NO_SESSION')) {
 }
 
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// IMPORTANT: evitar que warnings/notices rompan respuestas JSON (AJAX/Dropzone)
+ini_set('display_errors', 0);
 
 require_once "../../Conexion/conexioni.php";
 date_default_timezone_set('America/Argentina/Buenos_Aires');
+
+// Asegurar conexión en UTF-8 para evitar "Incorrect string value" (tildes, ñ, etc.)
+if (isset($mysqli) && $mysqli instanceof mysqli) {
+  @$mysqli->set_charset('utf8mb4');
+}
 
 // Helper para responder siempre JSON
 function responder(array $data)
@@ -21,13 +27,23 @@ function responder(array $data)
 // Helper para consultas SQL con control de error
 function consultaOError(mysqli $mysqli, string $query, string $label)
 {
-  $res = $mysqli->query($query);
+  try {
+    $res = $mysqli->query($query);
+  } catch (mysqli_sql_exception $e) {
+    responder([
+      'success' => 0,
+      'error'   => "Error SQL {$label}: " . $e->getMessage(),
+      'query'   => $label
+    ]);
+  }
+
   if (!$res) {
     responder([
       'success' => 0,
       'error'   => "Error SQL {$label}: " . $mysqli->error
     ]);
   }
+
   return $res;
 }
 
@@ -63,7 +79,7 @@ if (isset($_POST['Datos'])) {
   // Busco la orden cargada para este chofer
   $sql = consultaOError(
     $mysqli,
-    "SELECT NumerodeOrden 
+    "SELECT NumerodeOrden,Recorrido 
          FROM Logistica 
          WHERE idUsuarioChofer = '{$idUsuario}' 
            AND Estado = 'Cargada' 
@@ -77,7 +93,7 @@ if (isset($_POST['Datos'])) {
   if (!empty($row['NumerodeOrden'])) {
 
     $nOrden = $row['NumerodeOrden'];
-
+    $Recorrido = $row['Recorrido'];
     // CANTIDAD TOTAL
     $sqlCantidadTotal = consultaOError(
       $mysqli,
@@ -126,12 +142,13 @@ if (isset($_POST['Datos'])) {
 
     responder([
       'success'    => 1,
-      'data'       => $nOrden,
+      'NOrden'       => $nOrden,
       'Recorrido'  => $Recorrido,
       'Total'      => (int) $TotalCantidad['Cantidad'],
       'Cerrados'   => (int) $TotalNoEntregados['Cantidad'],
       'Abiertos'   => (int) $TotalEntregados['Cantidad'],
-      'Usuario'    => $Transportista
+      'Usuario'    => $Transportista,
+      'idUsuario'  => $idUsuario
     ]);
   } else {
     responder([
@@ -148,7 +165,18 @@ if (isset($_POST['Datos'])) {
 // ==================================================
 if (isset($_POST['ConfirmoEntrega'])) {
 
-  $CodigoSeguimiento = $_POST['Cs']   ?? '';
+  // 1) Primero lo traés del POST
+  $CodigoRaw = $_POST['Cs'] ?? '';
+  $CodigoRaw = trim($CodigoRaw);
+
+  if ($CodigoRaw === '') {
+    responder(['success' => 0, 'error' => 'Falta Cs (CodigoSeguimiento)']);
+  }
+
+  // 2) Después normalizás (por si un día Cs viniera con _n)
+  $CodigoSeguimiento = explode('_', $CodigoRaw)[0]; // BASE sin _n
+
+
   $dni               = $_POST['Dni']  ?? '';
   $nombre2           = $_POST['Name'] ?? '';
   $Observaciones     = $_POST['Obs']  ?? '';
@@ -156,10 +184,6 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $Etiquetas         = isset($_POST['Etiquetas']) && is_array($_POST['Etiquetas'])
     ? $_POST['Etiquetas']
     : [];
-
-  if ($CodigoSeguimiento === '') {
-    responder(['success' => 0, 'error' => 'Falta Cs (CodigoSeguimiento)']);
-  }
 
   // ID de HojaDeRuta
   $sqlhdr = consultaOError(
@@ -170,14 +194,14 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $id = $sqlhdr->fetch_array(MYSQLI_ASSOC) ?: ['id' => null];
 
   // Etiquetas
-  foreach ($Etiquetas as $et) {
-    $et = $mysqli->real_escape_string($et);
-    $mysqli->query(
-      "INSERT INTO Etiquetas (CodigoSeguimiento, Observaciones)
-             VALUES ('{$CodigoSeguimiento}', '{$et}')"
-    );
-    // No corto si falla una etiqueta, pero se podría controlar también
-  }
+  // foreach ($Etiquetas as $et) {
+  //   $et = $mysqli->real_escape_string($et);
+  //   $mysqli->query(
+  //     "INSERT INTO Etiquetas (CodigoSeguimiento, Observaciones)
+  //            VALUES ('{$CodigoSeguimiento}', '{$et}')"
+  //   );
+  //   // No corto si falla una etiqueta, pero se podría controlar también
+  // }
 
   // Localización base
   $sqlLocalizacion = consultaOError(
@@ -189,7 +213,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   );
   $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC) ?: [];
 
-  $Localizacion = utf8_decode($sqlLocalizacionR['DomicilioDestino'] ?? '');
+  $Localizacion = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
 
   // Número de visita
   $sqlvisita = consultaOError(
@@ -203,7 +227,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $Visita  = (int) $visita['Visita'] + 1;
 
   // Lógica de Retirado / Entregado / Redespacho
-  if (isset($_POST['Retirado'])) {
+  if ($Retirado == 1) {
 
     if (!empty($sqlLocalizacionR) && (int)$sqlLocalizacionR['Redespacho'] === 0) {
       $Entregado = 1;
@@ -217,6 +241,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
                  WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
                    AND Entregado = 1
                    AND Estado    = '{$Estado}'
+                   AND Eliminado= 0
                  LIMIT 1"
       );
 
@@ -241,8 +266,8 @@ if (isset($_POST['ConfirmoEntrega'])) {
       );
       $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
 
-      $NombreCompleto = utf8_decode($datossqlTransClientes['RazonSocial'] ?? '');
-      $Localizacion   = utf8_decode($datossqlTransClientes['DomicilioOrigen'] ?? '');
+      $NombreCompleto = ($datossqlTransClientes['RazonSocial'] ?? '');
+      $Localizacion   = ($datossqlTransClientes['DomicilioOrigen'] ?? '');
       $idTransClientes = $datossqlTransClientes['id'] ?? 0;
       $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
     }
@@ -258,8 +283,8 @@ if (isset($_POST['ConfirmoEntrega'])) {
     );
     $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
 
-    $NombreCompleto  = utf8_decode($datossqlTransClientes['ClienteDestino'] ?? '');
-    $Localizacion    = utf8_decode($datossqlTransClientes['DomicilioDestino'] ?? '');
+    $NombreCompleto  = ($datossqlTransClientes['ClienteDestino'] ?? '');
+    $Localizacion    = ($datossqlTransClientes['DomicilioDestino'] ?? '');
     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
     $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
   } else {
@@ -279,8 +304,8 @@ if (isset($_POST['ConfirmoEntrega'])) {
     );
     $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
 
-    $NombreCompleto  = utf8_decode($datossqlTransClientes['RazonSocial'] ?? '');
-    $Localizacion    = utf8_decode($datossqlTransClientes['DomicilioOrigen'] ?? '');
+    $NombreCompleto = $datossqlTransClientes['RazonSocial'] ?? '';
+    $Localizacion   = $datossqlTransClientes['DomicilioOrigen'] ?? '';
     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
     $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
   }
@@ -320,6 +345,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   }
 
   // Actualizo TransClientes
+
   consultaOError(
     $mysqli,
     "UPDATE IGNORE TransClientes 
@@ -383,7 +409,7 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
     'Localizacion NoEntrega'
   );
   $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC) ?: [];
-  $Localizacion     = utf8_decode($sqlLocalizacionR['DomicilioDestino'] ?? '');
+  $Localizacion     = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
 
   // Visitas
   $sqlvisita = consultaOError(
@@ -411,8 +437,8 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
     );
     $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
 
-    $NombreCompleto  = utf8_decode($datossqlTransClientes['ClienteDestino'] ?? '');
-    $Localizacion    = utf8_decode($datossqlTransClientes['DomicilioDestino'] ?? '');
+    $NombreCompleto  = ($datossqlTransClientes['ClienteDestino'] ?? '');
+    $Localizacion    = ($datossqlTransClientes['DomicilioDestino'] ?? '');
     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
   } else {
     $sqlTransClientes = consultaOError(
@@ -424,8 +450,8 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
     );
     $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
 
-    $NombreCompleto  = utf8_decode($datossqlTransClientes['RazonSocial'] ?? '');
-    $Localizacion    = utf8_decode($datossqlTransClientes['DomicilioOrigen'] ?? '');
+    $NombreCompleto  = ($datossqlTransClientes['RazonSocial'] ?? '');
+    $Localizacion    = ($datossqlTransClientes['DomicilioOrigen'] ?? '');
     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
   }
 
@@ -518,7 +544,8 @@ if (isset($_POST['BuscoDatos'])) {
                 IF(Retirado = 0, DomicilioOrigen, DomicilioDestino) AS Domicilio,
                 CodigoSeguimiento,
                 Observaciones,
-                Retirado 
+                Retirado,
+                Cantidad 
          FROM TransClientes 
          WHERE CodigoSeguimiento = '{$seguimiento}'",
     'TransClientes BuscoDatos'
