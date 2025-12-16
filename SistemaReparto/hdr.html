@@ -3,7 +3,7 @@
     <head>
         <!-- <meta name="viewport" content="width=device-width, initial-scale=1"> -->
         <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1"/>
-        <title>Sistema Caddy | Panel Visual </title>
+        <title>Reparto Caddy | Panel Visual </title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta content="A fully featured admin theme which can be used to build CRM, CMS, etc." name="description" />
         <meta content="Coderthemes" name="author" />
@@ -74,8 +74,36 @@
                                 </div>
                             </div>
                             <!-- end Topbar -->
-                
-                    <div class="topnav">
+                <!-- Modal: Escaneo Colecta -->
+                    <div class="modal fade" id="colectaScanModal" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-md">
+                            <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Escanear bulto (colecta)</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                            </div>
+
+                            <div class="modal-body">
+                                <div class="mb-2">
+                                <span class="badge bg-secondary">Esperado:</span>
+                                <span class="badge bg-primary" id="colecta-expected">–</span>
+                                </div>
+
+                                <div id="colecta-feedback" class="mb-2"></div>
+
+                                <div id="colecta-qr-reader" style="width:100%; max-width:420px; margin:0 auto;"></div>
+                            </div>
+
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-danger" id="btnStopColectaScan">Detener</button>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                            </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="topnav" id="topnav" style="display:none">
                         <div class="container-fluid">
                             <nav class="navbar navbar-dark navbar-expand-lg topnav-menu">        
                                 <div class="collapse navbar-collapse" id="topnav-menu-content">
@@ -226,14 +254,11 @@
                                         </p>
                                         <input class="form-control" type="number" id="receptor-dni">
                                     </li>
-                                    <li class="mb-2" id="card-receptor-observaciones">
-                                        <p class="text-muted mb-1 font-13">
-                                            <i class="mdi mdi-fountain-pen-tip"> </i> OBSERVACIONES
-                                        </p>
-                                        <input class="form-control" type="text" id="receptor-observaciones">
-                                    </li>
+                                    
                                     <!-- ITEMS -->
                                     <div id="card-receptor-items" style="display:none">
+                                        <i class="mdi mdi-package-variant"></i> CANTIDAD  <a  id="card-receptor-cantidad"> </a>
+                                        
                                         <li class="mb-2">
                                             <p class="text-muted mb-1 font-13">
                                                 <i class="mdi mdi-fountain-pen-tip"> </i> ITEMS  <span class="badge bg-success" id="totalt"> 0 </span>
@@ -245,7 +270,15 @@
                                                 <select id="prueba" name="codigo[]" class="select2 form-control select2-multiple" data-toggle="select2" multiple="multiple" data-placeholder="Seleccione ..."></select>
                                             </div>
                                         </li>
+                                        <div id="colecta-cantidad-msg" class="mt-2"></div>
                                     </div>
+                                    <li class="mb-2" id="card-receptor-observaciones">
+                                        <p class="text-muted mb-1 font-13">
+                                            <i class="mdi mdi-fountain-pen-tip"> </i> OBSERVACIONES
+                                        </p>
+                                        <input class="form-control" type="text" id="receptor-observaciones">
+                                    </li>
+                                    
                                 </ul>
                             </div> <!-- end col -->
                         </div>
@@ -340,27 +373,25 @@
             <!-- End Page content -->
             <!-- ============================================================== -->
         </div>
-        <!-- END wrapper -->
-        <!-- bundle -->
+
+
+        <!-- jQuery + bundle Hyper -->
         <script src="../hyper/dist/saas/assets/js/vendor.min.js"></script>
         <script src="../hyper/dist/saas/assets/js/app.min.js"></script>
+        
+        <!-- <script src="https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js"></script> -->
+        <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-        <script src="../hyper/dist/saas/assets/js/vendor/responsive.bootstrap5.min.js"></script>
-        <!-- plugin js -->
+        <!-- Plugins extra -->
         <script src="../hyper/dist/saas/assets/js/vendor/dropzone.min.js"></script>
-        <!-- init js -->
         <script src="../hyper/dist/saas/assets/js/ui/component.fileupload.js"></script>
-        <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBFDH8-tnISZXhe9BAfWw9BS-uzCv9yhvk">
-        </script>
-        <!-- funciones -->
-        <!-- <script src="Mapas/js/hojaderuta.js"></script> -->
+
+        <!-- Tus scripts -->
         <script src="Proceso/js/funciones_hdr.js"></script>
         <script src="Proceso/js/dropzone.js"></script>
-        <script src="Proceso/js/mail.js"></script>
-        <!-- Cargamos Quagga y luego nuestro script -->
-         <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
-         <script src="script.js"></script>
-         
+        <!-- <script src="Proceso/js/mail.js"></script> -->
+        <script src="Proceso/js/colecta_scan.js"></script>
+                
   </body>
 </html>

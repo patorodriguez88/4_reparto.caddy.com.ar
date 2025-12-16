@@ -1,0 +1,314 @@
+// Proceso/js/colecta_scan.js
+(function () {
+  let colectaQr = null;
+  let colectaLast = "";
+  let colectaLastT = 0;
+  // let lastRaw = "";
+  // let lastT = 0;
+  const codigosEscaneados = new Set(); // guarda BASE_1, BASE_2, etc.
+  function swalFire(opts) {
+    if (window.Swal && Swal.fire) return Swal.fire(opts);
+    alert((opts.title ? opts.title + "\n" : "") + (opts.text || ""));
+  }
+
+  function getExpectedBase() {
+    // card-seguimiento puede venir BASE o BASE_1
+    const raw = ($("#card-seguimiento").text() || "").trim();
+    return raw ? raw.split("_")[0].trim() : "";
+  }
+
+  function getCantidadEsperada() {
+    const txt = ($("#card-receptor-cantidad").text() || "").trim();
+    const n = parseInt(txt, 10);
+    return isNaN(n) ? 1 : n;
+  }
+
+  function addToSelect2(code) {
+    const $sel = $("#prueba");
+
+    if ($sel.find(`option[value="${code}"]`).length === 0) {
+      const opt = new Option(code, code, true, true);
+      $sel.append(opt);
+    } else {
+      $sel.find(`option[value="${code}"]`).prop("selected", true);
+    }
+
+    $sel.trigger("change");
+  }
+
+  function getSelectedValues() {
+    const v = $("#prueba").val();
+    return Array.isArray(v) ? v : [];
+  }
+
+  function getNextIndexForBase(base) {
+    // Busca el próximo _n libre según lo que ya está en el select2
+    const selected = getSelectedValues();
+    let maxN = 0;
+
+    selected.forEach((v) => {
+      const s = (v || "").toString();
+      const parts = s.split("_");
+      if (parts[0] === base && parts.length === 2) {
+        const n = parseInt(parts[1], 10);
+        if (!isNaN(n)) maxN = Math.max(maxN, n);
+      }
+      if (s === base) {
+        // si alguien cargó base “pelado”, lo consideramos como 1
+        maxN = Math.max(maxN, 1);
+      }
+    });
+
+    return maxN + 1;
+  }
+
+  function countForBase(base) {
+    const selected = getSelectedValues();
+    let c = 0;
+    selected.forEach((v) => {
+      const s = (v || "").toString();
+      if (s === base) c++;
+      if (s.startsWith(base + "_")) c++;
+    });
+    return c;
+  }
+
+  async function stopScanner() {
+    try {
+      if (colectaQr) {
+        await colectaQr.stop();
+        await colectaQr.clear();
+        colectaQr = null;
+      }
+    } catch (e) {}
+  }
+
+  async function startScanner() {
+    if (!("Html5Qrcode" in window)) {
+      swalFire({
+        icon: "error",
+        title: "Falta librería",
+        text: "No se cargó html5-qrcode",
+      });
+      return;
+    }
+
+    await stopScanner();
+    colectaQr = new Html5Qrcode("colecta-qr-reader");
+
+    const expectedBase = getExpectedBase();
+    const qtyExpected = getCantidadEsperada();
+
+    // Mostrar esperado en el modal (si tenés esos spans)
+    $("#colecta-expected").text(expectedBase || "—");
+    $("#colecta-expected-qty").text(qtyExpected || 1);
+
+    const config = {
+      fps: 12,
+      qrbox: { width: 320, height: 320 },
+      aspectRatio: 1,
+    };
+    const onSuccess = async (decodedText) => {
+      const raw = (decodedText || "").trim();
+      if (!raw) return;
+
+      // anti-rebote (mismo frame)
+      const now = Date.now();
+      if (raw === colectaLast && now - colectaLastT < 900) return;
+      colectaLast = raw;
+      colectaLastT = now;
+
+      const expectedBase = ($("#card-seguimiento").text() || "")
+        .trim()
+        .split("_")[0]
+        .trim();
+      const qtyExpected =
+        parseInt(($("#card-receptor-cantidad").text() || "1").trim(), 10) || 1;
+
+      // Ej: raw = BASE_2
+      const base = raw.split("_")[0].trim();
+      const hasN = raw.includes("_");
+
+      // 1) validar que corresponde al envío abierto
+      if (!expectedBase) {
+        swalFire({
+          icon: "warning",
+          title: "Sin envío",
+          text: "Abrí un envío antes de escanear.",
+        });
+        return;
+      }
+      if (base !== expectedBase) {
+        swalFire({
+          icon: "error",
+          title: "Código incorrecto",
+          text: `Escaneaste ${base} y se esperaba ${expectedBase}`,
+          timer: 1400,
+          showConfirmButton: false,
+        });
+        return;
+      }
+
+      // 2) si hay más de 1 bulto, el QR DEBE venir con _n
+      if (qtyExpected > 1 && !hasN) {
+        swalFire({
+          icon: "info",
+          title: "Falta el sufijo",
+          text: "Para este envío necesitás escanear el QR que dice BASE_1 / BASE_2 / BASE_3…",
+          timer: 1400,
+          showConfirmButton: false,
+        });
+        return;
+      }
+
+      // 3) si qtyExpected == 1 aceptamos base pelado o base_1 (normalizamos a base)
+      let codeToStore = raw;
+      if (qtyExpected <= 1) {
+        codeToStore = expectedBase; // para que no te quede BASE_1 mezclado
+      }
+
+      // 4) anti-duplicado real por código completo
+      if (codigosEscaneados.has(codeToStore)) {
+        swalFire({
+          icon: "info",
+          title: "Ya escaneado",
+          text: codeToStore,
+          timer: 900,
+          showConfirmButton: false,
+        });
+        return;
+      }
+
+      // 5) guardar y mostrar
+      codigosEscaneados.add(codeToStore);
+      addToSelect2(codeToStore);
+
+      // 6) feedback con progreso real (cuántos _n ya tenés)
+      const cargados = $("#prueba").val()?.length || 0;
+
+      swalFire({
+        icon: "success",
+        title: "OK",
+        text: `Cargado ${cargados}/${qtyExpected}`,
+        timer: 650,
+        showConfirmButton: false,
+      });
+    };
+    // const onSuccess = async (decodedText) => {
+    //   const raw = (decodedText || "").trim();
+    //   if (!raw) return;
+
+    //   // anti-rebote (mismo frame)
+    //   const now = Date.now();
+    //   if (raw === lastRaw && now - lastT < 800) return;
+    //   lastRaw = raw;
+    //   lastT = now;
+
+    //   const scannedBase = raw.split("_")[0].trim();
+
+    //   // 1) validar que corresponde al envío abierto
+    //   if (!expectedBase) {
+    //     swalFire({
+    //       icon: "warning",
+    //       title: "Sin envío",
+    //       text: "Abrí un envío antes de escanear.",
+    //     });
+    //     return;
+    //   }
+    //   if (scannedBase !== expectedBase) {
+    //     swalFire({
+    //       icon: "error",
+    //       title: "Código incorrecto",
+    //       text: `Escaneaste ${scannedBase} y se esperaba ${expectedBase}`,
+    //       timer: 1400,
+    //       showConfirmButton: false,
+    //     });
+    //     return;
+    //   }
+
+    //   // 2) sumar bulto respetando cantidad esperada
+    //   const ya = countForBase(expectedBase);
+
+    //   if (ya >= qtyExpected) {
+    //     swalFire({
+    //       icon: "info",
+    //       title: "Cantidad completa",
+    //       text: `Ya cargaste ${ya}/${qtyExpected}`,
+    //       timer: 900,
+    //       showConfirmButton: false,
+    //     });
+    //     return;
+    //   }
+
+    //   // Si qtyExpected == 1, podés guardar base pelado o base_1; elijo base pelado:
+    //   let codeToAdd;
+    //   if (qtyExpected <= 1) {
+    //     codeToAdd = expectedBase;
+    //   } else {
+    //     const nextN = getNextIndexForBase(expectedBase);
+    //     codeToAdd = `${expectedBase}_${nextN}`;
+    //   }
+
+    //   addToSelect2(codeToAdd);
+
+    //   swalFire({
+    //     icon: "success",
+    //     title: "OK",
+    //     text: `Cargado ${ya + 1}/${qtyExpected}`,
+    //     timer: 650,
+    //     showConfirmButton: false,
+    //   });
+    // };
+
+    try {
+      const cams = await Html5Qrcode.getCameras();
+      if (cams && cams.length) {
+        const cam = cams[cams.length - 1];
+        await colectaQr.start(
+          { deviceId: { exact: cam.id } },
+          config,
+          onSuccess,
+          () => {}
+        );
+      } else {
+        await colectaQr.start(
+          { facingMode: "environment" },
+          config,
+          onSuccess,
+          () => {}
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      swalFire({
+        icon: "error",
+        title: "Cámara",
+        text: "No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).",
+      });
+    }
+  }
+
+  // Abrir modal + start
+  $(document).on("click", "#btnEscanear", async function () {
+    const modalEl = document.getElementById("colectaScanModal");
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+    await startScanner();
+  });
+
+  // Stop al cerrar
+  $(document).on("hidden.bs.modal", "#colectaScanModal", async function () {
+    await stopScanner();
+  });
+
+  // Stop manual si lo tenés
+  $(document).on("click", "#btnStopColectaScan", async function () {
+    await stopScanner();
+    swalFire({
+      icon: "info",
+      title: "Scanner detenido",
+      timer: 700,
+      showConfirmButton: false,
+    });
+  });
+})();
