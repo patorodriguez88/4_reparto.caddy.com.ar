@@ -4,6 +4,21 @@ $(document).ajaxError(function (event, xhr) {
     cerrarSesionForzada();
   }
 });
+function mostrarErrorLogin(obj) {
+  const msg = obj?.error || obj?.msg || "Error desconocido";
+  const extra = obj?.detail ? `\n${obj.detail}` : "";
+  const eid = obj?.error_id ? `\nID: ${obj.error_id}` : "";
+
+  if (window.Swal) {
+    Swal.fire({
+      icon: "error",
+      title: "No se pudo iniciar sesión",
+      text: msg + extra + eid,
+    });
+  } else {
+    alert(msg + extra + eid);
+  }
+}
 function cerrarSesionForzada() {
   console.warn("Cerrando sesión forzada por 401");
 
@@ -248,20 +263,24 @@ $("#ingreso").click(function () {
 
         for (var i = 0; i < codigos.length; i++) {
           if (codigos[i]["Retirado"] == 1) {
-            mail_status_notice(codigos[i]["Seguimiento"], "En Transito");
+            // mail_status_notice(codigos[i]["Seguimiento"], "En Transito");
           } else {
-            mail_status_notice(codigos[i]["Seguimiento"], "A Retirar");
+            // mail_status_notice(codigos[i]["Seguimiento"], "A Retirar");
           }
         }
       } else {
-        // alert("Usuario o contraseña incorrectos.");
+        mostrarErrorLogin(jsonData);
       }
       $("#info-alert-modal").modal("hide");
     },
-    error: function (xhr, status, error) {
-      $("#info-alert-modal").modal("hide");
-      console.error("Error login:", status, error, xhr.responseText);
-      // alert("Ocurrió un error al iniciar sesión.");
+    error: function (xhr) {
+      let obj = null;
+      try {
+        obj = JSON.parse(xhr.responseText);
+      } catch (e) {}
+      mostrarErrorLogin(
+        obj || { error: "Error de servidor", detail: xhr.responseText }
+      );
     },
   });
 });
