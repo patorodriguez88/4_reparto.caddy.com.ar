@@ -1,7 +1,7 @@
 let db = null;
 
 function abrirDB(callback) {
-  const request = indexedDB.open("caddyWarehouse", 2);
+  const request = indexedDB.open("caddyWarehouse", 3);
 
   request.onupgradeneeded = function (e) {
     const db = e.target.result;
@@ -9,6 +9,7 @@ function abrirDB(callback) {
     if (!db.objectStoreNames.contains("expected")) {
       const expected = db.createObjectStore("expected", { keyPath: "code" });
       expected.createIndex("estado", "estado", { unique: false });
+      expected.createIndex("retirado", "retirado", { unique: false }); // 👈 NUEVO
     }
 
     if (!db.objectStoreNames.contains("scanned")) {

@@ -153,7 +153,8 @@ function limpiarDB(callback) {
   t1.objectStore("bases_done").clear();
   t1.oncomplete = () => callback();
 }
-function guardarBulto(code, base) {
+
+function guardarBulto(code, base, retirado) {
   const tx = db.transaction("expected", "readwrite");
   const store = tx.objectStore("expected");
 
@@ -161,6 +162,7 @@ function guardarBulto(code, base) {
     code: code,
     base: base,
     estado: "pendiente",
+    retirado: retirado, // 👈 0=RETIRO, 1=ENTREGA
   });
 }
 
@@ -183,13 +185,14 @@ function cargarLista() {
 
         res.items.forEach((item) => {
           const bultos = parseInt(item.bultos, 10) || 1;
+          const retirado = parseInt(item.retirado, 10) || 0; // 👈 viene del backend
 
           if (bultos === 1) {
-            guardarBulto(item.base, item.base);
+            guardarBulto(item.base, item.base, retirado);
             total++;
           } else {
             for (let i = 1; i <= bultos; i++) {
-              guardarBulto(`${item.base}_${i}`, item.base);
+              guardarBulto(`${item.base}_${i}`, item.base, retirado);
               total++;
             }
           }

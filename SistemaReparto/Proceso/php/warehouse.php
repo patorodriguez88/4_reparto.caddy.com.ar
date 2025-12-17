@@ -9,7 +9,7 @@ if (isset($_POST['GetLista'])) {
         exit;
     }
 
-    $sql = $mysqli->query("SELECT TransClientes.CodigoSeguimiento, TransClientes.Cantidad
+    $sql = $mysqli->query("SELECT TransClientes.Retirado,TransClientes.CodigoSeguimiento, TransClientes.Cantidad
     FROM HojaDeRuta
     INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
     WHERE HojaDeRuta.Recorrido = '$recorrido'
@@ -21,7 +21,9 @@ if (isset($_POST['GetLista'])) {
     while ($r = $sql->fetch_assoc()) {
         $items[] = [
             'base' => $r['CodigoSeguimiento'],
-            'bultos' => (int)$r['Cantidad']
+            'bultos' => (int)$r['Cantidad'],
+            'retirado' => (int)$r['Retirado'] // 👈 CLAVE
+
         ];
     }
 

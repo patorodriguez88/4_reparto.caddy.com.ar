@@ -5,25 +5,48 @@ let userInteracted = false;
 let coolingDown = false; // 👈 ESTA LÍNEA FALTABA
 let feedbackTimeout = null;
 
-function getNextPendingCodeForBase(base, callback) {
+// function getNextPendingCodeForBase(base, callback) {
+//   const t = db.transaction("expected", "readonly");
+//   const store = t.objectStore("expected");
+
+//   let candidato = null;
+
+//   store.openCursor().onsuccess = function (e) {
+//     const cursor = e.target.result;
+//     if (cursor) {
+//       const v = cursor.value;
+
+//       if (v.base === base && v.estado !== "ok") {
+//         candidato = v.code; // ej: BASE_2
+//         return callback(candidato);
+//       }
+
+//       cursor.continue();
+//     } else {
+//       // no hay más pendientes
+//       callback(null);
+//     }
+//   };
+// }
+function getNextPendingCodeForBase(base, retiradoObjetivo, callback) {
   const t = db.transaction("expected", "readonly");
   const store = t.objectStore("expected");
-
-  let candidato = null;
 
   store.openCursor().onsuccess = function (e) {
     const cursor = e.target.result;
     if (cursor) {
       const v = cursor.value;
 
-      if (v.base === base && v.estado !== "ok") {
-        candidato = v.code; // ej: BASE_2
-        return callback(candidato);
+      // 👇 SOLO los de esta base + este tipo (0 retiro / 1 entrega) + pendientes
+      if (
+        v.base === base &&
+        (v.retirado ?? 1) === retiradoObjetivo &&
+        v.estado !== "ok"
+      ) {
+        return callback(v.code);
       }
-
       cursor.continue();
     } else {
-      // no hay más pendientes
       callback(null);
     }
   };
@@ -37,7 +60,28 @@ function manejar401(xhr) {
 }
 
 // chequea si todos los bultos de un base están ok
-function baseCompleto(base, callback) {
+// function baseCompleto(base, callback) {
+//   const t = db.transaction("expected", "readonly");
+//   const store = t.objectStore("expected");
+
+//   let total = 0;
+//   let ok = 0;
+
+//   store.openCursor().onsuccess = function (e) {
+//     const cursor = e.target.result;
+//     if (cursor) {
+//       const v = cursor.value;
+//       if (v.base === base) {
+//         total++;
+//         if (v.estado === "ok") ok++;
+//       }
+//       cursor.continue();
+//     } else {
+//       callback(total > 0 && ok === total);
+//     }
+//   };
+// }
+function baseCompleto(base, retiradoObjetivo, callback) {
   const t = db.transaction("expected", "readonly");
   const store = t.objectStore("expected");
 
@@ -48,7 +92,8 @@ function baseCompleto(base, callback) {
     const cursor = e.target.result;
     if (cursor) {
       const v = cursor.value;
-      if (v.base === base) {
+
+      if (v.base === base && (v.retirado ?? 1) === retiradoObjetivo) {
         total++;
         if (v.estado === "ok") ok++;
       }
@@ -166,7 +211,29 @@ function setEstadoCompleto(total) {
 // --------------------
 // Conteo desde IndexedDB
 // --------------------
-function actualizarEstado() {
+// function actualizarEstado() {
+//   const tx = db.transaction("expected", "readonly");
+//   const store = tx.objectStore("expected");
+
+//   let total = 0;
+//   let ok = 0;
+
+//   store.openCursor().onsuccess = function (e) {
+//     const cursor = e.target.result;
+//     if (cursor) {
+//       total++;
+//       if (cursor.value.estado === "ok") ok++;
+//       cursor.continue();
+//     } else {
+//       $("#wh-ok").text(ok);
+//       $("#wh-total").text(total);
+
+//       if (total > 0 && ok === total) setEstadoCompleto(total);
+//       else setEstadoParcial(ok, total);
+//     }
+//   };
+// }
+function actualizarEstado(retiradoObjetivo = 1) {
   const tx = db.transaction("expected", "readonly");
   const store = tx.objectStore("expected");
 
@@ -176,8 +243,12 @@ function actualizarEstado() {
   store.openCursor().onsuccess = function (e) {
     const cursor = e.target.result;
     if (cursor) {
-      total++;
-      if (cursor.value.estado === "ok") ok++;
+      const v = cursor.value;
+
+      if ((v.retirado ?? 1) === retiradoObjetivo) {
+        total++;
+        if (v.estado === "ok") ok++;
+      }
       cursor.continue();
     } else {
       $("#wh-ok").text(ok);
@@ -188,7 +259,6 @@ function actualizarEstado() {
     }
   };
 }
-
 // --------------------
 // Validación
 // --------------------
@@ -210,7 +280,9 @@ function validarBulto(rawCode) {
   return new Promise((resolve) => {
     const base = rawCode.split("_")[0];
 
-    getNextPendingCodeForBase(base, (realCode) => {
+    // getNextPendingCodeForBase(base, (realCode) => {
+    const retiradoObjetivo = 1; // 👈 esta pantalla es para ENTREGAS
+    getNextPendingCodeForBase(base, retiradoObjetivo, (realCode) => {
       if (!realCode) {
         mostrarFeedback("⚠️ Todos los bultos ya fueron escaneados", "warn");
         return resolve("ya_ok");
@@ -248,7 +320,8 @@ function validarBulto(rawCode) {
           baseYaRegistrada(base, (ya) => {
             if (ya) return resolve("ok");
 
-            baseCompleto(base, (completo) => {
+            // baseCompleto(base, (completo) => {
+            baseCompleto(base, retiradoObjetivo, (completo) => {
               if (completo) {
                 registrarWarehouse(base);
                 marcarBaseRegistrada(base);
@@ -363,7 +436,7 @@ async function stopScanner() {
 $(document).ready(function () {
   abrirDB(() => {
     console.log("📦 DB abierta correctamente en scan");
-    actualizarEstado();
+    actualizarEstado(1);
     startScanner();
   });
 
