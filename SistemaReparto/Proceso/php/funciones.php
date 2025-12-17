@@ -301,8 +301,10 @@ if (isset($_POST['ConfirmoEntrega'])) {
     // Caso Retiro
     $Entregado = 0;
     $Estado    = 'Retirado del Cliente';
-    $Estado_id = 3;
-
+    // $Estado_id = 3;
+    $st = estadoPorSlug($mysqli, 'pickup_ready'); // o 'entregado_cliente'
+    $Estado_id = (int)$st['id'];
+    $Estado    = $st['Estado'];
     $sqlTransClientes = consultaOError(
       $mysqli,
       "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 
@@ -324,11 +326,11 @@ if (isset($_POST['ConfirmoEntrega'])) {
     $mysqli,
     "INSERT INTO Seguimiento
             (Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
-             NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden)
+             NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id)
          VALUES
             ('{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
              '{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
-             '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}')",
+             '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}')",
     'INSERT Seguimiento ConfirmoEntrega'
   );
 
