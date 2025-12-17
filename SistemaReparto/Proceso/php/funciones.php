@@ -208,7 +208,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   // Localización base
   $sqlLocalizacion = consultaOError(
     $mysqli,
-    "SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen 
+    "SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen,Retirado 
          FROM TransClientes 
          WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'",
     'Localizacion TransClientes'
