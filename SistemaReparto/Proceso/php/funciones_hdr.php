@@ -1,7 +1,6 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-
 // --------------------------------------------------
 // INICIAR SESIÓN (evita Undefined array key)
 // --------------------------------------------------
@@ -239,9 +238,10 @@ if (isset($_POST['Paneles'])) {
       $icon = 'down-bold';
       $Serviciowp = 'retirar';
       $Direccion = $row['DomicilioOrigen'];
-
+      $lat = isset($row['Latitud']) ? (float)$row['Latitud'] : null;
+      $lng = isset($row['Longitud']) ? (float)$row['Longitud'] : null;
       if ($idProveedor['ActivarCoordenadas'] == 1) {
-        $Direccion_mapa = $row['Latitud'] . ',' . $row['Longitud'];
+        $Direccion_mapa = $lat . ',' . $lng;
       } else {
         $Direccion_mapa = $row['DomicilioOrigen'];
       }

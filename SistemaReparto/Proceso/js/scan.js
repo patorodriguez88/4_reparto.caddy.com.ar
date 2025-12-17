@@ -445,6 +445,31 @@ $(document).ready(function () {
     window.location.href = "warehouse.html";
   });
 
+  //   $("#btn-salir").off("click").on("click", function () {
+  //       // si querés validar doble que realmente está todo ok:
+  //       const tx = db.transaction("expected", "readonly");
+  //       const store = tx.objectStore("expected");
+
+  //       let total = 0;
+  //       let ok = 0;
+
+  //       store.openCursor().onsuccess = function (e) {
+  //         const cursor = e.target.result;
+  //         if (cursor) {
+  //           total++;
+  //           if (cursor.value.estado === "ok") ok++;
+  //           cursor.continue();
+  //         } else {
+  //           if (total > 0 && ok === total) {
+  //             // ✅ listo: ir a HDR
+  //             window.location.href = "hdr.html";
+  //           } else {
+  //             mostrarToast(`⚠️ Faltan ${Math.max(total - ok, 0)} bultos`);
+  //           }
+  //         }
+  //       };
+  //     });
+  // });
   $("#btn-salir")
     .off("click")
     .on("click", function () {
