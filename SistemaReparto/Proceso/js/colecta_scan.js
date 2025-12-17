@@ -3,8 +3,7 @@
   let colectaQr = null;
   let colectaLast = "";
   let colectaLastT = 0;
-  // let lastRaw = "";
-  // let lastT = 0;
+
   const codigosEscaneados = new Set(); // guarda BASE_1, BASE_2, etc.
   function swalFire(opts) {
     if (window.Swal && Swal.fire) return Swal.fire(opts);
@@ -194,71 +193,6 @@
         showConfirmButton: false,
       });
     };
-    // const onSuccess = async (decodedText) => {
-    //   const raw = (decodedText || "").trim();
-    //   if (!raw) return;
-
-    //   // anti-rebote (mismo frame)
-    //   const now = Date.now();
-    //   if (raw === lastRaw && now - lastT < 800) return;
-    //   lastRaw = raw;
-    //   lastT = now;
-
-    //   const scannedBase = raw.split("_")[0].trim();
-
-    //   // 1) validar que corresponde al envío abierto
-    //   if (!expectedBase) {
-    //     swalFire({
-    //       icon: "warning",
-    //       title: "Sin envío",
-    //       text: "Abrí un envío antes de escanear.",
-    //     });
-    //     return;
-    //   }
-    //   if (scannedBase !== expectedBase) {
-    //     swalFire({
-    //       icon: "error",
-    //       title: "Código incorrecto",
-    //       text: `Escaneaste ${scannedBase} y se esperaba ${expectedBase}`,
-    //       timer: 1400,
-    //       showConfirmButton: false,
-    //     });
-    //     return;
-    //   }
-
-    //   // 2) sumar bulto respetando cantidad esperada
-    //   const ya = countForBase(expectedBase);
-
-    //   if (ya >= qtyExpected) {
-    //     swalFire({
-    //       icon: "info",
-    //       title: "Cantidad completa",
-    //       text: `Ya cargaste ${ya}/${qtyExpected}`,
-    //       timer: 900,
-    //       showConfirmButton: false,
-    //     });
-    //     return;
-    //   }
-
-    //   // Si qtyExpected == 1, podés guardar base pelado o base_1; elijo base pelado:
-    //   let codeToAdd;
-    //   if (qtyExpected <= 1) {
-    //     codeToAdd = expectedBase;
-    //   } else {
-    //     const nextN = getNextIndexForBase(expectedBase);
-    //     codeToAdd = `${expectedBase}_${nextN}`;
-    //   }
-
-    //   addToSelect2(codeToAdd);
-
-    //   swalFire({
-    //     icon: "success",
-    //     title: "OK",
-    //     text: `Cargado ${ya + 1}/${qtyExpected}`,
-    //     timer: 650,
-    //     showConfirmButton: false,
-    //   });
-    // };
 
     try {
       const cams = await Html5Qrcode.getCameras();

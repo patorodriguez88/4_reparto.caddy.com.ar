@@ -108,8 +108,7 @@ if (isset($_POST['Paneles'])) {
   // PRE-CHECK: si falta validar algún envío (Retirado=0) en warehouse,
   // NO mostramos ningún registro para evitar salir con carga parcial.
   // ==================================================
-  $sqlChkTxt = "
-      SELECT COUNT(*) AS faltan
+  $sqlChkTxt = "SELECT COUNT(*) AS faltan
       FROM HojaDeRuta
       INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
       WHERE HojaDeRuta.Estado='Abierto'

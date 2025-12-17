@@ -175,11 +175,10 @@ if (isset($_POST['ConfirmoEntrega'])) {
   // 2) Después normalizás (por si un día Cs viniera con _n)
   $CodigoSeguimiento = explode('_', $CodigoRaw)[0]; // BASE sin _n
 
-
   $dni               = $_POST['Dni']  ?? '';
   $nombre2           = $_POST['Name'] ?? '';
   $Observaciones     = $_POST['Obs']  ?? '';
-  $Retirado          = isset($_POST['Retirado']) ? (int) $_POST['Retirado'] : 0;
+  // $Retirado          = isset($_POST['Retirado']) ? (int) $_POST['Retirado'] : 0;
   $Etiquetas         = isset($_POST['Etiquetas']) && is_array($_POST['Etiquetas'])
     ? $_POST['Etiquetas']
     : [];
@@ -205,7 +204,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   // Localización base
   $sqlLocalizacion = consultaOError(
     $mysqli,
-    "SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen 
+    "SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen,Retirado 
          FROM TransClientes 
          WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'",
     'Localizacion TransClientes'
@@ -213,6 +212,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC) ?: [];
 
   $Localizacion = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
+  $Retirado = (int)($sqlLocalizacionR['Retirado']);
 
   // Número de visita
   $sqlvisita = consultaOError(
@@ -347,7 +347,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
 
   consultaOError(
     $mysqli,
-    "UPDATE IGNORE TransClientes 
+    "UPDATE TransClientes 
          SET Estado        = '{$Estado}',
              Entregado     = '{$Entregado}',
              Retirado      = '1',

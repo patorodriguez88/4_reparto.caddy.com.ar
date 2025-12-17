@@ -133,6 +133,9 @@ try {
             SELECT NombreCompleto
             FROM Empleados
             WHERE Usuario = ?
+            AND Activo=1
+            AND Estado= 'Activo'
+            AND NIVEL=3
             LIMIT 1
         ");
         $stmtEmp->bind_param("i", $idUsuario);
