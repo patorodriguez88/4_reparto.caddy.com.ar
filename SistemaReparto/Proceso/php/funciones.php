@@ -71,13 +71,8 @@ if (isset($_POST['Datos'])) {
   if (empty($idUsuario)) {
     header('Content-Type: application/json; charset=utf-8');
     http_response_code(401);
-    responder([
-      'forceLogout' => true,
-      'reason' => 'NO_IDUSUARIO',
-      'success' => 0,
-      'usuario' => 0,
-      'error' => 'idUsuario no definido (ni en sesión ni en POST)'
-    ]);
+    echo json_encode(['forceLogout' => true, 'reason' => 'NO_IDUSUARIO', 'success' => 0, 'usuario' => 0, 'error' => 'idUsuario no definido...']);
+    exit;
   }
 
   // Busco la orden cargada para este chofer
