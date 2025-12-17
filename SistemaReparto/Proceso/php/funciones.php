@@ -208,7 +208,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   // Localización base
   $sqlLocalizacion = consultaOError(
     $mysqli,
-    "SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen,Retirado 
+    "SELECT ClienteDestino,DomicilioDestino,LocalidadDestino,Redespacho,IngBrutosOrigen 
          FROM TransClientes 
          WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'",
     'Localizacion TransClientes'
@@ -230,7 +230,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $Visita  = (int) $visita['Visita'] + 1;
 
   // Lógica de Retirado / Entregado / Redespacho
-  if ($Retirado == 1) {
+  if ($Retirado == 0) { //si viene 0 como ahora busco de de la tabla trasnclientes es porque todavia no esta retirado
 
     if (!empty($sqlLocalizacionR) && (int)$sqlLocalizacionR['Redespacho'] === 0) {
       $Entregado = 1;
@@ -255,6 +255,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
         ]);
       }
     } else {
+
       $Entregado = 0;
       $Estado    = 'En Transito';
       $Estado_id = 5;
