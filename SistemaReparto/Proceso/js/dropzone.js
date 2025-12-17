@@ -162,7 +162,7 @@ $(".guardarProducto").click(function () {
         Name: receptorname,
         Dni: receptordni,
         Obs: receptorobservaciones,
-        // Retirado: retirado,
+        Retirado: retirado,
         Razones: razones,
         Etiquetas: etiquetas, // 👈 array (Etiquetas[])
       },

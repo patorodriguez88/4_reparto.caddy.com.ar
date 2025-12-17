@@ -163,6 +163,10 @@ if (isset($_POST['Datos'])) {
 // ============  CONFIRMO ENTREGA  ===================
 // ==================================================
 if (isset($_POST['ConfirmoEntrega'])) {
+  error_reporting(E_ALL);
+  ini_set('display_errors', 1);
+  ini_set('display_startup_errors', 1);
+
 
   // 1) Primero lo traés del POST
   $CodigoRaw = $_POST['Cs'] ?? '';
@@ -212,7 +216,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC) ?: [];
 
   $Localizacion = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
-  $Retirado = (int)($sqlLocalizacionR['Retirado']);
+  $Retirado = (int)($sqlLocalizacion['Retirado']);
 
   // Número de visita
   $sqlvisita = consultaOError(
