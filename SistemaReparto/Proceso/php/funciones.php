@@ -218,6 +218,11 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $Localizacion = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
   $Retirado = (int)($sqlLocalizacionR['Retirado']);
 
+  if ($Retirado == 1) {
+    $Retirado = 0;
+  } else {
+    $Retirado = 1;
+  }
   // Número de visita
   $sqlvisita = consultaOError(
     $mysqli,
@@ -230,7 +235,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $Visita  = (int) $visita['Visita'] + 1;
 
   // Lógica de Retirado / Entregado / Redespacho
-  if ($Retirado == 0) { //si viene 0 como ahora busco de de la tabla trasnclientes es porque todavia no esta retirado
+  if ($Retirado == 1) {
 
     if (!empty($sqlLocalizacionR) && (int)$sqlLocalizacionR['Redespacho'] === 0) {
       $Entregado = 1;
