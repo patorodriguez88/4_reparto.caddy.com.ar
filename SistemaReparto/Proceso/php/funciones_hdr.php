@@ -96,16 +96,13 @@ if (isset($_POST['Paneles'])) {
 
 
   if (empty($_SESSION['RecorridoAsignado'])) {
-
-    // Estado inválido → cerramos sesión
     session_destroy();
-
-    // Respuesta clara para AJAX
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code(409);
     echo json_encode([
       'forceLogout' => true,
       'reason' => 'NO_RECORRIDO_ASIGNADO'
     ]);
-
     exit;
   }
   $Recorrido = $_SESSION['RecorridoAsignado'];

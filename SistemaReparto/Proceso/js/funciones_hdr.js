@@ -4,6 +4,18 @@ $(document).ajaxError(function (event, xhr) {
     cerrarSesionForzada();
   }
 });
+function msgReason(reason) {
+  switch (reason) {
+    case "NO_RECORRIDO_ASIGNADO":
+      return "No tenés un recorrido asignado o cargado. Avisá a administración.";
+    case "NO_IDUSUARIO":
+      return "No se detectó usuario activo (sesión perdida). Volvé a ingresar.";
+    case "SESSION_EXPIRED":
+      return "Tu sesión expiró. Volvé a ingresar.";
+    default:
+      return "No se pudo continuar. Volvé a ingresar.";
+  }
+}
 function mostrarErrorLogin(obj) {
   const msg = obj?.error || obj?.msg || "Error desconocido";
   const extra = obj?.detail ? `\n${obj.detail}` : "";
@@ -19,36 +31,21 @@ function mostrarErrorLogin(obj) {
     alert(msg + extra + eid);
   }
 }
-function cerrarSesionForzada() {
-  console.warn("Cerrando sesión forzada por 401");
-
+function cerrarSesionForzada(reason) {
   // Limpieza visual
-  $("#hdr").hide();
-  $("#navbar").hide();
-  $("#topnav").hide();
-  $("#mis_envios").hide();
-  $("#hdractivas").hide();
-  $("#card-envio").hide();
-
-  // Volvemos al login
+  $("#hdr, #navbar, #topnav, #mis_envios, #hdractivas, #card-envio").hide();
   $("#login").show();
 
-  // Limpieza opcional de storage
-  try {
-    sessionStorage.clear();
-    localStorage.removeItem("warehouse_init");
-  } catch (e) {}
+  const msg = msgReason(reason);
 
-  // Aviso lindo
   if (window.Swal) {
     Swal.fire({
       icon: "warning",
-      title: "Sesión finalizada",
-      text: "Tu sesión expiró. Volvé a ingresar.",
-      confirmButtonText: "OK",
+      title: "Atención",
+      text: msg,
     });
   } else {
-    alert("Tu sesión expiró. Volvé a ingresar.");
+    alert(msg);
   }
 }
 function esRetiro() {
@@ -235,56 +232,106 @@ $(document).ready(function () {
 });
 
 // LOGIN
-$("#ingreso").click(function () {
-  var user = $("#user").val();
-  var pass = $("#password").val();
+// $("#ingreso").click(function () {
+//   var user = $("#user").val();
+//   var pass = $("#password").val();
 
-  $.ajax({
-    data: { Login: 1, user: user, password: pass },
-    type: "POST",
-    url: "Conexion/admision.php",
-    dataType: "json",
-    beforeSend: function () {
-      $("#info-alert-modal-header").html("Verificando Datos...");
-      // $("#info-alert-modal").modal("show");
-    },
-    success: function (jsonData) {
-      if (jsonData.success == 1) {
-        $("#hdr").show();
-        $("#navbar").show();
-        $("#login").hide();
-        $("#hdractivas").show();
-        $("#topnav").show(); // 👈 MOSTRAR MENÚ
-        asegurarMenuWarehouse();
+//   $.ajax({
+//     data: { Login: 1, user: user, password: pass },
+//     type: "POST",
+//     url: "Conexion/admision.php",
+//     dataType: "json",
+//     beforeSend: function () {
+//       $("#info-alert-modal-header").html("Verificando Datos...");
+//       // $("#info-alert-modal").modal("show");
+//     },
+//     success: function (jsonData) {
+//       if (jsonData.success == 1) {
+//         $("#hdr").show();
+//         $("#navbar").show();
+//         $("#login").hide();
+//         $("#hdractivas").show();
+//         $("#topnav").show(); // 👈 MOSTRAR MENÚ
+//         asegurarMenuWarehouse();
 
-        paneles();
+//         paneles();
 
-        var codigos = jsonData.codigos || [];
+//         var codigos = jsonData.codigos || [];
 
-        for (var i = 0; i < codigos.length; i++) {
-          if (codigos[i]["Retirado"] == 1) {
-            // mail_status_notice(codigos[i]["Seguimiento"], "En Transito");
-          } else {
-            // mail_status_notice(codigos[i]["Seguimiento"], "A Retirar");
-          }
-        }
-      } else {
-        mostrarErrorLogin(jsonData);
-      }
-      $("#info-alert-modal").modal("hide");
-    },
-    error: function (xhr) {
-      let obj = null;
-      try {
-        obj = JSON.parse(xhr.responseText);
-      } catch (e) {}
-      mostrarErrorLogin(
-        obj || { error: "Error de servidor", detail: xhr.responseText }
-      );
-    },
-  });
-});
+//         for (var i = 0; i < codigos.length; i++) {
+//           if (codigos[i]["Retirado"] == 1) {
+//             // mail_status_notice(codigos[i]["Seguimiento"], "En Transito");
+//           } else {
+//             // mail_status_notice(codigos[i]["Seguimiento"], "A Retirar");
+//           }
+//         }
+//       } else {
+//         mostrarErrorLogin(jsonData);
+//       }
+//       $("#info-alert-modal").modal("hide");
+//     },
+//     error: function (xhr) {
+//       let obj = null;
+//       try {
+//         obj = JSON.parse(xhr.responseText);
+//       } catch (e) {}
+//       mostrarErrorLogin(
+//         obj || { error: "Error de servidor", detail: xhr.responseText }
+//       );
+//     },
+//   });
+// });
+// $("#ingreso").on("click", function (e) {
+//   e.preventDefault();
+//   e.stopPropagation();
 
+//   var user = $("#user").val();
+//   var pass = $("#password").val();
+
+//   $.ajax({
+//     data: { Login: 1, user: user, password: pass },
+//     type: "POST",
+//     url: "Conexion/admision.php",
+//     dataType: "json",
+//     success: function (jsonData) {
+//       // 👇 si el backend fuerza logout (ej: NO_RECORRIDO_ASIGNADO)
+//       if (jsonData && jsonData.forceLogout) {
+//         Swal.fire({
+//           icon: "warning",
+//           title: "No hay recorrido asignado",
+//           text: "No tenés un recorrido cargado. Avisá a administración.",
+//         });
+//         return;
+//       }
+
+//       if (jsonData.success == 1) {
+//         $("#hdr").show();
+//         $("#navbar").show();
+//         $("#login").hide();
+//         $("#hdractivas").show();
+//         $("#topnav").show();
+
+//         paneles();
+//       } else {
+//         Swal.fire({
+//           icon: "error",
+//           title: "Login inválido",
+//           text: jsonData.msg || "Usuario o contraseña incorrectos.",
+//         });
+//       }
+//     },
+//     error: function (xhr) {
+//       console.error(xhr.responseText);
+//       Swal.fire({
+//         icon: "error",
+//         title: "Error",
+//         text: "El servidor devolvió un error (no JSON). Revisá Network > Response.",
+//       });
+//     },
+//   });
+
+//   return false;
+// });
 // SALIR
 $("#salir").click(function () {
   let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
@@ -359,15 +406,42 @@ function paneles(a) {
     data: { Paneles: 1, search: a },
     type: "POST",
     url: "Proceso/php/funciones_hdr.php",
-    success: function (response) {
-      $("#hdractivas").html(response).fadeIn();
+    dataType: "text", // 👈 importante: lo tratamos como texto (puede ser HTML o JSON)
+    success: function (responseText) {
+      // Intento: si vino JSON, lo parseo
+      let obj = null;
+      try {
+        obj = JSON.parse(responseText);
+      } catch (e) {}
+
+      // 👇 Si el backend mandó JSON de logout, lo manejamos acá
+      if (obj && obj.forceLogout) {
+        if (window.Swal) {
+          Swal.fire({
+            icon: "warning",
+            title: "Atención",
+            text: msgReason(obj.reason),
+          });
+        }
+        cerrarSesionForzada(); // o la acción que quieras
+        return;
+      }
+
+      // 👇 Si no es JSON, asumimos que es HTML
+      $("#hdractivas").html(responseText).fadeIn();
     },
-    error: function (xhr, status, error) {
-      console.error("Error Paneles:", status, error, xhr.responseText);
-      alert("No se pudieron cargar los paneles.");
+    error: function (xhr) {
+      console.error("Error Paneles:", xhr.responseText || xhr);
+      if (window.Swal) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "No se pudieron cargar los paneles.",
+        });
+      }
     },
     complete: function () {
-      doneRequest(); // 🔴 siempre se ejecuta
+      doneRequest();
     },
   });
 
@@ -731,3 +805,78 @@ $(document).on(
     }
   }
 );
+$(document).on("submit", "#loginForm", function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+  return false;
+});
+
+$(document).on("click", "#ingreso", function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  var user = $("#user").val();
+  var pass = $("#password").val();
+
+  $.ajax({
+    url: "Conexion/admision.php",
+    type: "POST",
+    dataType: "json",
+    data: { Login: 1, user: user, password: pass },
+    success: function (jsonData) {
+      if (jsonData && jsonData.forceLogout) {
+        Swal.fire({
+          icon: "warning",
+          title: "No hay recorrido asignado",
+          text: "No tenés un recorrido cargado. Avisá a administración.",
+        });
+        return;
+      }
+
+      if (jsonData && jsonData.success == 1) {
+        $("#login").hide();
+        $("#hdr").show();
+        $("#navbar").show();
+        $("#topnav").show();
+        paneles();
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Login inválido",
+          text:
+            (jsonData && (jsonData.msg || jsonData.error)) ||
+            "Usuario o contraseña incorrectos.",
+        });
+      }
+    },
+    error: function (xhr) {
+      let obj = null;
+
+      // Intento parsear JSON aunque jQuery diga parsererror
+      try {
+        obj = JSON.parse(xhr.responseText);
+      } catch (e) {}
+
+      if (obj && obj.forceLogout) {
+        Swal.fire({
+          icon: "warning",
+          title: "No hay recorrido asignado",
+          text: "No tenés un recorrido cargado. Avisá a administración.",
+        });
+        return;
+      }
+
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text:
+          (obj && (obj.error || obj.msg)) ||
+          "El servidor devolvió HTML/Warning y no JSON. Revisá Network > Response.",
+      });
+
+      console.error(xhr.responseText);
+    },
+  });
+
+  return false;
+});

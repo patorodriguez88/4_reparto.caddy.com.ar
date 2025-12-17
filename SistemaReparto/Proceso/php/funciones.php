@@ -69,10 +69,14 @@ if (isset($_POST['Datos'])) {
   $idUsuario = $_SESSION['idusuario'] ?? ($_POST['idUsuario'] ?? 0);
 
   if (empty($idUsuario)) {
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code(401);
     responder([
+      'forceLogout' => true,
+      'reason' => 'NO_IDUSUARIO',
       'success' => 0,
-      'usuario' => $idUsuario,
-      'error'   => 'idUsuario no definido (ni en sesión ni en POST)'
+      'usuario' => 0,
+      'error' => 'idUsuario no definido (ni en sesión ni en POST)'
     ]);
   }
 
