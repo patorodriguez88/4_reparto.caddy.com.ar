@@ -216,7 +216,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC) ?: [];
 
   $Localizacion = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
-  $Retirado = (int)($sqlLocalizacion['Retirado']);
+  $Retirado = (int)($sqlLocalizacionR['Retirado']);
 
   // Número de visita
   $sqlvisita = consultaOError(
