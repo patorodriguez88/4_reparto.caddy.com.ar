@@ -80,16 +80,23 @@ class Conexion
     {
         $serverName = $_SERVER['SERVER_NAME'] ?? '';
         $host       = strtolower($_SERVER['HTTP_HOST'] ?? '');
+        $host       = preg_replace('/:\d+$/', '', $host);
 
         if ($serverName === 'localhost') {
             $archivo = "config_local";
             define('ENTORNO', 'local');
-        } elseif (strpos($host, 'sandbox.reparto.caddy.com.ar') !== false) {
+        } elseif ($host === 'sandbox.reparto.caddy.com.ar') {
             $archivo = "config_sandbox";
             define('ENTORNO', 'sandbox');
         } else {
             $archivo = "config";
             define('ENTORNO', 'produccion');
+        }
+
+        // 🔎 DEBUG DURO (no rompe nada)
+        if (!headers_sent()) {
+            header('X-Caddy-Env: ' . ENTORNO);
+            header('X-Caddy-Host: ' . $host);
         }
 
         $path = __DIR__ . "/" . $archivo;
