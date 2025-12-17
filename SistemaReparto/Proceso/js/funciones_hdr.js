@@ -1,11 +1,7 @@
-$(document).ajaxError(function (event, xhr) {
-  if (xhr.status === 401) {
-    console.warn("401 detectado → logout forzado");
-    cerrarSesionForzada();
-  }
-});
 function msgReason(reason) {
-  switch (reason) {
+  const r = (reason || "").toString().trim().toUpperCase();
+
+  switch (r) {
     case "NO_RECORRIDO_ASIGNADO":
       return "No tenés un recorrido asignado o cargado. Avisá a administración.";
     case "NO_IDUSUARIO":
@@ -13,8 +9,41 @@ function msgReason(reason) {
     case "SESSION_EXPIRED":
       return "Tu sesión expiró. Volvé a ingresar.";
     default:
-      return "No se pudo continuar. Volvé a ingresar.";
+      return `No se pudo continuar (${r || "SIN_MOTIVO"}). Volvé a ingresar.`;
   }
+}
+$(document).ajaxError(function (event, xhr) {
+  if (!xhr) return;
+
+  let obj = null;
+  try {
+    obj = JSON.parse(xhr.responseText);
+  } catch (e) {}
+
+  // ✅ si el backend manda forceLogout (aunque sea 200 o 401)
+  if (obj && obj.forceLogout) {
+    cerrarSesionForzada(obj.reason);
+    return;
+  }
+
+  // ✅ si realmente fue 401 sin JSON
+  if (xhr.status === 401) {
+    cerrarSesionForzada("SESSION_EXPIRED");
+  }
+});
+function tryHandleForceLogout(xhr) {
+  if (!xhr) return false;
+
+  let obj = null;
+  try {
+    obj = JSON.parse(xhr.responseText);
+  } catch (e) {}
+
+  if (obj && obj.forceLogout) {
+    cerrarSesionForzada(obj.reason);
+    return true;
+  }
+  return false;
 }
 function mostrarErrorLogin(obj) {
   const msg = obj?.error || obj?.msg || "Error desconocido";
@@ -32,21 +61,16 @@ function mostrarErrorLogin(obj) {
   }
 }
 function cerrarSesionForzada(reason) {
-  // Limpieza visual
+  const texto = msgReason(reason);
+
   $("#hdr, #navbar, #topnav, #mis_envios, #hdractivas, #card-envio").hide();
   $("#login").show();
 
-  const msg = msgReason(reason);
-
-  if (window.Swal) {
-    Swal.fire({
-      icon: "warning",
-      title: "Atención",
-      text: msg,
-    });
-  } else {
-    alert(msg);
-  }
+  Swal.fire({
+    icon: "warning",
+    title: "Atención",
+    text: texto,
+  });
 }
 function esRetiro() {
   // vos ya usás: si dato.Retirado == 0 => RETIRO
@@ -385,20 +409,11 @@ $("#btn-search").click(function () {
 // FUNCION PARA MOSTRAR LOS PANELES
 // ==================================================
 function paneles(a) {
-  // Cantidad de requests que voy a hacer en esta función
   let pendientes = 2;
 
-  // Mostrar el modal UNA sola vez al inicio
-  // $("#info-alert-modal-header").html("Cargando datos...");
-  // $("#info-alert-modal").modal("show");
-
-  // Función helper: se llama al terminar CADA AJAX
   function doneRequest() {
     pendientes--;
-    if (pendientes <= 0) {
-      // Cuando terminaron LOS DOS AJAX, cierro el modal
-      $("#info-alert-modal").modal("hide");
-    }
+    if (pendientes <= 0) $("#info-alert-modal").modal("hide");
   }
 
   // PANELES HTML
@@ -406,77 +421,69 @@ function paneles(a) {
     data: { Paneles: 1, search: a },
     type: "POST",
     url: "Proceso/php/funciones_hdr.php",
-    dataType: "text", // 👈 importante: lo tratamos como texto (puede ser HTML o JSON)
+    dataType: "text",
     success: function (responseText) {
-      // Intento: si vino JSON, lo parseo
       let obj = null;
       try {
         obj = JSON.parse(responseText);
       } catch (e) {}
 
-      // 👇 Si el backend mandó JSON de logout, lo manejamos acá
       if (obj && obj.forceLogout) {
-        if (window.Swal) {
-          Swal.fire({
-            icon: "warning",
-            title: "Atención",
-            text: msgReason(obj.reason),
-          });
-        }
-        cerrarSesionForzada(); // o la acción que quieras
+        cerrarSesionForzada(obj.reason);
         return;
       }
 
-      // 👇 Si no es JSON, asumimos que es HTML
       $("#hdractivas").html(responseText).fadeIn();
     },
     error: function (xhr) {
+      if (tryHandleForceLogout(xhr)) return;
+
       console.error("Error Paneles:", xhr.responseText || xhr);
-      if (window.Swal) {
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: "No se pudieron cargar los paneles.",
-        });
-      }
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudieron cargar los paneles.",
+      });
     },
-    complete: function () {
-      doneRequest();
-    },
+    complete: doneRequest,
   });
 
-  // TOTALES (usa funciones.php → devuelve JSON)
+  // TOTALES
   $.ajax({
     data: { Datos: 1 },
     type: "POST",
     url: "Proceso/php/funciones.php",
     dataType: "json",
     success: function (jsonData) {
+      if (jsonData && jsonData.forceLogout) {
+        cerrarSesionForzada(jsonData.reason);
+        return;
+      }
+
       if (jsonData.success == 1) {
         $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
         $("#badge-total").html(jsonData.Total);
         $("#badge-sinentregar").html(jsonData.Abiertos);
         $("#badge-entregados").html(jsonData.Cerrados);
-        $("#hdr").show();
-        $("#navbar").show();
-        $("#topnav").show();
+        $("#hdr,#navbar,#topnav").show();
         asegurarMenuWarehouse();
         $("#login").hide();
       } else {
         console.warn("Datos no OK:", jsonData);
         $("#login").show();
-        // Podés mostrar un mensaje si querés
-        // alert(jsonData.error || 'No se pudieron cargar los totales.');
       }
     },
-    error: function (xhr, status, error) {
-      console.error("Error Datos:", status, error, xhr.responseText);
-      // Muchas veces acá es porque el PHP devuelve HTML o error 500 y no JSON
-      // alert("Error al cargar los totales.");
+    error: function (xhr) {
+      if (tryHandleForceLogout(xhr)) return;
+
+      console.error("Error Datos:", xhr.status, xhr.responseText);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudieron cargar los datos.",
+      });
     },
-    complete: function () {
-      doneRequest(); // 🔴 siempre se ejecuta
-    },
+    complete: doneRequest,
   });
 }
 

@@ -98,11 +98,8 @@ if (isset($_POST['Paneles'])) {
   if (empty($_SESSION['RecorridoAsignado'])) {
     session_destroy();
     header('Content-Type: application/json; charset=utf-8');
-    http_response_code(409);
-    echo json_encode([
-      'forceLogout' => true,
-      'reason' => 'NO_RECORRIDO_ASIGNADO'
-    ]);
+    http_response_code(401);
+    echo json_encode(['forceLogout' => true, 'reason' => 'NO_RECORRIDO_ASIGNADO']);
     exit;
   }
   $Recorrido = $_SESSION['RecorridoAsignado'];
