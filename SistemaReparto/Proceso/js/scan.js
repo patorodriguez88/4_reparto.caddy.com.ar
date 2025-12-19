@@ -4,30 +4,9 @@ let lastTime = 0;
 let userInteracted = false;
 let coolingDown = false; // 👈 ESTA LÍNEA FALTABA
 let feedbackTimeout = null;
-
-// function getNextPendingCodeForBase(base, callback) {
-//   const t = db.transaction("expected", "readonly");
-//   const store = t.objectStore("expected");
-
-//   let candidato = null;
-
-//   store.openCursor().onsuccess = function (e) {
-//     const cursor = e.target.result;
-//     if (cursor) {
-//       const v = cursor.value;
-
-//       if (v.base === base && v.estado !== "ok") {
-//         candidato = v.code; // ej: BASE_2
-//         return callback(candidato);
-//       }
-
-//       cursor.continue();
-//     } else {
-//       // no hay más pendientes
-//       callback(null);
-//     }
-//   };
-// }
+function tieneSufijoBulto(code) {
+  return /_\d+$/.test(code); // termina en _numero
+}
 function getNextPendingCodeForBase(base, retiradoObjetivo, callback) {
   const t = db.transaction("expected", "readonly");
   const store = t.objectStore("expected");
@@ -59,28 +38,6 @@ function manejar401(xhr) {
   return false;
 }
 
-// chequea si todos los bultos de un base están ok
-// function baseCompleto(base, callback) {
-//   const t = db.transaction("expected", "readonly");
-//   const store = t.objectStore("expected");
-
-//   let total = 0;
-//   let ok = 0;
-
-//   store.openCursor().onsuccess = function (e) {
-//     const cursor = e.target.result;
-//     if (cursor) {
-//       const v = cursor.value;
-//       if (v.base === base) {
-//         total++;
-//         if (v.estado === "ok") ok++;
-//       }
-//       cursor.continue();
-//     } else {
-//       callback(total > 0 && ok === total);
-//     }
-//   };
-// }
 function baseCompleto(base, retiradoObjetivo, callback) {
   const t = db.transaction("expected", "readonly");
   const store = t.objectStore("expected");
@@ -195,7 +152,7 @@ function setEstadoParcial(ok, total) {
     .prop("disabled", true)
     .removeClass("btn-success")
     .addClass("btn-secondary")
-    .text(`Faltan ${Math.max(total - ok, 0)} bultos`);
+    .text(`Faltan ${Math.max(total - ok, 0)} ENTREGAS`);
 }
 
 function setEstadoCompleto(total) {
@@ -211,28 +168,7 @@ function setEstadoCompleto(total) {
 // --------------------
 // Conteo desde IndexedDB
 // --------------------
-// function actualizarEstado() {
-//   const tx = db.transaction("expected", "readonly");
-//   const store = tx.objectStore("expected");
 
-//   let total = 0;
-//   let ok = 0;
-
-//   store.openCursor().onsuccess = function (e) {
-//     const cursor = e.target.result;
-//     if (cursor) {
-//       total++;
-//       if (cursor.value.estado === "ok") ok++;
-//       cursor.continue();
-//     } else {
-//       $("#wh-ok").text(ok);
-//       $("#wh-total").text(total);
-
-//       if (total > 0 && ok === total) setEstadoCompleto(total);
-//       else setEstadoParcial(ok, total);
-//     }
-//   };
-// }
 function actualizarEstado(retiradoObjetivo = 1) {
   const tx = db.transaction("expected", "readonly");
   const store = tx.objectStore("expected");
@@ -276,65 +212,111 @@ function beepOk() {
   } catch (e) {}
 }
 
-function validarBulto(rawCode) {
-  return new Promise((resolve) => {
-    const base = rawCode.split("_")[0];
+function validarExacto(code, retiradoObjetivo, resolve) {
+  const t = db.transaction(["expected", "scanned"], "readwrite");
+  const expected = t.objectStore("expected");
+  const scanned = t.objectStore("scanned");
 
-    // getNextPendingCodeForBase(base, (realCode) => {
-    const retiradoObjetivo = 1; // 👈 esta pantalla es para ENTREGAS
-    getNextPendingCodeForBase(base, retiradoObjetivo, (realCode) => {
-      if (!realCode) {
-        mostrarFeedback("⚠️ Todos los bultos ya fueron escaneados", "warn");
-        return resolve("ya_ok");
-      }
+  const req = expected.get(code);
 
-      const t = db.transaction(["expected", "scanned"], "readwrite");
-      const expected = t.objectStore("expected");
-      const scanned = t.objectStore("scanned");
+  req.onsuccess = function () {
+    const item = req.result;
 
-      const req = expected.get(realCode);
+    if (!item) {
+      mostrarFeedback("❌ No pertenece al recorrido", "error");
+      return resolve("no_pertenece");
+    }
 
-      req.onsuccess = function () {
-        if (!req.result) {
-          mostrarFeedback("❌ No pertenece al recorrido", "error");
-          return resolve("no_pertenece");
-        }
+    if ((item.retirado ?? 1) !== retiradoObjetivo) {
+      mostrarFeedback("⚠️ Este QR no es una ENTREGA", "warn");
+      return resolve("no_corresponde");
+    }
 
-        if (req.result.estado === "ok") {
-          mostrarFeedback("⚠️ Ya escaneado", "warn");
-          return resolve("ya_ok");
-        }
+    if (item.estado === "ok") {
+      mostrarFeedback("⚠️ Ya escaneado", "warn");
+      return resolve("ya_ok");
+    }
 
-        req.result.estado = "ok";
-        expected.put(req.result);
-        scanned.put({ code: realCode, ts: Date.now() });
+    item.estado = "ok";
+    expected.put(item);
 
-        t.oncomplete = function () {
-          // ✅ refrescar leyenda/contador ("Faltan X bultos") y estado del botón
-          try {
-            actualizarEstado();
-          } catch (e) {}
-
-          const base = req.result.base;
-
-          baseYaRegistrada(base, (ya) => {
-            if (ya) return resolve("ok");
-
-            // baseCompleto(base, (completo) => {
-            baseCompleto(base, retiradoObjetivo, (completo) => {
-              if (completo) {
-                registrarWarehouse(base);
-                marcarBaseRegistrada(base);
-              }
-              resolve("ok");
-            });
-          });
-        };
-      };
+    scanned.put({
+      id:
+        crypto && crypto.randomUUID
+          ? crypto.randomUUID()
+          : Date.now() + "_" + Math.random(),
+      code: code,
+      base: item.base,
+      retirado: item.retirado ?? 1,
+      ts: Date.now(),
     });
-  });
+    t.oncomplete = function () {
+      try {
+        actualizarEstado(1);
+      } catch (e) {}
+
+      const base = item.base;
+      baseYaRegistrada(base, (ya) => {
+        if (ya) return resolve("ok");
+        baseCompleto(base, retiradoObjetivo, (completo) => {
+          if (completo) {
+            registrarWarehouse(base);
+            marcarBaseRegistrada(base);
+          }
+          resolve("ok");
+        });
+      });
+    };
+  };
 }
 
+function validarBulto(rawCode) {
+  return new Promise((resolve) => {
+    const code = (rawCode || "").trim();
+    if (!code) return resolve("vacio");
+
+    const retiradoObjetivo = 1; // esta pantalla: ENTREGAS
+
+    // 1) Si viene con sufijo: validar EXACTO (sin inventar nada)
+    if (tieneSufijoBulto(code)) {
+      return validarExacto(code, retiradoObjetivo, resolve);
+    }
+
+    // 2) Si viene SIN sufijo: SOLO puede ser alias de _1 (o base si existe como Cantidad=1)
+    const base = code.split("_")[0];
+    const alias1 = `${base}_1`;
+
+    // a) Si tu BD guarda Cantidad=1 como BASE (sin _1), lo permitimos
+    const t0 = db.transaction("expected", "readonly");
+    const expected0 = t0.objectStore("expected");
+
+    expected0.get(base).onsuccess = function (e) {
+      const itemBase = e.target.result;
+
+      if (itemBase && (itemBase.retirado ?? 1) === retiradoObjetivo) {
+        // Cantidad=1 guardado como BASE
+        return validarExacto(base, retiradoObjetivo, resolve);
+      }
+
+      // b) Si no existe BASE, probamos alias _1
+      expected0.get(alias1).onsuccess = function (e2) {
+        const item1 = e2.target.result;
+
+        if (item1 && (item1.retirado ?? 1) === retiradoObjetivo) {
+          mostrarFeedback(`✅ Tomado como ${alias1}`, "ok");
+          return validarExacto(alias1, retiradoObjetivo, resolve);
+        }
+
+        // c) Si no existe ni BASE ni _1 => NO permitir “autonumerar”
+        mostrarFeedback(
+          "⚠️ Envío con múltiples bultos: escaneá el QR con _2, _3, etc.",
+          "warn"
+        );
+        return resolve("requiere_sufijo");
+      };
+    };
+  });
+}
 // --------------------
 // Scanner
 // --------------------
@@ -445,35 +427,9 @@ $(document).ready(function () {
     window.location.href = "warehouse.html";
   });
 
-  //   $("#btn-salir").off("click").on("click", function () {
-  //       // si querés validar doble que realmente está todo ok:
-  //       const tx = db.transaction("expected", "readonly");
-  //       const store = tx.objectStore("expected");
-
-  //       let total = 0;
-  //       let ok = 0;
-
-  //       store.openCursor().onsuccess = function (e) {
-  //         const cursor = e.target.result;
-  //         if (cursor) {
-  //           total++;
-  //           if (cursor.value.estado === "ok") ok++;
-  //           cursor.continue();
-  //         } else {
-  //           if (total > 0 && ok === total) {
-  //             // ✅ listo: ir a HDR
-  //             window.location.href = "hdr.html";
-  //           } else {
-  //             mostrarToast(`⚠️ Faltan ${Math.max(total - ok, 0)} bultos`);
-  //           }
-  //         }
-  //       };
-  //     });
-  // });
   $("#btn-salir")
     .off("click")
     .on("click", function () {
-      // si querés validar doble que realmente está todo ok:
       const tx = db.transaction("expected", "readonly");
       const store = tx.objectStore("expected");
 
@@ -483,16 +439,18 @@ $(document).ready(function () {
       store.openCursor().onsuccess = function (e) {
         const cursor = e.target.result;
         if (cursor) {
-          total++;
-          if (cursor.value.estado === "ok") ok++;
+          const v = cursor.value;
+          const ret = v.retirado ?? 1;
+
+          // ✅ SOLO ENTREGAS
+          if (ret === 1) {
+            total++;
+            if (v.estado === "ok") ok++;
+          }
           cursor.continue();
         } else {
-          if (total > 0 && ok === total) {
-            // ✅ listo: ir a HDR
-            window.location.href = "hdr.html";
-          } else {
-            mostrarToast(`⚠️ Faltan ${Math.max(total - ok, 0)} bultos`);
-          }
+          if (total > 0 && ok === total) window.location.href = "hdr.html";
+          else mostrarToast(`⚠️ Faltan ${Math.max(total - ok, 0)} ENTREGAS`);
         }
       };
     });

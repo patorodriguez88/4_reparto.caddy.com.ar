@@ -136,8 +136,11 @@ if (isset($_POST['Paneles'])) {
   $faltan = (int)($chkRow['faltan'] ?? 0);
 
   if ($faltan > 0) {
-    echo "<div class='alert alert-warning'>⚠️ Faltan validar <b>{$faltan}</b> bultos en warehouse. Volvé a <b>Warehouse</b>, escaneá todo y recién ahí iniciá el recorrido.</div>";
-    exit;
+    // echo "<div class='alert alert-warning'>⚠️ Faltan validar <b>{$faltan}</b> bultos en warehouse. Volvé a <b>Warehouse</b>, escaneá todo y recién ahí iniciá el recorrido.</div>";
+    //   exit;
+    $Retirado_ = 'AND TransClientes.Retirado = 0';
+  } else {
+    $Retirado_ = '';
   }
 
   $search    = isset($_POST['search']) ? $_POST['search'] : '';
@@ -158,7 +161,8 @@ if (isset($_POST['Paneles'])) {
                   AND HojaDeRuta.Devuelto=0 
                   AND HojaDeRuta.Recorrido='$Recorrido'
                   AND TransClientes.Eliminado='0' 
-                  AND HojaDeRuta.Eliminado=0  
+                  AND HojaDeRuta.Eliminado=0 
+                  " . $Retirado_ . " 
             ORDER BY IF(TransClientes.Retirado=1,HojaDeRuta.Posicion,HojaDeRuta.Posicion_retiro)
         ";
   } else {
@@ -178,6 +182,7 @@ if (isset($_POST['Paneles'])) {
                   AND HojaDeRuta.Recorrido='$Recorrido'
                   AND TransClientes.Eliminado='0' 
                   AND HojaDeRuta.Eliminado=0
+                  " . $Retirado_ . "
                   AND HojaDeRuta.Cliente LIKE '%$search%' 
             ORDER BY IF(TransClientes.Retirado=1,HojaDeRuta.Posicion,HojaDeRuta.Posicion_retiro)
         ";

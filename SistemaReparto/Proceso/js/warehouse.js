@@ -115,26 +115,29 @@ let lastCode = "";
 let lastTime = 0;
 
 function puedeSalir() {
-  const tx = db.transaction("expected", "readonly");
-  const store = tx.objectStore("expected");
-  const index = store.index("estado");
+  const t = db.transaction("expected", "readonly");
+  const store = t.objectStore("expected");
 
-  const req = index.getAll("pendiente");
+  let pendientesEntrega = 0;
 
-  req.onsuccess = function () {
-    if (req.result.length > 0) {
-      saModal(
-        "warning",
-        "Faltan bultos",
-        "Hay bultos sin validar. No se puede salir."
-      );
+  store.openCursor().onsuccess = function (e) {
+    const cursor = e.target.result;
+    if (cursor) {
+      const v = cursor.value;
+      const ret = v.retirado ?? 1;
+
+      if (ret === 1 && v.estado === "pendiente") pendientesEntrega++;
+      cursor.continue();
     } else {
-      saModal(
-        "success",
-        "Listo",
-        "Todos los bultos fueron validados. Podés continuar."
-      );
-      // acá después avisamos al backend
+      if (pendientesEntrega > 0) {
+        saModal(
+          "warning",
+          "Faltan entregas",
+          "Hay ENTREGAS sin validar. No se puede salir."
+        );
+      } else {
+        saModal("success", "Listo", "Entregas validadas. Podés continuar.");
+      }
     }
   };
 }
@@ -166,6 +169,54 @@ function guardarBulto(code, base, retirado) {
   });
 }
 
+// function cargarLista() {
+//   $.ajax({
+//     url: "Proceso/php/warehouse.php",
+//     type: "POST",
+//     dataType: "json",
+//     data: { GetLista: 1 },
+//     success: function (res) {
+//       if (res.success !== 1) {
+//         saModal("error", "Error", res.error || "Error cargando lista");
+//         return;
+//       }
+
+//       $("#wh-recorrido").text(res.recorrido);
+
+//       limpiarDB(() => {
+//         let totalEntregas = 0;
+
+//         res.items.forEach((item) => {
+//           const bultos = parseInt(item.bultos, 10) || 1;
+//           const retirado = parseInt(item.retirado, 10); // NO uses || 0 acá
+
+//           if (bultos === 1) {
+//             guardarBulto(item.base, item.base, retirado); // BASE
+//             // total++;
+//           } else {
+//             for (let i = 1; i <= bultos; i++) {
+//               guardarBulto(`${item.base}_${i}`, item.base, retirado); // BASE_1..n
+//               total++;
+//             }
+//           }
+
+//           // ✅ solo suman entregas
+//           if (retirado === 1) totalEntregas += bultos;
+//         });
+
+//         const metaTx = db.transaction("meta", "readwrite");
+//         const meta = metaTx.objectStore("meta");
+//         meta.put({ key: "recorrido", value: res.recorrido });
+//         meta.put({ key: "total", value: totalEntregas }); // ✅ SOLO ENTREGAS
+//       });
+//     },
+//     error: function (xhr) {
+//       if (manejar401(xhr)) return;
+//       console.error(xhr.responseText);
+//       saToast("error", "Error de conexión cargando lista", 1600);
+//     },
+//   });
+// }
 function cargarLista() {
   $.ajax({
     url: "Proceso/php/warehouse.php",
@@ -181,32 +232,55 @@ function cargarLista() {
       $("#wh-recorrido").text(res.recorrido);
 
       limpiarDB(() => {
-        let total = 0;
+        // ✅ UNA sola transacción para todo
+        const t = db.transaction(["expected", "meta"], "readwrite");
+        const expected = t.objectStore("expected");
+        const meta = t.objectStore("meta");
+
+        let totalEntregas = 0;
 
         res.items.forEach((item) => {
           const bultos = parseInt(item.bultos, 10) || 1;
-          const retirado = parseInt(item.retirado, 10) || 0; // 👈 viene del backend
+          const retirado = Number(item.retirado); // 0 o 1
+          const base = (item.base || "").trim();
+
+          if (!base) return;
 
           if (bultos === 1) {
-            guardarBulto(item.base, item.base, retirado);
-            total++;
+            expected.put({
+              code: base,
+              base: base,
+              estado: "pendiente",
+              retirado: retirado,
+            });
           } else {
             for (let i = 1; i <= bultos; i++) {
-              guardarBulto(`${item.base}_${i}`, item.base, retirado);
-              total++;
+              expected.put({
+                code: `${base}_${i}`,
+                base: base,
+                estado: "pendiente",
+                retirado: retirado,
+              });
             }
           }
+
+          if (retirado === 1) totalEntregas += bultos;
         });
 
-        const metaTx = db.transaction("meta", "readwrite");
-        const meta = metaTx.objectStore("meta");
         meta.put({ key: "recorrido", value: res.recorrido });
-        meta.put({ key: "total", value: total });
+        meta.put({ key: "total", value: totalEntregas });
 
-        metaTx.oncomplete = function () {
+        // ✅ recién acá, cuando terminó de grabar TODO
+        t.oncomplete = function () {
           cargarRecorridoLocal();
-          renderScanned();
-          actualizarHUD();
+          actualizarHUD(1);
+          safeRenderScanned();
+          saToast("success", `Lista cargada: ${totalEntregas} entregas`, 1200);
+        };
+
+        t.onerror = function () {
+          console.error("Error guardando expected/meta", t.error);
+          saToast("error", "Error guardando en IndexedDB", 1600);
         };
       });
     },
@@ -217,7 +291,6 @@ function cargarLista() {
     },
   });
 }
-
 function renderDesdeDB(totalEsperados) {
   $("#wh-lista").html("");
 
@@ -272,96 +345,108 @@ function getTotal(callback) {
   req.onsuccess = () => callback(req.result ? req.result.value : 0);
 }
 
+// function contarScanned(callback) {
+//   const req = tx("scanned").count();
+//   req.onsuccess = () => callback(req.result || 0);
+// }
 function contarScanned(callback) {
   const req = tx("scanned").count();
   req.onsuccess = () => callback(req.result || 0);
 }
+function actualizarHUD(retiradoObjetivo = 1) {
+  const t = db.transaction(["expected"], "readonly");
+  const store = t.objectStore("expected");
 
-// function actualizarHUD() {
-//   getTotal((total) => {
-//     contarScanned((ok) => {
-//       $("#wh-esperados").text(total);
-//       $("#wh-ok").text(ok);
-//       $("#wh-faltantes").text(Math.max(total - ok, 0));
-//     });
-//   });
-// }
-function actualizarHUD() {
-  getTotal((total) => {
-    contarScanned((ok) => {
+  let total = 0;
+  let ok = 0;
+
+  store.openCursor().onsuccess = function (e) {
+    const cursor = e.target.result;
+    if (cursor) {
+      const v = cursor.value;
+      // const ret = v.retirado ?? 1;
+      const ret = Number(v.retirado);
+
+      if (ret === retiradoObjetivo) {
+        total++;
+        if (v.estado === "ok") ok++;
+      }
+      cursor.continue();
+    } else {
       const faltantes = Math.max(total - ok, 0);
 
       $("#wh-esperados").text(total);
       $("#wh-ok").text(ok);
       $("#wh-faltantes").text(faltantes);
 
-      // 🎯 LÓGICA DE BOTONES
       if (faltantes === 0 && total > 0) {
-        // Todo escaneado
         $("#btn-confirmar").prop("disabled", false);
         $(".btn-primary[onclick='irAScan()']").hide();
-
-        $("#scan-status-msg").remove(); // evita duplicar
-        $("#wh-lista").before(`
-          <div id="scan-status-msg" class="alert alert-success text-center">
-            ✅ Todos los bultos fueron escaneados
-          </div>
-        `);
-        if (!__allScannedToastShown) {
-          __allScannedToastShown = true;
-          saToast("success", "✅ Todos los bultos escaneados", 1100);
-        }
       } else {
-        // Faltan bultos
         $("#btn-confirmar").prop("disabled", true);
         $(".btn-primary[onclick='irAScan()']").show();
-        $("#scan-status-msg").remove();
-        __allScannedToastShown = false;
       }
-    });
-  });
+    }
+  };
 }
-// ✅ SOLO muestra lo escaneado
+
 function renderScanned(done) {
-  $("#wh-lista").empty(); // mejor que html("")
+  $("#wh-lista").empty();
 
   const t = db.transaction(["scanned", "expected"], "readonly");
   const scannedStore = t.objectStore("scanned");
   const expectedStore = t.objectStore("expected");
 
-  const scannedCount = {};
-  const expectedCount = {};
+  const scannedCount = {}; // { base: {entrega} }
+  const expectedCount = {}; // { base: {entrega} }
 
+  // 1) leo SCANNED -> SOLO ENTREGAS (retirado=1)
   scannedStore.openCursor().onsuccess = function (e) {
     const cursor = e.target.result;
     if (cursor) {
       const v = cursor.value;
       const base = v.base || (v.code ? v.code.split("_")[0] : "");
-      if (base) scannedCount[base] = (scannedCount[base] || 0) + 1;
+      const ret = v.retirado ?? 1;
+
+      if (base && ret === 1) {
+        if (!scannedCount[base]) scannedCount[base] = { entrega: 0 };
+        scannedCount[base].entrega++;
+      }
+
       cursor.continue();
       return;
     }
 
+    // 2) leo EXPECTED (para saber el total por base)
     expectedStore.openCursor().onsuccess = function (e2) {
       const c2 = e2.target.result;
       if (c2) {
         const v = c2.value;
         const base = v.base || (v.code ? v.code.split("_")[0] : "");
-        if (base) expectedCount[base] = (expectedCount[base] || 0) + 1;
+        const ret = v.retirado ?? 1;
+
+        if (base && ret === 1) {
+          if (!expectedCount[base]) expectedCount[base] = { entrega: 0 };
+          expectedCount[base].entrega++;
+        }
+
         c2.continue();
         return;
       }
 
+      // 3) ✅ render SOLO bases que fueron escaneadas
       const bases = Object.keys(scannedCount).sort();
-      bases.forEach((base) => {
-        const ok = scannedCount[base] || 0;
-        const total = expectedCount[base] || 0;
 
-        let badge = "";
-        if (total > 1) {
-          const cls = ok === total ? "bg-success" : "bg-warning text-dark";
-          badge = `<span class="badge ${cls} ms-2">${ok}/${total}</span>`;
-        }
+      bases.forEach((base) => {
+        const okE = scannedCount[base]?.entrega || 0;
+        const totE = expectedCount[base]?.entrega || 0;
+
+        const cls =
+          totE > 0 && okE === totE ? "bg-success" : "bg-warning text-dark";
+        const badge =
+          totE > 0
+            ? `<span class="badge ${cls} ms-2">${okE}/${totE}</span>`
+            : `<span class="badge bg-secondary ms-2">${okE}</span>`;
 
         $("#wh-lista").append(`
           <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -371,16 +456,14 @@ function renderScanned(done) {
         `);
       });
 
-      actualizarHUD();
+      // mantiene tu HUD (si ya lo ajustaste a “solo entregas”)
+      actualizarHUD(1);
+
       if (typeof done === "function") done();
     };
   };
-
-  t.oncomplete = function () {
-    // por si algún navegador completa antes del último onsuccess (raro)
-    // no hacemos nada acá para no duplicar; el done lo llamamos al final del cursor expected.
-  };
 }
+
 window.addEventListener("pageshow", function () {
   // cuando vuelvo desde scan.html
   try {
@@ -392,21 +475,37 @@ window.addEventListener("pageshow", function () {
 $("#mi_recorrido").on("click", function (e) {
   e.preventDefault();
 
-  // Verificamos si está todo OK antes de salir
-  const tx = db.transaction("expected", "readonly");
-  const store = tx.objectStore("expected");
-  const index = store.index("estado");
+  const t = db.transaction("expected", "readonly");
+  const store = t.objectStore("expected");
 
-  const req = index.getAll("pendiente");
+  let pendientesEntrega = 0;
 
-  req.onsuccess = function () {
-    if (req.result.length > 0) {
-      saModal("warning", "Todavía faltan", "Todavía hay bultos sin escanear.");
+  store.openCursor().onsuccess = function (ev) {
+    const cursor = ev.target.result;
+    if (cursor) {
+      const v = cursor.value;
+      const ret = v.retirado ?? 1;
+
+      // ✅ SOLO ENTREGAS bloquean
+      if (ret === 1 && v.estado === "pendiente") {
+        pendientesEntrega++;
+      }
+
+      cursor.continue();
       return;
     }
 
-    // Todo validado → volvemos a HDR
-    saToast("success", "Carga completa. Volviendo a HDR…", 900);
+    if (pendientesEntrega > 0) {
+      saModal(
+        "warning",
+        "Todavía faltan",
+        `Todavía hay ${pendientesEntrega} ENTREGAS sin escanear.`
+      );
+      return;
+    }
+
+    // Todo validado (ENTREGAS) → volvemos a HDR
+    saToast("success", "Entregas validadas. Volviendo a HDR…", 900);
     window.location.href = "hdr.html";
   };
 });
