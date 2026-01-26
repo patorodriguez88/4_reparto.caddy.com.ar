@@ -204,6 +204,7 @@ if (isset($_POST['Paneles'])) {
     // lo dejo EXACTAMENTE igual que tu versión,
     // solo verificando que ninguna query reviente.
     // ----------------------------------------------
+    $Cantidad = (int)($row['Cantidad'] ?? 1); // ✅ SIEMPRE, para retiro y entrega
 
     if ($row['Retirado'] == 0) {
 
@@ -245,6 +246,7 @@ if (isset($_POST['Paneles'])) {
       $Direccion = $row['DomicilioOrigen'];
       $lat = isset($row['Latitud']) ? (float)$row['Latitud'] : null;
       $lng = isset($row['Longitud']) ? (float)$row['Longitud'] : null;
+
       if ($idProveedor['ActivarCoordenadas'] == 1) {
         $Direccion_mapa = $lat . ',' . $lng;
       } else {
@@ -328,7 +330,7 @@ if (isset($_POST['Paneles'])) {
           <h2 class="header-title mb-1 text-<?= $color ?>">
             <?= $row['Posicion'] ?> <i class="mdi mdi-arrow-<?= $icon ?>"></i> <?= $servicio ?> | <?= $nombreCliente ?>
           </h2>
-          <small class="mb-2"><b><?= $retirado ? 'Origen: ' . $row['RazonSocial'] : 'Destino: ' . $row['ClienteDestino'] ?></b></small>
+          <small class="mb-2"><b><?php echo $retirado ? 'Origen: ' . $row['RazonSocial'] : 'Destino: ' . $row['ClienteDestino'] ?></b></small>
 
           <div class="row">
             <div class="col-md-7">
@@ -339,31 +341,38 @@ if (isset($_POST['Paneles'])) {
                 <?php if ($idProv): ?>
                   <li>
                     <p class="text-muted mb-1 font-13"><i class="mdi mdi-account"></i> ID PROVEEDOR</p>
-                    <h5>[<?= $idProv ?>]</h5>
+                    <h5>[<?php echo $idProv; ?>]</h5>
                   </li>
                 <?php endif; ?>
 
                 <li>
-                  <p class="text-muted mb-1 font-13"><i class="mdi mdi-calendar"></i> 7:30 AM - 18:00 PM</p>
-                  <h5><i class="mdi mdi-map-marker"></i> <?= $direccion . ' ' . $row['PisoDeptoDestino'] ?></h5>
-                  <small>Observaciones: <?= $row['Observaciones'] ?></small>
+                  <p class="text-muted mb-1 font-13"><i class="mdi mdi-calendar"></i> 14:00 AM - 21:00 PM</p>
+                  <h5><i class="mdi mdi-map-marker"></i> <?php echo $direccion . ' ' . $row['PisoDeptoDestino'] ?></h5>
+                  <small>Observaciones: <?php echo $row['Observaciones']; ?></small>
                 </li>
+                <?php if ($veocel): ?>
+                  <li>
+                    <p class="text-muted mb-1 font-13"><i class="mdi mdi-card-account-phone-outline"></i> CONTACTO</p>
 
-                <li>
-                  <p class="text-muted mb-1 font-13"><i class="mdi mdi-card-account-phone-outline"></i> CONTACTO</p>
-                  <?php if ($veocel): ?>
-                    <h5><?= $contacto ?>
+                    <h5><?php echo $contacto; ?>
                       <a style="float:right;margin-right:14%;" href="https://api.whatsapp.com/send?phone=<?= $contacto ?>&text=Hola <?= $nombreCliente ?> !,%20soy <?= $usuario ?>%20de%20Caddy%20Logística%20!%20Estoy%20en%20camino%20para <?= $serviciowp ?>%20tu%20pedido...">
                         <img src='images/wp.png' width='30' height='30' />
                       </a>
                     </h5>
-                  <?php endif; ?>
+
+                  </li>
+                <?php endif; ?>
+                <li>
+                  <p class="text-muted mb-1 font-13"><i class="mdi mdi-card-search-outline"></i> SEGUIMIENTO</p>
+                  <h5><?php echo $codSeguimiento; ?></i>
+                  </h5>
                 </li>
 
                 <li>
-                  <p class="text-muted mb-1 font-13"><i class="mdi mdi-card-search-outline"></i> SEGUIMIENTOs</p>
-                  <h5><?= $codSeguimiento ?></h5>
+                  <p class="text-muted mb-1 font-13"><i class="mdi mdi-package-variant"></i> CANTIDAD DE BULTOS</p>
+                  <h5><?php echo $Cantidad; ?></h5>
                 </li>
+
 
                 <?php if (!empty($listaAsignaciones)): ?>
                   <li>

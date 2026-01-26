@@ -162,6 +162,7 @@ if (isset($_POST['Datos'])) {
 // ==================================================
 // ============  CONFIRMO ENTREGA  ===================
 // ==================================================
+
 if (isset($_POST['ConfirmoEntrega'])) {
   error_reporting(E_ALL);
   ini_set('display_errors', 1);
@@ -218,11 +219,11 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $Localizacion = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
   $Retirado = (int)($sqlLocalizacionR['Retirado']);
 
-  if ($Retirado == 1) {
-    $Retirado = 0;
-  } else {
-    $Retirado = 1;
-  }
+  // if ($Retirado == 1) {
+  //   $Retirado = 0;
+  // } else {
+  //   $Retirado = 1;
+  // }
   // Número de visita
   $sqlvisita = consultaOError(
     $mysqli,
@@ -301,10 +302,10 @@ if (isset($_POST['ConfirmoEntrega'])) {
     // Caso Retiro
     $Entregado = 0;
     $Estado    = 'Retirado del Cliente';
-    // $Estado_id = 3;
-    $st = estadoPorSlug($mysqli, 'pickup_ready'); // o 'entregado_cliente'
-    $Estado_id = (int)$st['id'];
-    $Estado    = $st['Estado'];
+    $Estado_id = 3;
+    // $st = estadoPorSlug($mysqli, 'pickup_ready'); // o 'entregado_cliente'
+    // $Estado_id = (int)$st['id'];
+    // $Estado    = $st['Estado'];
     $sqlTransClientes = consultaOError(
       $mysqli,
       "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 

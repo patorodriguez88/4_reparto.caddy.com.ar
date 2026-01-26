@@ -255,107 +255,6 @@ $(document).ready(function () {
   asegurarMenuWarehouse();
 });
 
-// LOGIN
-// $("#ingreso").click(function () {
-//   var user = $("#user").val();
-//   var pass = $("#password").val();
-
-//   $.ajax({
-//     data: { Login: 1, user: user, password: pass },
-//     type: "POST",
-//     url: "Conexion/admision.php",
-//     dataType: "json",
-//     beforeSend: function () {
-//       $("#info-alert-modal-header").html("Verificando Datos...");
-//       // $("#info-alert-modal").modal("show");
-//     },
-//     success: function (jsonData) {
-//       if (jsonData.success == 1) {
-//         $("#hdr").show();
-//         $("#navbar").show();
-//         $("#login").hide();
-//         $("#hdractivas").show();
-//         $("#topnav").show(); // 👈 MOSTRAR MENÚ
-//         asegurarMenuWarehouse();
-
-//         paneles();
-
-//         var codigos = jsonData.codigos || [];
-
-//         for (var i = 0; i < codigos.length; i++) {
-//           if (codigos[i]["Retirado"] == 1) {
-//             // mail_status_notice(codigos[i]["Seguimiento"], "En Transito");
-//           } else {
-//             // mail_status_notice(codigos[i]["Seguimiento"], "A Retirar");
-//           }
-//         }
-//       } else {
-//         mostrarErrorLogin(jsonData);
-//       }
-//       $("#info-alert-modal").modal("hide");
-//     },
-//     error: function (xhr) {
-//       let obj = null;
-//       try {
-//         obj = JSON.parse(xhr.responseText);
-//       } catch (e) {}
-//       mostrarErrorLogin(
-//         obj || { error: "Error de servidor", detail: xhr.responseText }
-//       );
-//     },
-//   });
-// });
-// $("#ingreso").on("click", function (e) {
-//   e.preventDefault();
-//   e.stopPropagation();
-
-//   var user = $("#user").val();
-//   var pass = $("#password").val();
-
-//   $.ajax({
-//     data: { Login: 1, user: user, password: pass },
-//     type: "POST",
-//     url: "Conexion/admision.php",
-//     dataType: "json",
-//     success: function (jsonData) {
-//       // 👇 si el backend fuerza logout (ej: NO_RECORRIDO_ASIGNADO)
-//       if (jsonData && jsonData.forceLogout) {
-//         Swal.fire({
-//           icon: "warning",
-//           title: "No hay recorrido asignado",
-//           text: "No tenés un recorrido cargado. Avisá a administración.",
-//         });
-//         return;
-//       }
-
-//       if (jsonData.success == 1) {
-//         $("#hdr").show();
-//         $("#navbar").show();
-//         $("#login").hide();
-//         $("#hdractivas").show();
-//         $("#topnav").show();
-
-//         paneles();
-//       } else {
-//         Swal.fire({
-//           icon: "error",
-//           title: "Login inválido",
-//           text: jsonData.msg || "Usuario o contraseña incorrectos.",
-//         });
-//       }
-//     },
-//     error: function (xhr) {
-//       console.error(xhr.responseText);
-//       Swal.fire({
-//         icon: "error",
-//         title: "Error",
-//         text: "El servidor devolvió un error (no JSON). Revisá Network > Response.",
-//       });
-//     },
-//   });
-
-//   return false;
-// });
 // SALIR
 $("#salir").click(function () {
   let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
@@ -703,56 +602,6 @@ function esRetiro() {
   return $("#card-receptor-items").is(":visible");
 }
 
-// function actualizarEstadoCantidadPickup() {
-//   // Si NO es retiro, no aplicamos esta validación
-//   if (!esRetiro()) {
-//     setAceptarPickupEnabled(true);
-//     return;
-//   }
-
-//   const esperado = getCantidadEsperada();
-//   const cargado = getCantidadCargada();
-
-//   // Si todavía no hay cantidad esperada, bloqueamos sin avisar
-//   if (esperado <= 0) {
-//     setAceptarPickupEnabled(false);
-//     return;
-//   }
-
-//   // ✅ Si recién abrís y todavía no cargaste nada, NO muestres cartel
-//   if (cargado === 0) {
-//     setAceptarPickupEnabled(false);
-//     return;
-//   }
-
-//   if (cargado === esperado) {
-//     setAceptarPickupEnabled(true);
-//     return;
-//   }
-
-//   setAceptarPickupEnabled(false);
-
-//   // ✅ ahora sí, avisamos (porque ya empezó a cargar o se pasó)
-//   if (window.Swal) {
-//     if (cargado < esperado) {
-//       Swal.fire({
-//         icon: "info",
-//         title: "Faltan bultos",
-//         text: `Cargados ${cargado}/${esperado} (faltan ${esperado - cargado})`,
-//         timer: 900,
-//         showConfirmButton: false,
-//       });
-//     } else {
-//       Swal.fire({
-//         icon: "warning",
-//         title: "Cantidad excedida",
-//         text: `Cargados ${cargado}/${esperado} (sobran ${cargado - esperado})`,
-//         timer: 1100,
-//         showConfirmButton: false,
-//       });
-//     }
-//   }
-// }
 function actualizarEstadoCantidadPickup() {
   // Si NO es retiro, no bloquees por items
   if (!esRetiro()) {
@@ -818,6 +667,7 @@ $(document).on("submit", "#loginForm", function (e) {
   return false;
 });
 
+//INGRESO!
 $(document).on("click", "#ingreso", function (e) {
   e.preventDefault();
   e.stopPropagation();
