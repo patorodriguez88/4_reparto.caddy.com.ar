@@ -9,6 +9,8 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 
 require_once "../../Conexion/conexioni.php";
+require_once __DIR__ . '/../../Funciones/estados.php';
+
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 // Asegurar conexión en UTF-8 para evitar "Incorrect string value" (tildes, ñ, etc.)
@@ -164,10 +166,6 @@ if (isset($_POST['Datos'])) {
 // ==================================================
 
 if (isset($_POST['ConfirmoEntrega'])) {
-  error_reporting(E_ALL);
-  ini_set('display_errors', 1);
-  ini_set('display_startup_errors', 1);
-
 
   // 1) Primero lo traés del POST
   $CodigoRaw = $_POST['Cs'] ?? '';
@@ -196,15 +194,6 @@ if (isset($_POST['ConfirmoEntrega'])) {
   );
   $id = $sqlhdr->fetch_array(MYSQLI_ASSOC) ?: ['id' => null];
 
-  // Etiquetas
-  // foreach ($Etiquetas as $et) {
-  //   $et = $mysqli->real_escape_string($et);
-  //   $mysqli->query(
-  //     "INSERT INTO Etiquetas (CodigoSeguimiento, Observaciones)
-  //            VALUES ('{$CodigoSeguimiento}', '{$et}')"
-  //   );
-  //   // No corto si falla una etiqueta, pero se podría controlar también
-  // }
 
   // Localización base
   $sqlLocalizacion = consultaOError(
@@ -219,11 +208,6 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $Localizacion = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
   $Retirado = (int)($sqlLocalizacionR['Retirado']);
 
-  // if ($Retirado == 1) {
-  //   $Retirado = 0;
-  // } else {
-  //   $Retirado = 1;
-  // }
   // Número de visita
   $sqlvisita = consultaOError(
     $mysqli,
@@ -240,8 +224,10 @@ if (isset($_POST['ConfirmoEntrega'])) {
 
     if (!empty($sqlLocalizacionR) && (int)$sqlLocalizacionR['Redespacho'] === 0) {
       $Entregado = 1;
-      $Estado    = 'Entregado al Cliente';
-      $Estado_id = 7;
+      $status = 'delivered';
+      $st = estadoPorSlug($mysqli, $status); // o 'entregado_cliente'
+      $Estado_id = (int)$st['id'];
+      $Estado    = $st['Estado'];
 
       // Evitar duplicar registro "Entregado al Cliente"
       $resultado = $mysqli->query(
@@ -263,8 +249,10 @@ if (isset($_POST['ConfirmoEntrega'])) {
     } else {
 
       $Entregado = 0;
-      $Estado    = 'En Transito';
-      $Estado_id = 5;
+      $status = 'last_mile';
+      $st = estadoPorSlug($mysqli, $status); // o 'entregado_cliente'
+      $Estado_id = (int)$st['id'];
+      $Estado    = $st['Estado'];
 
       $sqlTransClientes = consultaOError(
         $mysqli,
@@ -301,11 +289,12 @@ if (isset($_POST['ConfirmoEntrega'])) {
 
     // Caso Retiro
     $Entregado = 0;
-    $Estado    = 'Retirado del Cliente';
-    $Estado_id = 3;
-    // $st = estadoPorSlug($mysqli, 'pickup_ready'); // o 'entregado_cliente'
-    // $Estado_id = (int)$st['id'];
-    // $Estado    = $st['Estado'];
+    $Retirado  = 1;
+    $status = 'pickup_ready';
+    $st = estadoPorSlug($mysqli, $status); // o 'entregado_cliente'
+    $Estado_id = (int)$st['id'];
+    $Estado    = $st['Estado'];
+
     $sqlTransClientes = consultaOError(
       $mysqli,
       "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 
@@ -327,11 +316,11 @@ if (isset($_POST['ConfirmoEntrega'])) {
     $mysqli,
     "INSERT INTO Seguimiento
             (Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
-             NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id)
+             NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
          VALUES
             ('{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
              '{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
-             '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}')",
+             '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}')",
     'INSERT Seguimiento ConfirmoEntrega'
   );
 
@@ -401,8 +390,10 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
   }
 
   $Observaciones = trim($razones . ' ' . $Obs);
-  $Estado        = 'No se pudo entregar';
-  $Estado_id     = 8;
+  $status = '1st_visit_fail';
+  $st = estadoPorSlug($mysqli, $status); // o 'entregado_cliente'
+  $Estado_id = (int)$st['id'];
+  $Estado    = $st['Estado'];
 
   // ID HojaDeRuta
   $sqlhdr = consultaOError(

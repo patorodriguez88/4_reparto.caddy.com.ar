@@ -182,7 +182,7 @@ $("#mi_cuenta").on("click", function () {
   $.ajax({
     data: { MisEnvios: 1 },
     type: "POST",
-    url: "Proceso/php/funciones_hdr1.php", // PHP que devuelve JSON
+    url: "Proceso/php/funciones_hdr.php", // PHP que devuelve JSON
     dataType: "json",
     beforeSend: function () {
       // $("#info-alert-modal-header").html("Cargando datos...");
@@ -445,7 +445,7 @@ function verwrong(i) {
       $("#card-seguimiento").html(dato.CodigoSeguimiento);
       $("#btnEscanear").attr(
         "data-expected",
-        (dato.CodigoSeguimiento || "").split("_")[0]
+        (dato.CodigoSeguimiento || "").split("_")[0],
       );
     },
     error: function (xhr, status, error) {
@@ -453,7 +453,7 @@ function verwrong(i) {
         "Error BuscoDatos (verwrong):",
         status,
         error,
-        xhr.responseText
+        xhr.responseText,
       );
       alert("No se pudo cargar la información del envío.");
     },
@@ -500,7 +500,7 @@ function verok(i) {
       $("#card-receptor-cantidad").html(dato.Cantidad);
       $("#btnEscanear").attr(
         "data-expected",
-        (dato.CodigoSeguimiento || "").split("_")[0]
+        (dato.CodigoSeguimiento || "").split("_")[0],
       );
       $("#prueba").val(null).trigger("change"); // limpia items del select2 del envío anterior
       onCargarNuevoEnvioEnCard();
@@ -534,7 +534,7 @@ function verok(i) {
         "Error BuscoDatos (verok):",
         status,
         error,
-        xhr.responseText
+        xhr.responseText,
       );
       alert("No se pudo cargar la información del envío.");
     },
@@ -566,7 +566,7 @@ function webhooks(i) {
         "codigo",
         jsonData.codigo,
         "new",
-        jsonData.new
+        jsonData.new,
       );
     },
     error: function (xhr, status, error) {
@@ -659,7 +659,7 @@ $(document).on(
       }
       return false;
     }
-  }
+  },
 );
 $(document).on("submit", "#loginForm", function (e) {
   e.preventDefault();

@@ -39,38 +39,50 @@
     const v = $("#prueba").val();
     return Array.isArray(v) ? v : [];
   }
-
-  function getNextIndexForBase(base) {
-    // Busca el próximo _n libre según lo que ya está en el select2
-    const selected = getSelectedValues();
-    let maxN = 0;
-
-    selected.forEach((v) => {
-      const s = (v || "").toString();
-      const parts = s.split("_");
-      if (parts[0] === base && parts.length === 2) {
-        const n = parseInt(parts[1], 10);
-        if (!isNaN(n)) maxN = Math.max(maxN, n);
-      }
-      if (s === base) {
-        // si alguien cargó base “pelado”, lo consideramos como 1
-        maxN = Math.max(maxN, 1);
-      }
+  function postColectaBulto(base, bulto) {
+    return $.ajax({
+      url: "Proceso/php/colecta_scan.php",
+      type: "POST",
+      dataType: "json",
+      data: {
+        ColectaBulto: 1,
+        base: base, // BASE sin _n
+        bulto: bulto, // lo escaneado: BASE_1 / BASE_2 / BASE_3 (o BASE)
+      },
     });
-
-    return maxN + 1;
   }
 
-  function countForBase(base) {
-    const selected = getSelectedValues();
-    let c = 0;
-    selected.forEach((v) => {
-      const s = (v || "").toString();
-      if (s === base) c++;
-      if (s.startsWith(base + "_")) c++;
-    });
-    return c;
-  }
+  // function getNextIndexForBase(base) {
+  //   // Busca el próximo _n libre según lo que ya está en el select2
+  //   const selected = getSelectedValues();
+  //   let maxN = 0;
+
+  //   selected.forEach((v) => {
+  //     const s = (v || "").toString();
+  //     const parts = s.split("_");
+  //     if (parts[0] === base && parts.length === 2) {
+  //       const n = parseInt(parts[1], 10);
+  //       if (!isNaN(n)) maxN = Math.max(maxN, n);
+  //     }
+  //     if (s === base) {
+  //       // si alguien cargó base “pelado”, lo consideramos como 1
+  //       maxN = Math.max(maxN, 1);
+  //     }
+  //   });
+
+  //   return maxN + 1;
+  // }
+
+  // function countForBase(base) {
+  //   const selected = getSelectedValues();
+  //   let c = 0;
+  //   selected.forEach((v) => {
+  //     const s = (v || "").toString();
+  //     if (s === base) c++;
+  //     if (s.startsWith(base + "_")) c++;
+  //   });
+  //   return c;
+  // }
 
   async function stopScanner() {
     try {
@@ -181,6 +193,18 @@
       // 5) guardar y mostrar
       codigosEscaneados.add(codeToStore);
       addToSelect2(codeToStore);
+      try {
+        // Guardamos referencia exacta del bulto en Observaciones
+        await postColectaBulto(expectedBase, raw);
+      } catch (e) {
+        console.error("ColectaBulto error:", e);
+        swalFire({
+          icon: "error",
+          title: "No se pudo registrar",
+          text: "Se leyó el QR pero no se pudo guardar el bulto en el sistema.",
+        });
+        return;
+      }
 
       // 6) feedback con progreso real (cuántos _n ya tenés)
       const cargados = $("#prueba").val()?.length || 0;
@@ -202,14 +226,14 @@
           { deviceId: { exact: cam.id } },
           config,
           onSuccess,
-          () => {}
+          () => {},
         );
       } else {
         await colectaQr.start(
           { facingMode: "environment" },
           config,
           onSuccess,
-          () => {}
+          () => {},
         );
       }
     } catch (e) {
@@ -223,19 +247,67 @@
   }
 
   // Abrir modal + start
-  $(document).on("click", "#btnEscanear", async function () {
+  // $(document).on("click", "#btnEscanear", async function () {
+  //   const modalEl = document.getElementById("colectaScanModal");
+  //   // const modal = new bootstrap.Modal(modalEl);
+  //   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  //   codigosEscaneados.clear();
+  //   colectaLast = "";
+  //   colectaLastT = 0;
+
+  //   modal.show();
+  //   await startScanner();
+  // });
+
+  // Stop al cerrar
+  // $(document).on("hidden.bs.modal", "#colectaScanModal", async function () {
+  //   await stopScanner();
+  // });
+  // $(document).on("hide.bs.modal", "#colectaScanModal", function () {
+  //   document.activeElement?.blur();
+  // });
+
+  // Stop manual si lo tenés
+  // $(document).on("click", "#btnStopColectaScan", async function () {
+  //   await stopScanner();
+  //   swalFire({
+  //     icon: "info",
+  //     title: "Scanner detenido",
+  //     timer: 700,
+  //     showConfirmButton: false,
+  //   });
+  // });
+  // Abrir modal (sin recrear instancias) + start cuando está visible
+  $(document).on("click", "#btnEscanear", function () {
     const modalEl = document.getElementById("colectaScanModal");
-    const modal = new bootstrap.Modal(modalEl);
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+    // reconstruyo el set a partir de lo que ya hay cargado en select2
+    codigosEscaneados.clear();
+    (getSelectedValues() || []).forEach((v) => codigosEscaneados.add(v));
+
+    colectaLast = "";
+    colectaLastT = 0;
+
     modal.show();
+  });
+
+  // Quitar foco ANTES de que bootstrap ponga aria-hidden=true
+  $(document).on("hide.bs.modal", "#colectaScanModal", function () {
+    document.activeElement?.blur();
+  });
+
+  // Start scanner cuando el modal terminó de mostrarse
+  $(document).on("shown.bs.modal", "#colectaScanModal", async function () {
     await startScanner();
   });
 
-  // Stop al cerrar
+  // Stop al cerrar del todo
   $(document).on("hidden.bs.modal", "#colectaScanModal", async function () {
     await stopScanner();
   });
 
-  // Stop manual si lo tenés
+  // Stop manual
   $(document).on("click", "#btnStopColectaScan", async function () {
     await stopScanner();
     swalFire({

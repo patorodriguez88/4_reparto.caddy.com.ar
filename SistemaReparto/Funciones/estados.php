@@ -21,6 +21,8 @@ function estadoPorSlug(mysqli $mysqli, string $slug): array
 
     return $cache[$slug] = $row; // ['id'=>..., 'slug'=>..., 'nombre'=>...]
 }
+
+//IMPLEMENTACION
 // $st = estadoPorSlug($mysqli, 'retirado_cliente'); // o 'entregado_cliente'
 // $Estado_id = (int)$st['id'];
 // $Estado    = $st['nombre'];

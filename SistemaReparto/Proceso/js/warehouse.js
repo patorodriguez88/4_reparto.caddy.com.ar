@@ -2,6 +2,29 @@ let renderRunning = false;
 let renderQueued = false;
 let __allScannedToastShown = false;
 
+function marcarEnTransitoBackend(done) {
+  $.ajax({
+    url: "Proceso/php/warehouse.php",
+    type: "POST",
+    dataType: "json",
+    data: { PuedeSalir: 1 }, // o EnTransito:1 (como prefieras)
+    success: function (res) {
+      if (res && res.success == 1) {
+        done(true, res);
+      } else {
+        done(false, res || { error: "Respuesta inválida" });
+      }
+    },
+    error: function (xhr) {
+      if (manejar401(xhr)) return;
+      done(false, {
+        error: "Error de conexión",
+        detail: xhr.responseText || "",
+      });
+    },
+  });
+}
+
 function safeRenderScanned() {
   if (renderRunning) {
     renderQueued = true;
@@ -114,6 +137,33 @@ function manejar401(xhr) {
 let lastCode = "";
 let lastTime = 0;
 
+// function puedeSalir() {
+//   const t = db.transaction("expected", "readonly");
+//   const store = t.objectStore("expected");
+
+//   let pendientesEntrega = 0;
+
+//   store.openCursor().onsuccess = function (e) {
+//     const cursor = e.target.result;
+//     if (cursor) {
+//       const v = cursor.value;
+//       const ret = v.retirado ?? 1;
+
+//       if (ret === 1 && v.estado === "pendiente") pendientesEntrega++;
+//       cursor.continue();
+//     } else {
+//       if (pendientesEntrega > 0) {
+//         saModal(
+//           "warning",
+//           "Faltan entregas",
+//           "Hay ENTREGAS sin validar. No se puede salir.",
+//         );
+//       } else {
+//         saModal("success", "Listo", "Entregas validadas. Podés continuar.");
+//       }
+//     }
+//   };
+// }
 function puedeSalir() {
   const t = db.transaction("expected", "readonly");
   const store = t.objectStore("expected");
@@ -124,31 +174,41 @@ function puedeSalir() {
     const cursor = e.target.result;
     if (cursor) {
       const v = cursor.value;
-      const ret = v.retirado ?? 1;
+      const ret = Number(v.retirado ?? 1);
 
       if (ret === 1 && v.estado === "pendiente") pendientesEntrega++;
       cursor.continue();
-    } else {
-      if (pendientesEntrega > 0) {
-        saModal(
-          "warning",
-          "Faltan entregas",
-          "Hay ENTREGAS sin validar. No se puede salir."
-        );
-      } else {
-        saModal("success", "Listo", "Entregas validadas. Podés continuar.");
-      }
+      return;
     }
+
+    if (pendientesEntrega > 0) {
+      saModal(
+        "warning",
+        "Faltan entregas",
+        "Hay ENTREGAS sin validar. No se puede salir.",
+      );
+      return;
+    }
+
+    // ✅ Todo OK local → ahora persistimos “En Tránsito” en backend
+    saToast("info", "Validando salida…", 900);
+
+    marcarEnTransitoBackend(function (ok, res) {
+      if (!ok) {
+        saModal(
+          "error",
+          "No se pudo registrar En Tránsito",
+          res.error || "Error",
+        );
+        return;
+      }
+
+      saModal("success", "Listo", "Entregas validadas. Envíos en tránsito.");
+      // si querés redirigir automáticamente:
+      // setTimeout(() => (window.location.href = "hdr.html"), 900);
+    });
   };
 }
-
-// function limpiarDB(callback) {
-//   const t1 = db.transaction(["expected", "scanned", "meta"], "readwrite");
-//   t1.objectStore("expected").clear();
-//   t1.objectStore("scanned").clear();
-//   t1.objectStore("meta").put({ key: "total", value: 0 });
-//   t1.oncomplete = () => callback();
-// }
 function limpiarDB(callback) {
   const t1 = db.transaction(["expected", "scanned", "bases_done"], "readwrite");
   t1.objectStore("expected").clear();
@@ -499,7 +559,7 @@ $("#mi_recorrido").on("click", function (e) {
       saModal(
         "warning",
         "Todavía faltan",
-        `Todavía hay ${pendientesEntrega} ENTREGAS sin escanear.`
+        `Todavía hay ${pendientesEntrega} ENTREGAS sin escanear.`,
       );
       return;
     }

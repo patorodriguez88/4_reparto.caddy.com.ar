@@ -107,25 +107,41 @@ if (isset($_POST['Paneles'])) {
   // PRE-CHECK: si falta validar algún envío (Retirado=0) en warehouse,
   // NO mostramos ningún registro para evitar salir con carga parcial.
   // ==================================================
+  // $sqlChkTxt = "SELECT COUNT(*) AS faltan
+  //     FROM HojaDeRuta
+  //     INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
+  //     WHERE HojaDeRuta.Estado='Abierto'
+  //       AND HojaDeRuta.Devuelto=0
+  //       AND HojaDeRuta.Recorrido='$Recorrido'
+  //       AND TransClientes.Eliminado='0'
+  //       AND HojaDeRuta.Eliminado=0
+  //       AND TransClientes.Retirado = 1
+  //       AND NOT EXISTS (
+  //           SELECT 1
+  //           FROM Seguimiento s
+  //           WHERE s.CodigoSeguimiento = TransClientes.CodigoSeguimiento
+  //             AND s.status = 'warehouse_validated'
+  //             AND s.Eliminado = 0
+  //           LIMIT 1
+  //       )
+  // ";
   $sqlChkTxt = "SELECT COUNT(*) AS faltan
-      FROM HojaDeRuta
-      INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
-      WHERE HojaDeRuta.Estado='Abierto'
-        AND HojaDeRuta.Devuelto=0
-        AND HojaDeRuta.Recorrido='$Recorrido'
-        AND TransClientes.Eliminado='0'
-        AND HojaDeRuta.Eliminado=0
-        AND TransClientes.Retirado = 1
-        AND NOT EXISTS (
-            SELECT 1
-            FROM Seguimiento s
-            WHERE s.CodigoSeguimiento = TransClientes.CodigoSeguimiento
-              AND s.status = 'warehouse_validated'
-              AND s.Eliminado = 0
-            LIMIT 1
-        )
-  ";
-
+  FROM HojaDeRuta
+  INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
+  WHERE HojaDeRuta.Estado='Abierto'
+    AND HojaDeRuta.Devuelto=0
+    AND HojaDeRuta.Recorrido='$Recorrido'
+    AND TransClientes.Eliminado='0'
+    AND HojaDeRuta.Eliminado=0
+    AND TransClientes.Retirado = 1
+    AND NOT EXISTS (
+        SELECT 1
+        FROM Seguimiento s
+        WHERE SUBSTRING_INDEX(s.CodigoSeguimiento,'_',1) = SUBSTRING_INDEX(TransClientes.CodigoSeguimiento,'_',1)
+          AND s.status = 'warehouse_validated'
+          AND s.Eliminado = 0
+        LIMIT 1
+    )";
   $sqlChk = $mysqli->query($sqlChkTxt);
   if (!$sqlChk) {
     echo "<div class='alert alert-danger'>Error SQL CHECK WAREHOUSE: " . $mysqli->error . "</div>";
