@@ -1,4 +1,5 @@
 <?php
+//ESTADOS - FUNCIONES
 function estadoPorSlug(mysqli $mysqli, string $slug): array
 {
     static $cache = [];
@@ -7,7 +8,8 @@ function estadoPorSlug(mysqli $mysqli, string $slug): array
     if (isset($cache[$slug])) return $cache[$slug];
 
     $slugEsc = $mysqli->real_escape_string($slug);
-    $sql = "SELECT id, Slug, Estado
+
+    $sql = "SELECT id, Slug, Estado,Webhook
             FROM Estados
             WHERE Slug = '{$slugEsc}'
             LIMIT 1";

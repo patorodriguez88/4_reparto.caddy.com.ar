@@ -185,6 +185,25 @@ if (!$okIns) {
     responder(['success' => 0, 'error' => 'execute failed', 'detail' => $sqlIns->error]);
 }
 
+if ($st['Webhook'] === 1) {
+
+    $payload = [
+        "status" => $status,
+        "description" => $Estado,
+        "city" => "Córdoba",
+        "province" => "Córdoba",
+        "country" => "AR",
+        "happened_at" => date('c'),               // ISO8601
+        "estimated_delivery_at" => date('c'),
+    ];
+
+    $r = tnCrearFulfillment($mysqli, $idTransClientes, $payload);
+
+    if (!$r['success']) {
+        responder(['success' => 0, 'error' => 'tnCrearFulfillment failed', 'detail' => $r['error']]);
+    }
+}
+
 responder([
     'success'  => 1,
     'updated'  => $okUp ? 1 : 0,
