@@ -15,7 +15,8 @@ if (isset($_POST['GetLista'])) {
     WHERE HojaDeRuta.Recorrido = '$recorrido'
     AND HojaDeRuta.Estado = 'Abierto'
     AND HojaDeRuta.Eliminado = 0
-    AND TransClientes.Eliminado = 0");
+    AND TransClientes.Eliminado = 0
+    ORDER BY TransClientes.CodigoSeguimiento ASC");
 
     $items = [];
     while ($r = $sql->fetch_assoc()) {

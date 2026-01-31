@@ -90,6 +90,39 @@ function saModal(icon, title, text = "", timer = null) {
 
   Swal.fire(opts);
 }
+function validarCacheConBackend(done) {
+  // 1) leo hash guardado
+  const reqHash = tx("meta").get("hash");
+  reqHash.onsuccess = function () {
+    const localHash = reqHash.result ? reqHash.result.value : "";
+
+    // 2) pido hash actual al backend (sin reescribir todo)
+    $.ajax({
+      url: "Proceso/php/warehouse.php",
+      type: "POST",
+      dataType: "json",
+      data: { GetLista: 1, solo_hash: 1 },
+      success: function (res) {
+        if (!res || res.success !== 1) {
+          // si falla backend, por seguridad podés usar cache
+          done(true);
+          return;
+        }
+
+        const remoteHash = res.hash || "";
+        done(localHash !== "" && localHash === remoteHash);
+      },
+      error: function () {
+        // sin conexión: usá cache
+        done(true);
+      },
+    });
+  };
+
+  reqHash.onerror = function () {
+    done(false);
+  };
+}
 
 $(document).ready(function () {
   abrirDB(() => {
@@ -107,9 +140,17 @@ $(document).ready(function () {
         return;
       }
 
-      console.log("🔁 expected con datos → render local");
-      cargarRecorridoLocal();
-      safeRenderScanned(); // 👈 en vez de renderScanned + actualizarHUD
+      // expected tiene datos → validamos si cache sigue vigente
+      validarCacheConBackend(function (okToUseCache) {
+        if (okToUseCache) {
+          console.log("✅ Cache vigente → render local");
+          cargarRecorridoLocal();
+          safeRenderScanned();
+        } else {
+          console.log("♻️ Cache viejo → recargando desde backend");
+          cargarLista();
+        }
+      });
     };
 
     reqCount.onerror = function () {
@@ -118,6 +159,7 @@ $(document).ready(function () {
     };
   });
 });
+
 function cargarRecorridoLocal() {
   const req = tx("meta").get("recorrido");
   req.onsuccess = function () {
@@ -229,54 +271,6 @@ function guardarBulto(code, base, retirado) {
   });
 }
 
-// function cargarLista() {
-//   $.ajax({
-//     url: "Proceso/php/warehouse.php",
-//     type: "POST",
-//     dataType: "json",
-//     data: { GetLista: 1 },
-//     success: function (res) {
-//       if (res.success !== 1) {
-//         saModal("error", "Error", res.error || "Error cargando lista");
-//         return;
-//       }
-
-//       $("#wh-recorrido").text(res.recorrido);
-
-//       limpiarDB(() => {
-//         let totalEntregas = 0;
-
-//         res.items.forEach((item) => {
-//           const bultos = parseInt(item.bultos, 10) || 1;
-//           const retirado = parseInt(item.retirado, 10); // NO uses || 0 acá
-
-//           if (bultos === 1) {
-//             guardarBulto(item.base, item.base, retirado); // BASE
-//             // total++;
-//           } else {
-//             for (let i = 1; i <= bultos; i++) {
-//               guardarBulto(`${item.base}_${i}`, item.base, retirado); // BASE_1..n
-//               total++;
-//             }
-//           }
-
-//           // ✅ solo suman entregas
-//           if (retirado === 1) totalEntregas += bultos;
-//         });
-
-//         const metaTx = db.transaction("meta", "readwrite");
-//         const meta = metaTx.objectStore("meta");
-//         meta.put({ key: "recorrido", value: res.recorrido });
-//         meta.put({ key: "total", value: totalEntregas }); // ✅ SOLO ENTREGAS
-//       });
-//     },
-//     error: function (xhr) {
-//       if (manejar401(xhr)) return;
-//       console.error(xhr.responseText);
-//       saToast("error", "Error de conexión cargando lista", 1600);
-//     },
-//   });
-// }
 function cargarLista() {
   $.ajax({
     url: "Proceso/php/warehouse.php",
@@ -329,7 +323,8 @@ function cargarLista() {
 
         meta.put({ key: "recorrido", value: res.recorrido });
         meta.put({ key: "total", value: totalEntregas });
-
+        meta.put({ key: "hash", value: res.hash });
+        meta.put({ key: "recorrido", value: res.recorrido });
         // ✅ recién acá, cuando terminó de grabar TODO
         t.oncomplete = function () {
           cargarRecorridoLocal();
