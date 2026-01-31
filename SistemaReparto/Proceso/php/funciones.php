@@ -103,7 +103,9 @@ if (isset($_POST['Datos'])) {
              WHERE Recorrido    = '{$Recorrido}'
                AND Eliminado    = 0 
                AND NumerodeOrden = '{$nOrden}' 
+               AND Estado      = 'Abierto'
                AND Devuelto     = 0",
+
       'CantidadTotal HojaDeRuta'
     );
     $TotalCantidad = $sqlCantidadTotal->fetch_array(MYSQLI_ASSOC);
@@ -250,7 +252,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
 
       $Entregado = 0;
       $status = 'last_mile';
-      $st = estadoPorSlug($mysqli, $status); // o 'entregado_cliente'
+      $st = estadoPorSlug($mysqli, $status);
       $Estado_id = (int)$st['id'];
       $Estado    = $st['Estado'];
 
@@ -291,7 +293,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
     $Entregado = 0;
     $Retirado  = 1;
     $status = 'pickup_ready';
-    $st = estadoPorSlug($mysqli, $status); // o 'entregado_cliente'
+    $st = estadoPorSlug($mysqli, $status);
     $Estado_id = (int)$st['id'];
     $Estado    = $st['Estado'];
 
