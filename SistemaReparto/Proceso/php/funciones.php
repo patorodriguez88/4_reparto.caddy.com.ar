@@ -103,9 +103,7 @@ if (isset($_POST['Datos'])) {
              WHERE Recorrido    = '{$Recorrido}'
                AND Eliminado    = 0 
                AND NumerodeOrden = '{$nOrden}' 
-               AND Estado      = 'Abierto'
                AND Devuelto     = 0",
-
       'CantidadTotal HojaDeRuta'
     );
     $TotalCantidad = $sqlCantidadTotal->fetch_array(MYSQLI_ASSOC);
