@@ -63,23 +63,32 @@ function mostrarErrorLogin(obj) {
     alert(msg + extra + eid);
   }
 }
+let forcingLogout = false;
+
 function cerrarSesionForzada(reason) {
+  if (forcingLogout) return;
+  forcingLogout = true;
+
   const texto = msgReason(reason);
 
   $("#hdr, #navbar, #topnav, #mis_envios, #hdractivas, #card-envio").hide();
   $("#login").show();
+  $("body").addClass("login-lock");
 
   Swal.fire({
     icon: "warning",
     title: "Atención",
     text: texto,
+  }).finally(() => {
+    // después de mostrar, permitimos futuras (por si reintenta)
+    forcingLogout = false;
   });
 }
-function esRetiro() {
-  // vos ya usás: si dato.Retirado == 0 => RETIRO
-  // acá lo determinamos por lo que muestra el card-servicio:
-  return ($("#card-servicio").text() || "").toUpperCase().includes("RETIRO");
-}
+// function esRetiro() {
+//   // vos ya usás: si dato.Retirado == 0 => RETIRO
+//   // acá lo determinamos por lo que muestra el card-servicio:
+//   return ($("#card-servicio").text() || "").toUpperCase().includes("RETIRO");
+// }
 
 function baseActual() {
   const raw = ($("#card-seguimiento").text() || "").trim();
@@ -282,7 +291,6 @@ function initApp() {
     type: "POST",
     url: "Proceso/php/funciones.php",
     dataType: "json",
-    global: false, // ✅ NO dispara $(document).ajaxError
   })
     .done(function (jsonData) {
       // Si tu backend manda forceLogout
@@ -294,6 +302,7 @@ function initApp() {
       // ✅ Hay sesión -> arrancamos
       if (jsonData && jsonData.success == 1) {
         $("#hdr,#navbar,#topnav").show();
+
         $("#login").hide();
         $("body").removeClass("login-lock");
 
@@ -303,7 +312,7 @@ function initApp() {
         $("#badge-sinentregar").html(jsonData.Abiertos);
         $("#badge-entregados").html(jsonData.Cerrados);
 
-        paneles(); // ✅ recién ahora
+        paneles(null, false); // ✅ recién ahora
         asegurarMenuWarehouse(); // ✅ recién ahora
       } else {
         // ❌ No hay sesión -> login
@@ -352,7 +361,7 @@ $("#ver_mapa").click(function () {
 });
 
 $("#btn-dark-el").click(function () {
-  paneles();
+  paneles(null, false);
   document.getElementById("btn-dark-el").style.display = "none";
 });
 
@@ -371,8 +380,8 @@ $("#btn-search").click(function () {
 // ==================================================
 // FUNCION PARA MOSTRAR LOS PANELES
 // ==================================================
-function paneles(a) {
-  let pendientes = 2;
+function paneles(a, refrescarTotales = false) {
+  let pendientes = refrescarTotales ? 2 : 1;
 
   function doneRequest() {
     pendientes--;
@@ -412,42 +421,42 @@ function paneles(a) {
   });
 
   // TOTALES
-  $.ajax({
-    data: { Datos: 1 },
-    type: "POST",
-    url: "Proceso/php/funciones.php",
-    dataType: "json",
-    success: function (jsonData) {
-      if (jsonData && jsonData.forceLogout) {
-        cerrarSesionForzada(jsonData.reason);
-        return;
-      }
+  // $.ajax({
+  //   data: { Datos: 1 },
+  //   type: "POST",
+  //   url: "Proceso/php/funciones.php",
+  //   dataType: "json",
+  //   success: function (jsonData) {
+  //     if (jsonData && jsonData.forceLogout) {
+  //       cerrarSesionForzada(jsonData.reason);
+  //       return;
+  //     }
 
-      if (jsonData.success == 1) {
-        $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
-        $("#badge-total").html(jsonData.Total);
-        $("#badge-sinentregar").html(jsonData.Abiertos);
-        $("#badge-entregados").html(jsonData.Cerrados);
-        $("#hdr,#navbar,#topnav").show();
-        asegurarMenuWarehouse();
-        $("#login").hide();
-      } else {
-        console.warn("Datos no OK:", jsonData);
-        $("#login").show();
-      }
-    },
-    error: function (xhr) {
-      if (tryHandleForceLogout(xhr)) return;
+  //     if (jsonData.success == 1) {
+  //       $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
+  //       $("#badge-total").html(jsonData.Total);
+  //       $("#badge-sinentregar").html(jsonData.Abiertos);
+  //       $("#badge-entregados").html(jsonData.Cerrados);
+  //       $("#hdr,#navbar,#topnav").show();
+  //       asegurarMenuWarehouse();
+  //       $("#login").hide();
+  //     } else {
+  //       console.warn("Datos no OK:", jsonData);
+  //       $("#login").show();
+  //     }
+  //   },
+  //   error: function (xhr) {
+  //     if (tryHandleForceLogout(xhr)) return;
 
-      console.error("Error Datos:", xhr.status, xhr.responseText);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "No se pudieron cargar los datos.",
-      });
-    },
-    complete: doneRequest,
-  });
+  //     console.error("Error Datos:", xhr.status, xhr.responseText);
+  //     Swal.fire({
+  //       icon: "error",
+  //       title: "Error",
+  //       text: "No se pudieron cargar los datos.",
+  //     });
+  //   },
+  //   complete: doneRequest,
+  // });
 }
 
 // BOTONERA / DROPZONE
@@ -759,14 +768,8 @@ $(document).on("click", "#ingreso", function (e) {
         $("#hdr").show();
         $("#navbar").show();
         $("#topnav").show();
-        paneles();
-        console.log(
-          "standalone?",
-          window.matchMedia("(display-mode: standalone)").matches,
-          "iosStandalone?",
-          window.navigator.standalone,
-        );
-        setTimeout(showInstallBanner, 1200); // ✅ acá
+
+        paneles(null, false);
       } else {
         Swal.fire({
           icon: "error",
