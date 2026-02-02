@@ -76,7 +76,7 @@ if (isset($_POST['Datos'])) {
 
   if (empty($idUsuario)) {
     header('Content-Type: application/json; charset=utf-8');
-    http_response_code(401);
+    http_response_code(200);
     echo json_encode(['forceLogout' => true, 'reason' => 'NO_IDUSUARIO', 'success' => 0, 'usuario' => 0, 'error' => 'idUsuario no definido...']);
     exit;
   }

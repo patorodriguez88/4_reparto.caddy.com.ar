@@ -117,39 +117,10 @@ function isInStandaloneMode() {
   return window.matchMedia("(display-mode: standalone)").matches; // others
 }
 
-// function canOfferInstall() {
-//   if (isInStandaloneMode()) return false;
-
-//   const last = parseInt(localStorage.getItem("install_offer_last") || "0", 10);
-//   const now = Date.now();
-//   const sevenDays = 7 * 24 * 60 * 60 * 1000;
-//   if (last && now - last < sevenDays) return false;
-
-//   return true;
-// }
-
-// function refreshInstallDot() {
-//   const dot = document.getElementById("installDot");
-//   if (!dot) return;
-
-//   // Si está en login, no mostramos nada
-//   const login = document.getElementById("login");
-//   const loginVisible = login && getComputedStyle(login).display !== "none";
-//   if (loginVisible || document.body.classList.contains("login-lock")) {
-//     dot.style.display = "none";
-//     return;
-//   }
-
-//   dot.style.display = canOfferInstall() ? "inline-block" : "none";
-// }
-
 // Click campanita (delegado, funciona aunque el navbar aparezca después)
 $(document).on("click", "#btnInstallBell", async function (e) {
   e.preventDefault();
   e.stopPropagation();
-
-  // Si no corresponde ofrecer, salimos
-  // if (!canOfferInstall()) return;
 
   // Marcar cooldown (no insistir 7 días)
   localStorage.setItem("install_offer_last", String(Date.now()));
@@ -184,3 +155,30 @@ $(document).on("click", "#btnInstallBell", async function (e) {
     customClass: { container: "caddy-login-swal" },
   });
 });
+function isAppInstalled() {
+  return (
+    (window.matchMedia &&
+      window.matchMedia("(display-mode: standalone)").matches) ||
+    window.navigator.standalone === true
+  );
+}
+function disableBellIndicator() {
+  // Ajustá estos selectores a tu HTML real
+  $(".noti-icon-badge").hide();
+}
+function lockBellClickIfInstalled() {
+  // Ajustá selector al botón real de la campanita
+  // Ej: #bell, #notificationDropdown, .nav-link[data-bs-toggle="dropdown"]
+  $(document).on(
+    "click",
+    "#notificationDropdown, #bell, .noti-icon",
+    function (e) {
+      if (!isAppInstalled()) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation(); // corta handlers ya registrados
+      return false;
+    },
+  );
+}

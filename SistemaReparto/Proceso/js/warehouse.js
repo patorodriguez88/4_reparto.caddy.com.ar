@@ -179,33 +179,6 @@ function manejar401(xhr) {
 let lastCode = "";
 let lastTime = 0;
 
-// function puedeSalir() {
-//   const t = db.transaction("expected", "readonly");
-//   const store = t.objectStore("expected");
-
-//   let pendientesEntrega = 0;
-
-//   store.openCursor().onsuccess = function (e) {
-//     const cursor = e.target.result;
-//     if (cursor) {
-//       const v = cursor.value;
-//       const ret = v.retirado ?? 1;
-
-//       if (ret === 1 && v.estado === "pendiente") pendientesEntrega++;
-//       cursor.continue();
-//     } else {
-//       if (pendientesEntrega > 0) {
-//         saModal(
-//           "warning",
-//           "Faltan entregas",
-//           "Hay ENTREGAS sin validar. No se puede salir.",
-//         );
-//       } else {
-//         saModal("success", "Listo", "Entregas validadas. Podés continuar.");
-//       }
-//     }
-//   };
-// }
 function puedeSalir() {
   const t = db.transaction("expected", "readonly");
   const store = t.objectStore("expected");
@@ -400,10 +373,6 @@ function getTotal(callback) {
   req.onsuccess = () => callback(req.result ? req.result.value : 0);
 }
 
-// function contarScanned(callback) {
-//   const req = tx("scanned").count();
-//   req.onsuccess = () => callback(req.result || 0);
-// }
 function contarScanned(callback) {
   const req = tx("scanned").count();
   req.onsuccess = () => callback(req.result || 0);

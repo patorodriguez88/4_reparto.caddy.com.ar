@@ -52,38 +52,6 @@
     });
   }
 
-  // function getNextIndexForBase(base) {
-  //   // Busca el próximo _n libre según lo que ya está en el select2
-  //   const selected = getSelectedValues();
-  //   let maxN = 0;
-
-  //   selected.forEach((v) => {
-  //     const s = (v || "").toString();
-  //     const parts = s.split("_");
-  //     if (parts[0] === base && parts.length === 2) {
-  //       const n = parseInt(parts[1], 10);
-  //       if (!isNaN(n)) maxN = Math.max(maxN, n);
-  //     }
-  //     if (s === base) {
-  //       // si alguien cargó base “pelado”, lo consideramos como 1
-  //       maxN = Math.max(maxN, 1);
-  //     }
-  //   });
-
-  //   return maxN + 1;
-  // }
-
-  // function countForBase(base) {
-  //   const selected = getSelectedValues();
-  //   let c = 0;
-  //   selected.forEach((v) => {
-  //     const s = (v || "").toString();
-  //     if (s === base) c++;
-  //     if (s.startsWith(base + "_")) c++;
-  //   });
-  //   return c;
-  // }
-
   async function stopScanner() {
     try {
       if (colectaQr) {
@@ -246,37 +214,6 @@
     }
   }
 
-  // Abrir modal + start
-  // $(document).on("click", "#btnEscanear", async function () {
-  //   const modalEl = document.getElementById("colectaScanModal");
-  //   // const modal = new bootstrap.Modal(modalEl);
-  //   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-  //   codigosEscaneados.clear();
-  //   colectaLast = "";
-  //   colectaLastT = 0;
-
-  //   modal.show();
-  //   await startScanner();
-  // });
-
-  // Stop al cerrar
-  // $(document).on("hidden.bs.modal", "#colectaScanModal", async function () {
-  //   await stopScanner();
-  // });
-  // $(document).on("hide.bs.modal", "#colectaScanModal", function () {
-  //   document.activeElement?.blur();
-  // });
-
-  // Stop manual si lo tenés
-  // $(document).on("click", "#btnStopColectaScan", async function () {
-  //   await stopScanner();
-  //   swalFire({
-  //     icon: "info",
-  //     title: "Scanner detenido",
-  //     timer: 700,
-  //     showConfirmButton: false,
-  //   });
-  // });
   // Abrir modal (sin recrear instancias) + start cuando está visible
   $(document).on("click", "#btnEscanear", function () {
     const modalEl = document.getElementById("colectaScanModal");

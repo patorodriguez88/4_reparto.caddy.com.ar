@@ -272,6 +272,11 @@ $("#prueba").on("change", function () {
 //   asegurarMenuWarehouse();
 // });
 $(document).ready(function () {
+  if (isAppInstalled()) {
+    disableBellIndicator();
+  }
+  lockBellClickIfInstalled();
+
   // UI init (esto sí puede correr siempre)
   $("#prueba").select2({
     placeholder: "Select an option",
@@ -302,7 +307,9 @@ function initApp() {
       // ✅ Hay sesión -> arrancamos
       if (jsonData && jsonData.success == 1) {
         $("#hdr,#navbar,#topnav").show();
-
+        if (isAppInstalled()) {
+          disableBellIndicator();
+        }
         $("#login").hide();
         $("body").removeClass("login-lock");
 
@@ -312,6 +319,9 @@ function initApp() {
         $("#badge-sinentregar").html(jsonData.Abiertos);
         $("#badge-entregados").html(jsonData.Cerrados);
 
+        if (window.AppStatus) {
+          AppStatus.postStatus({ stage: "session_ok" });
+        }
         paneles(null, false); // ✅ recién ahora
         asegurarMenuWarehouse(); // ✅ recién ahora
       } else {
@@ -402,6 +412,29 @@ function paneles(a, refrescarTotales = false) {
 
       if (obj && obj.forceLogout) {
         cerrarSesionForzada(obj.reason);
+        return;
+      }
+      // Limpio espacios
+      const limpio = (responseText || "").trim();
+
+      if (!limpio || limpio === "[]" || limpio === "{}") {
+        // 👉 EMPTY STATE
+        $("#hdractivas")
+          .html(
+            `
+      <div class="empty-state text-center p-4">
+        <div class="mb-3">
+          <i class="mdi mdi-car-wrench mdi-48px text-muted"></i>
+        </div>
+        <h4 class="text-muted mb-2">Sin envíos por ahora</h4>
+        <p class="text-muted">
+          Todavía no tenés paquetes para retirar ni entregar.<br>
+          Cuando se asignen, van a aparecer automáticamente acá.
+        </p>
+      </div>
+    `,
+          )
+          .fadeIn();
         return;
       }
 
@@ -769,6 +802,9 @@ $(document).on("click", "#ingreso", function (e) {
         $("#navbar").show();
         $("#topnav").show();
 
+        if (window.AppStatus) {
+          AppStatus.postStatus({ stage: "login_ok" });
+        }
         paneles(null, false);
       } else {
         Swal.fire({
