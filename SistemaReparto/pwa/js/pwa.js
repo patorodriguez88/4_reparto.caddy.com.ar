@@ -102,3 +102,102 @@
     syncLoginLock();
   });
 })();
+
+let deferredPrompt = null;
+
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function isInStandaloneMode() {
+  // iOS
+  if (window.navigator.standalone) return true;
+  // Android/Chrome
+  return window.matchMedia("(display-mode: standalone)").matches;
+}
+
+function shouldShowInstallBanner() {
+  if (isInStandaloneMode()) return false;
+
+  const last = parseInt(localStorage.getItem("install_banner_last") || "0", 10);
+  const now = Date.now();
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+
+  // no molestar por 7 días si tocó "Más tarde"
+  if (last && now - last < sevenDays) return false;
+
+  return true;
+}
+
+function isLoginVisible() {
+  const el = document.getElementById("login");
+  if (!el) return false;
+  return getComputedStyle(el).display !== "none";
+}
+
+function showInstallBanner() {
+  if (!shouldShowInstallBanner()) return;
+
+  // 🚫 NO mostrar si el login está visible
+  if (isLoginVisible() || document.body.classList.contains("login-lock"))
+    return;
+
+  $("#installBanner").fadeIn(150);
+}
+
+function hideInstallBanner(remember) {
+  $("#installBanner").fadeOut(150);
+  if (remember) localStorage.setItem("install_banner_last", String(Date.now()));
+}
+
+// Android/Chrome: captura el prompt nativo
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
+// Click “Instalar”
+$(document).on("click", "#btnInstallNow", async function () {
+  // iOS: no hay prompt, mostramos instrucciones
+  if (isIOS()) {
+    hideInstallBanner(false);
+    Swal.fire({
+      icon: "info",
+      title: "Agregar a pantalla de inicio",
+      html: "En Safari tocá <b>Compartir</b> (cuadrado con flecha) y elegí <b>“Agregar a pantalla de inicio”</b>.",
+      confirmButtonText: "Entendido",
+      customClass: { container: "caddy-login-swal" }, // o el z-index alto que ya usás
+    });
+    return;
+  }
+
+  // Android: prompt real
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+
+    // Si aceptó, no mostrar más
+    if (outcome === "accepted") {
+      hideInstallBanner(true);
+    } else {
+      // si canceló, que vuelva a sugerir en unos días
+      hideInstallBanner(true);
+    }
+  } else {
+    // No está disponible el evento aún (o browser no compatible)
+    hideInstallBanner(false);
+    Swal.fire({
+      icon: "info",
+      title: "Instalación",
+      text: "Tu navegador no permite el prompt automático. Podés instalar desde el menú del navegador.",
+      confirmButtonText: "OK",
+      customClass: { container: "caddy-login-swal" },
+    });
+  }
+});
+
+// Click “Más tarde”
+$(document).on("click", "#btnInstallLater", function () {
+  hideInstallBanner(true);
+});

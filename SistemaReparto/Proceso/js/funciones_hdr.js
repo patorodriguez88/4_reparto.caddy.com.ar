@@ -760,6 +760,7 @@ $(document).on("click", "#ingreso", function (e) {
         $("#navbar").show();
         $("#topnav").show();
         paneles();
+        setTimeout(showInstallBanner, 1200); // ✅ acá
       } else {
         Swal.fire({
           icon: "error",
