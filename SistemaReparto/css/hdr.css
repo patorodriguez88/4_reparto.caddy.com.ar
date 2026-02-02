@@ -1,0 +1,310 @@
+/* App-like shell */
+body {
+  padding-bottom: 74px;
+}
+.app-main {
+  min-height: calc(100vh - 74px);
+}
+
+/* Bottom nav (mobile-app feel) */
+.app-bottomnav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 74px;
+  display: flex;
+  justify-content: space-around;
+  background: rgba(226, 79, 48, 0.96);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  z-index: 1050;
+}
+.app-bottomnav .nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  line-height: 1.1;
+}
+.app-bottomnav .nav-item i {
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+.app-bottomnav .nav-item.active {
+  color: #fff;
+}
+
+/* Screen containers */
+.app-screen {
+  display: none;
+}
+.app-screen.active {
+  display: block;
+}
+
+/* Improve tap targets */
+.app-bottomnav .nav-item {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Login full-screen (app-like, no page scroll) */
+body.login-lock {
+  overflow: hidden;
+}
+
+#login {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: none; /* controlado por JS */
+  overflow: hidden;
+  /* background: #E24F30; */
+  background: linear-gradient(180deg, #f5f7fb 0%, #ffffff 60%);
+  padding: 0; /* evita márgenes tipo mt/mb */
+  margin: 0;
+}
+#login .login-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#login .login-card {
+  width: 100%;
+  max-width: 420px;
+  max-height: 92vh;
+  overflow: auto; /* si el teclado achica, scrollea solo la card */
+}
+/* Swal SOLO para login: por encima del overlay #login (z-index:2000) */
+.swal2-container.caddy-login-swal {
+  z-index: 5000 !important;
+}
+/* ================================
+   SWEETALERT APP FEEDBACK (OK / ERROR)
+   ================================ */
+
+/* Overlay general (SweetAlert2 container is the real fullscreen backdrop) */
+.swal2-container.caddy-swal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 3000 !important;
+  padding: 0 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  background-color: transparent;
+  background: transparent !important;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* Backdrop layer (keeps icon/text always on top) */
+.swal2-container.caddy-swal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0);
+  z-index: 0;
+  pointer-events: none;
+  will-change: background-color;
+}
+
+/* Ensure SweetAlert2 content always renders above the backdrop */
+.swal2-container.caddy-swal > * {
+  position: relative;
+  z-index: 10;
+}
+
+.swal2-container.caddy-swal.caddy-swal--ok::before {
+  animation: caddyBgGreenIn 260ms ease-out forwards;
+}
+
+.swal2-container.caddy-swal.caddy-swal--error::before {
+  animation: caddyBgRedIn 260ms ease-out forwards;
+}
+
+@keyframes caddyBgGreenIn {
+  from {
+    background-color: rgba(0, 0, 0, 0);
+  }
+  to {
+    background-color: rgba(22, 163, 74, 1);
+  }
+}
+@keyframes caddyBgRedIn {
+  from {
+    background-color: rgba(0, 0, 0, 0);
+  }
+  to {
+    background-color: rgba(220, 38, 38, 1);
+  }
+}
+
+/* Popup invisible: no afecta visibilidad del contenido */
+.swal2-popup.caddy-popup {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 5 !important;
+  transition: none !important;
+  transform: none !important;
+}
+/* When SweetAlert2 starts closing, DO NOT fade/transform the popup early */
+.swal2-popup.caddy-popup.swal2-hide {
+  opacity: 1 !important;
+  transform: none !important;
+  animation: none !important;
+}
+
+/* Contenido siempre por encima del fondo */
+.caddy-stage {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Ícono: aparece después del fondo + bounce/shake */
+.caddy-icon-wrap {
+  position: relative;
+  z-index: 7;
+  opacity: 1;
+  transform: scale(0.6);
+  animation: caddyIconIn 520ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation-delay: 380ms;
+  pointer-events: none;
+}
+/* Estado mientras espera el cierre */
+.caddy-icon-hold {
+  opacity: 1 !important;
+}
+.caddy-icon {
+  width: 96px;
+  height: 96px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 1;
+
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* Variante error: misma burbuja, borde y X blanca */
+.caddy-icon--error {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+@keyframes caddyIconIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  72% {
+    transform: scale(0.96);
+  }
+  86% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Texto: aparece completo (sin desvanecerse letra por letra), después del ícono */
+.caddy-typing {
+  position: relative;
+  z-index: 4; /* por encima del fondo */
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+
+  /* Para que frases largas se vean */
+  max-width: min(86vw, 520px);
+  text-align: center;
+  white-space: normal;
+  line-height: 1.15;
+
+  /* Aparece después del ícono */
+  opacity: 0;
+  transform: translateY(6px);
+  animation: caddyTextIn 220ms ease-out forwards;
+  animation-delay: 780ms; /* icono primero, luego frase */
+}
+
+@media (max-width: 420px) {
+  .caddy-typing {
+    font-size: 18px;
+  }
+}
+
+.caddy-typing::before {
+  content: attr(data-text);
+}
+
+@keyframes caddyTextIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* =========================================
+   FIX: SweetAlert2 container fade/hide
+   (evita que el icono se apague antes)
+   ========================================= */
+
+.swal2-container.caddy-swal.swal2-hide,
+.swal2-container.caddy-swal.swal2-backdrop-hide {
+  opacity: 1 !important;
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Por si SweetAlert mete transform durante el cierre */
+.swal2-container.caddy-swal {
+  transition: none !important;
+  transform: none !important;
+}
+.swal2-container.caddy-swal.swal2-backdrop-show,
+.swal2-container.caddy-swal.swal2-backdrop-hide {
+  background: transparent !important; /* SweetAlert no pinta nada */
+}
+/* BLINDAJE: que el icono/texto siempre gane cualquier capa de SweetAlert */
+.swal2-popup.caddy-popup {
+  z-index: 9999 !important;
+}
+.caddy-stage {
+  z-index: 10000 !important;
+}
+.caddy-icon-wrap {
+  z-index: 10001 !important;
+}
+.caddy-typing {
+  z-index: 10000 !important;
+}

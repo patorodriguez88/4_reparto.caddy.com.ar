@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // 👇 Para que conexioni NO exija sesión web (evitar 401 para la app)
 if (!defined('ALLOW_NO_SESSION')) {
   define('ALLOW_NO_SESSION', true);
@@ -166,7 +170,9 @@ if (isset($_POST['Datos'])) {
 // ==================================================
 
 if (isset($_POST['ConfirmoEntrega'])) {
-
+  ini_set('display_errors', 1);
+  ini_set('display_startup_errors', 1);
+  error_reporting(E_ALL);
   // 1) Primero lo traés del POST
   $CodigoRaw = $_POST['Cs'] ?? '';
   $CodigoRaw = trim($CodigoRaw);
@@ -236,7 +242,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
                  WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
                    AND Entregado = 1
                    AND Estado    = '{$Estado}'
-                   AND Eliminado= 0
+                   AND (Eliminado IS NULL OR Eliminado = 0)
                  LIMIT 1"
       );
 
@@ -273,14 +279,14 @@ if (isset($_POST['ConfirmoEntrega'])) {
     // Datos destino
     $sqlTransClientes = consultaOError(
       $mysqli,
-      "SELECT id,ClienteDestino,DomicilioDestino,Recorrido 
+      "SELECT id,ClienteDestino,DomicilioDestino,Recorrido,idClienteDestino 
              FROM TransClientes 
              WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
                AND Eliminado = 0",
       'TransClientes Destino'
     );
     $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
-
+    $idClienteDestino = $datossqlTransClientes['idClienteDestino'] ?? 0;
     $NombreCompleto  = ($datossqlTransClientes['ClienteDestino'] ?? '');
     $Localizacion    = ($datossqlTransClientes['DomicilioDestino'] ?? '');
     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
@@ -315,10 +321,10 @@ if (isset($_POST['ConfirmoEntrega'])) {
   consultaOError(
     $mysqli,
     "INSERT INTO Seguimiento
-            (Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
+            (Eliminado,idCliente,Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
              NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
          VALUES
-            ('{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
+            ('0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
              '{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
              '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}')",
     'INSERT Seguimiento ConfirmoEntrega'

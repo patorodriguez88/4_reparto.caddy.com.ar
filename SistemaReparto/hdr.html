@@ -7,6 +7,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta content="A fully featured admin theme which can be used to build CRM, CMS, etc." name="description" />
         <meta content="Coderthemes" name="author" />
+        <meta name="theme-color" content="#111827">
+        <link rel="manifest" href="pwa/manifest.webmanifest">
         <!-- App favicon -->
         <link rel="shortcut icon" href="images/favicon.ico">
         <!-- third party css -->
@@ -20,6 +22,7 @@
         <link href="../hyper/dist/saas/assets/css/app-dark.min.css" rel="stylesheet" type="text/css" id="dark-style" />
         <!-- Dropzone -->
          <link href="../hyper/dist/saas/assets/css/vendor/dropzone.css" rel="stylesheet">
+        <link href="css/hdr.css" rel="stylesheet" type="text/css" />
     </head>     
     <body class="loading" data-layout="topnav" data-layout-config='{"navbar":false,"layoutBoxed":false,"darkMode":false}'>
         <!-- Begin page -->
@@ -152,15 +155,14 @@
                     </div><!-- /.modal-dialog -->
                 </div><!-- /.modal -->
                  <!--LOGIN-->
-           <div id="login" class="account-pages mt-2 mb-5" style="display:none">
-            <div class="container">
-                <div class="row justify-content-center">
-                    <div class="col-xxl-4 col-lg-5">
+           <div id="login" class="account-pages" style="display:none">
+            <div class="login-wrapper">
+             <div class="login-card">
                         <div class="card">
 
                             <!-- Logo -->
                             <div class="card-header pt-4 pb-4 text-center bg-white">
-                                <a href="index.html">
+                                <a href="">
                                     <span><img src="images/LogoCaddy.png" alt="" height="88"></span>
                                 </a>
                             </div>
@@ -198,16 +200,15 @@
                             </div> <!-- end card-body -->
                         </div>
                         <!-- end card -->
-
-                    </div> <!-- end col -->
-                </div>
-                <!-- end row -->
+             </div>
             </div>
-            <!-- end container -->
         </div>
                   
                   <!--LOGIN-->
-                  <div class="container-fluid mt-2" id="hdr" style="display:none">
+                  <main id="app-main" class="app-main">
+
+                  <!-- Screen: Entrega / Operación (tu pantalla actual) -->
+                  <div class="container-fluid mt-2 app-screen active" id="hdr" style="display:none">
                       <div class="row">
                             <div class="col-12">
                                 <div class="page-title-box">
@@ -317,6 +318,7 @@
                <!--HASTA ACA UN SOLO ENVIO-->                      
                             <div class="row" id="hdractivas"></div>
 
+                      <!-- (Legacy) mis_envios: lo clonamos a la pantalla Totales para evitar reescritura -->
                       <div class="row" id="mis_envios" style="display:none">
                         <!-- <div class="col-xl-5 col-lg-6"> -->
                             <div class="col-12 ml-2">
@@ -354,6 +356,14 @@
                         </div> <!-- end row -->
                      </div>
                 </div>
+
+                  <!-- Screen: Totales (mis_envios) -->
+                  <div class="container-fluid mt-2 app-screen" id="screen-totales">
+                      <!-- Reutilizamos el bloque existente mis_envios, sin tocar su lógica -->
+                      <div class="row" id="mis_envios_clone"></div>
+                  </div>
+
+                  </main>
                 <!-- content -->
               <div class="spinner-border avatar-md text-primary" role="status" style="display:none"></div>
               <!-- <div class="spinner-grow avatar-md text-secondary" role="status"></div> -->
@@ -367,6 +377,24 @@
                             </div>
                         </div>
                     </div>
+                    <nav class="app-bottomnav" id="app-bottomnav" style="display:none">
+                        <a href="#operacion" class="nav-item active" data-screen="operacion">
+                            <i class="mdi mdi-truck-fast-outline"></i>
+                            <span>Operación</span>
+                        </a>
+                        <a href="#recorrido" class="nav-item" data-screen="recorrido">
+                            <i class="mdi mdi-map-marker-path"></i>
+                            <span>Recorrido</span>
+                        </a>
+                        <a href="#totales" class="nav-item" data-screen="totales">
+                            <i class="mdi mdi-chart-donut"></i>
+                            <span>Totales</span>
+                        </a>
+                        <a href="#cuenta" class="nav-item" data-screen="cuenta">
+                            <i class="mdi mdi-account-outline"></i>
+                            <span>Cuenta</span>
+                        </a>
+                    </nav>
                 </footer>
                 <!-- end Footer -->
             </div>
@@ -374,8 +402,6 @@
             <!-- End Page content -->
             <!-- ============================================================== -->
         </div>
-
-
         <!-- jQuery + bundle Hyper -->
         <script src="../hyper/dist/saas/assets/js/vendor.min.js"></script>
         <script src="../hyper/dist/saas/assets/js/app.min.js"></script>
@@ -391,8 +417,9 @@
         <!-- Tus scripts -->
         <script src="Proceso/js/funciones_hdr.js"></script>
         <script src="Proceso/js/dropzone.js"></script>
+        <script src="pwa/js/pwa.js"></script>
         <!-- <script src="Proceso/js/mail.js"></script> -->
         <script src="Proceso/js/colecta_scan.js"></script>
-                
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   </body>
 </html>

@@ -77,20 +77,89 @@ $(".guardarProducto").click(function () {
     //CARGA SISTEMA
     cargasistema();
   }
+
   function swalToastOk(title) {
+    const msg = (title || "Entregado al Cliente").toString();
+
     if (window.Swal && Swal.fire) {
       Swal.fire({
-        toast: true,
-        position: "top",
-        icon: "success",
-        title: title || "Listo",
+        title: "",
+        backdrop: false,
+        html: `
+        <div class="caddy-stage caddy-stage--ok">
+          <div class="caddy-icon-wrap">
+            <div class="caddy-icon caddy-icon--ok">✓</div>
+          </div>
+          <div class="caddy-typing" data-text="${escapeHtml(msg)}"></div>
+        </div>
+      `,
         showConfirmButton: false,
-        timer: 1400,
-        timerProgressBar: true,
+        timer: 2600,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        background: "transparent",
+        customClass: {
+          container: "caddy-swal caddy-swal--ok",
+          popup: "caddy-popup",
+        },
       });
     } else {
-      alert(title || "OK");
+      alert(msg);
     }
+  }
+  function swalToastError(title) {
+    const msg = (title || "Ocurrió un error").toString();
+
+    if (window.Swal && Swal.fire) {
+      Swal.fire({
+        title: "",
+        backdrop: false,
+        html: `
+        <div class="caddy-stage caddy-stage--error">
+          <div class="caddy-icon-wrap" id="caddyIcon">
+            <div class="caddy-icon caddy-icon--error">✕</div>
+          </div>
+          <div class="caddy-typing"
+               data-text="${escapeHtml(msg)}"></div>
+        </div>
+      `,
+        showConfirmButton: true,
+        confirmButtonText: "Entendido",
+        allowEscapeKey: true,
+        background: "transparent",
+        customClass: {
+          container: "caddy-swal caddy-swal--error",
+          popup: "caddy-popup",
+          confirmButton: "btn btn-light",
+        },
+
+        // 🚫 Evitamos cierre automático
+        preConfirm: () => {
+          // Opcional: marcar estado de cierre
+          const icon = document.getElementById("caddyIcon");
+          if (icon) {
+            icon.classList.add("caddy-icon-hold");
+          }
+
+          // ⏱️ cerramos manualmente después
+          setTimeout(() => {
+            Swal.close();
+          }, 400); // tiempo para que el icono quede visible
+
+          return false; // MUY IMPORTANTE
+        },
+      });
+    } else {
+      alert(msg);
+    }
+  }
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
   function swalError(title, text) {
@@ -135,21 +204,21 @@ $(".guardarProducto").click(function () {
       if (esperado > 0 && cargado !== esperado) {
         swalError(
           "Cantidad incompleta",
-          `Cargados ${cargado}/${esperado}. Escaneá o cargá todos los bultos antes de confirmar.`
+          `Cargados ${cargado}/${esperado}. Escaneá o cargá todos los bultos antes de confirmar.`,
         );
         return;
       }
 
       // Validar que lo escaneado pertenezca a ESTE envío (misma base)
       const malos = etiquetas.filter(
-        (e) => (e || "").split("_")[0].trim() !== csBase
+        (e) => (e || "").split("_")[0].trim() !== csBase,
       );
       if (malos.length) {
         swalError(
           "Códigos incorrectos",
           `Estos no pertenecen a ${csBase}: ${malos.slice(0, 3).join(", ")}${
             malos.length > 3 ? "..." : ""
-          }`
+          }`,
         );
         return;
       }
@@ -175,18 +244,16 @@ $(".guardarProducto").click(function () {
           return;
         }
 
-        if (jsonData.success != 1) {
-          swalError(
-            "No se pudo confirmar",
-            jsonData.error || "Error desconocido"
+        if (jsonData.success === 1) {
+          swalToastOk(jsonData.estado || "Confirmado");
+        } else {
+          swalToastError(
+            "Error para el Código " +
+              csBase +
+              " " +
+              (jsonData.error || "No se pudo confirmar la entrega"),
           );
-          return;
         }
-
-        // ✅ Mensaje OK
-        swalToastOk(
-          jsonData.estado ? `✅ ${jsonData.estado}` : "✅ Confirmado"
-        );
 
         // ✅ Limpieza para que el próximo no herede datos
         limpiarInputsEntrega();
@@ -207,7 +274,7 @@ $(".guardarProducto").click(function () {
         console.error(txt || xhr);
         swalError(
           "Error de servidor",
-          "El servidor devolvió HTML/WARNING o un 500. Revisá Network > Response."
+          "El servidor devolvió HTML/WARNING o un 500. Revisá Network > Response.",
         );
       },
     });

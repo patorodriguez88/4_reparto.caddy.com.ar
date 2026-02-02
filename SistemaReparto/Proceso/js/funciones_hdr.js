@@ -15,18 +15,21 @@ function msgReason(reason) {
 $(document).ajaxError(function (event, xhr) {
   if (!xhr) return;
 
+  // ✅ Si estoy en login, NO fuerces logout ni muestres swals por 401
+  if ($("#login").is(":visible") || $("body").hasClass("login-lock")) {
+    return;
+  }
+
   let obj = null;
   try {
     obj = JSON.parse(xhr.responseText);
   } catch (e) {}
 
-  // ✅ si el backend manda forceLogout (aunque sea 200 o 401)
   if (obj && obj.forceLogout) {
     cerrarSesionForzada(obj.reason);
     return;
   }
 
-  // ✅ si realmente fue 401 sin JSON
   if (xhr.status === 401) {
     cerrarSesionForzada("SESSION_EXPIRED");
   }
@@ -243,7 +246,24 @@ $("#prueba").on("change", function () {
   $("#totalt").html(count);
 });
 
+// $(document).ready(function () {
+//   //OJO ESTO SINO LO SACAMOS.
+//   if ($("#login").is(":visible") || $("body").hasClass("login-lock")) {
+//     return;
+//   }
+
+//   $("#prueba").select2({
+//     placeholder: "Select an option",
+//     tags: true,
+//     tokenSeparators: [",", " "],
+//   });
+
+//   Dropzone.autoDiscover = false;
+//   paneles(); // carga inicial
+//   asegurarMenuWarehouse();
+// });
 $(document).ready(function () {
+  // UI init (esto sí puede correr siempre)
   $("#prueba").select2({
     placeholder: "Select an option",
     tags: true,
@@ -251,10 +271,54 @@ $(document).ready(function () {
   });
 
   Dropzone.autoDiscover = false;
-  paneles(); // carga inicial
-  asegurarMenuWarehouse();
+
+  // ✅ Chequeo sesión real
+  initApp();
 });
 
+function initApp() {
+  $.ajax({
+    data: { Datos: 1 },
+    type: "POST",
+    url: "Proceso/php/funciones.php",
+    dataType: "json",
+    global: false, // ✅ NO dispara $(document).ajaxError
+  })
+    .done(function (jsonData) {
+      // Si tu backend manda forceLogout
+      if (jsonData && jsonData.forceLogout) {
+        cerrarSesionForzada(jsonData.reason || "SESSION_EXPIRED");
+        return;
+      }
+
+      // ✅ Hay sesión -> arrancamos
+      if (jsonData && jsonData.success == 1) {
+        $("#hdr,#navbar,#topnav").show();
+        $("#login").hide();
+        $("body").removeClass("login-lock");
+
+        // Si querés usar esos datos del header acá también:
+        $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
+        $("#badge-total").html(jsonData.Total);
+        $("#badge-sinentregar").html(jsonData.Abiertos);
+        $("#badge-entregados").html(jsonData.Cerrados);
+
+        paneles(); // ✅ recién ahora
+        asegurarMenuWarehouse(); // ✅ recién ahora
+      } else {
+        // ❌ No hay sesión -> login
+        $("#hdr,#navbar,#topnav").hide();
+        $("#login").show();
+        $("body").addClass("login-lock");
+      }
+    })
+    .fail(function (xhr) {
+      // 401 o error -> login
+      $("#hdr,#navbar,#topnav").hide();
+      $("#login").show();
+      $("body").addClass("login-lock");
+    });
+}
 // SALIR
 $("#salir").click(function () {
   let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
@@ -703,6 +767,9 @@ $(document).on("click", "#ingreso", function (e) {
           text:
             (jsonData && (jsonData.msg || jsonData.error)) ||
             "Usuario o contraseña incorrectos.",
+          customClass: {
+            container: "caddy-login-swal",
+          },
         });
       }
     },
@@ -717,6 +784,7 @@ $(document).on("click", "#ingreso", function (e) {
       if (obj && obj.forceLogout) {
         Swal.fire({
           icon: "warning",
+          title: "Error",
           title: "No hay recorrido asignado",
           text: "No tenés un recorrido cargado. Avisá a administración.",
         });
@@ -728,7 +796,10 @@ $(document).on("click", "#ingreso", function (e) {
         title: "Error",
         text:
           (obj && (obj.error || obj.msg)) ||
-          "El servidor devolvió HTML/Warning y no JSON. Revisá Network > Response.",
+          "El servidor devolvió HTML/Warning y no JSON.",
+        customClass: {
+          container: "caddy-login-swal",
+        },
       });
 
       console.error(xhr.responseText);
