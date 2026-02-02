@@ -760,6 +760,12 @@ $(document).on("click", "#ingreso", function (e) {
         $("#navbar").show();
         $("#topnav").show();
         paneles();
+        console.log(
+          "standalone?",
+          window.matchMedia("(display-mode: standalone)").matches,
+          "iosStandalone?",
+          window.navigator.standalone,
+        );
         setTimeout(showInstallBanner, 1200); // ✅ acá
       } else {
         Swal.fire({
