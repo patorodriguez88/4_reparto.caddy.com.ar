@@ -714,7 +714,23 @@ function actualizarEstadoCantidadPickup() {
     setAceptarPickupEnabled(true);
     return;
   }
+  const esperado = getCantidadEsperada();
+  // ✅ NUEVO: si es flujo ML y ya confirmó cantidad, habilitar por confirmación
+  if (window.colectaML?.isML) {
+    const conf = parseInt(window.colectaML.confirmedQty || 0, 10);
 
+    if (conf >= esperado) {
+      setAceptarPickupEnabled(true);
+      return;
+    } else {
+      setAceptarPickupEnabled(false);
+
+      // opcional: avisito si querés
+      // Swal.fire({ icon:"warning", title:"Faltan bultos", text:`Confirmaste ${conf}/${esperado}` });
+
+      return;
+    }
+  }
   // Si todavía no cargó nada, bloqueá sin cartel
   const cargado = getCantidadCargada();
   if (cargado === 0) {
@@ -740,6 +756,7 @@ $(document).on("change", "#prueba", actualizarEstadoCantidadPickup);
 
 // ✅ cuando cambias de envío / actualizas el card (muy importante)
 function onCargarNuevoEnvioEnCard() {
+  window.colectaML = { isML: false, confirmedQty: 0 };
   // bloquea por defecto y recalcula
   setAceptarPickupEnabled(false);
   actualizarEstadoCantidadPickup();
@@ -749,20 +766,35 @@ $(document).on(
   "click",
   "#boton-entrega-success, .guardarProducto",
   function (e) {
-    if (!esRetiro()) return; // entrega normal
+    if (!esRetiro()) return;
 
+    // ✅ NUEVO: bypass validación clásica si es flujo ML
+    if (window.colectaML?.isML) {
+      const esperado = getCantidadEsperada();
+      const conf = parseInt(window.colectaML.confirmedQty || 0, 10);
+
+      if (conf >= esperado) {
+        return; // 👉 permitimos confirmar
+      }
+
+      e.preventDefault();
+      Swal.fire({
+        icon: "error",
+        title: "Cantidad incorrecta",
+        text: `Confirmaste ${conf}/${esperado}`,
+      });
+      return false;
+    }
+
+    // 🔽 flujo tradicional (QR con _1 _2 _3)
     const v = validarCodigosPickup();
     if (!v.ok) {
       e.preventDefault();
-      if (window.Swal) {
-        Swal.fire({
-          icon: "error",
-          title: "No se puede confirmar",
-          text: v.msg || "Códigos inválidos",
-        });
-      } else {
-        alert(v.msg || "Códigos inválidos");
-      }
+      Swal.fire({
+        icon: "error",
+        title: "No se puede confirmar",
+        text: v.msg || "Códigos inválidos",
+      });
       return false;
     }
   },

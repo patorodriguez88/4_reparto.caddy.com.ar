@@ -1,16 +1,12 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 // 👇 Para que conexioni NO exija sesión web (evitar 401 para la app)
 if (!defined('ALLOW_NO_SESSION')) {
   define('ALLOW_NO_SESSION', true);
 }
-
-error_reporting(E_ALL);
-// IMPORTANT: evitar que warnings/notices rompan respuestas JSON (AJAX/Dropzone)
-ini_set('display_errors', 0);
 
 require_once "../../Conexion/conexioni.php";
 require_once __DIR__ . '/../../Funciones/estados.php';
@@ -211,6 +207,35 @@ if (isset($_POST['ConfirmoEntrega'])) {
   );
   $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC) ?: [];
 
+
+  // ✅ Datos base del envío (SIEMPRE) para evitar variables indefinidas
+  $sqlBase = consultaOError(
+    $mysqli,
+    "SELECT id, idClienteDestino, ClienteDestino, DomicilioDestino, NumerodeOrden, RazonSocial, DomicilioOrigen, Recorrido
+   FROM TransClientes
+   WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'
+     AND Eliminado = 0
+   ORDER BY id DESC
+   LIMIT 1",
+    'TransClientes Base ConfirmoEntrega'
+  );
+  $rowBase = $sqlBase->fetch_array(MYSQLI_ASSOC) ?: [];
+
+  $idTransClientes   = (int)($rowBase['id'] ?? 0);
+  $idClienteDestino  = (int)($rowBase['idClienteDestino'] ?? 0);
+  $NumerodeOrdenTC   = (string)($rowBase['NumerodeOrden'] ?? '');
+  $RecorridoTC       = (string)($rowBase['Recorrido'] ?? $Recorrido);
+
+  // fallback del NumeroOrden si en sesión no viene
+  if (empty($NumeroOrden) && $NumerodeOrdenTC !== '') {
+    $NumeroOrden = $NumerodeOrdenTC;
+  }
+
+  // Si no encontramos el envío, abortamos
+  if ($idTransClientes === 0) {
+    responder(['success' => 0, 'error' => 'No se encontró TransClientes para confirmar', 'cs' => $CodigoSeguimiento]);
+  }
+
   $Localizacion = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
   $Retirado = (int)($sqlLocalizacionR['Retirado']);
 
@@ -226,95 +251,147 @@ if (isset($_POST['ConfirmoEntrega'])) {
   $Visita  = (int) $visita['Visita'] + 1;
 
   // Lógica de Retirado / Entregado / Redespacho
+  // if ($Retirado == 1) {
+
+  //   if (!empty($sqlLocalizacionR) && (int)$sqlLocalizacionR['Redespacho'] === 0) {
+  //     $Entregado = 1;
+  //     $status = 'delivered';
+  //     $st = estadoPorSlug($mysqli, $status); // o 'entregado_cliente'
+  //     $Estado_id = (int)$st['id'];
+  //     $Estado    = $st['Estado'];
+
+  //     // Evitar duplicar registro "Entregado al Cliente"
+  //     $resultado = $mysqli->query(
+  //       "SELECT 1 
+  //                FROM Seguimiento 
+  //                WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
+  //                  AND Entregado = 1
+  //                  AND Estado    = '{$Estado}'
+  //                  AND (Eliminado IS NULL OR Eliminado = 0)
+  //                LIMIT 1"
+  //     );
+
+  //     if ($resultado && $resultado->num_rows > 0) {
+  //       responder([
+  //         'success' => 0,
+  //         'error'   => 'Este pedido ya fue marcado como entregado.'
+  //       ]);
+  //     }
+  //   } else {
+
+  //     $Entregado = 0;
+  //     $status = 'last_mile';
+  //     $st = estadoPorSlug($mysqli, $status);
+  //     $Estado_id = (int)$st['id'];
+  //     $Estado    = $st['Estado'];
+
+  //     $sqlTransClientes = consultaOError(
+  //       $mysqli,
+  //       "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 
+  //                FROM TransClientes 
+  //                WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
+  //                  AND Eliminado = 0",
+  //       'TransClientes Redespacho Origen'
+  //     );
+  //     $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
+
+  //     $NombreCompleto = ($datossqlTransClientes['RazonSocial'] ?? '');
+  //     $Localizacion   = ($datossqlTransClientes['DomicilioOrigen'] ?? '');
+  //     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
+  //     $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
+  //   }
+
+  //   // Datos destino
+  //   $sqlTransClientes = consultaOError(
+  //     $mysqli,
+  //     "SELECT id,ClienteDestino,DomicilioDestino,Recorrido,idClienteDestino 
+  //            FROM TransClientes 
+  //            WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
+  //              AND Eliminado = 0",
+  //     'TransClientes Destino'
+  //   );
+  //   $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
+  //   $idClienteDestino = $datossqlTransClientes['idClienteDestino'] ?? 0;
+  //   $NombreCompleto  = ($datossqlTransClientes['ClienteDestino'] ?? '');
+  //   $Localizacion    = ($datossqlTransClientes['DomicilioDestino'] ?? '');
+  //   $idTransClientes = $datossqlTransClientes['id'] ?? 0;
+  //   $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
+  // } else {
+
+  //   // Caso Retiro
+  //   $Entregado = 0;
+  //   $Retirado  = 1;
+  //   $status = 'pickup_ready';
+  //   $st = estadoPorSlug($mysqli, $status);
+  //   $Estado_id = (int)$st['id'];
+  //   $Estado    = $st['Estado'];
+
+  //   $sqlTransClientes = consultaOError(
+  //     $mysqli,
+  //     "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 
+  //            FROM TransClientes 
+  //            WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
+  //              AND Eliminado = 0",
+  //     'TransClientes Origen Retiro'
+  //   );
+  //   $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
+
+  //   $NombreCompleto = $datossqlTransClientes['RazonSocial'] ?? '';
+  //   $Localizacion   = $datossqlTransClientes['DomicilioOrigen'] ?? '';
+  //   $idTransClientes = $datossqlTransClientes['id'] ?? 0;
+  //   $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
+  // }
+
+  // ----------------------------------------
+  // Resolver flujo y ubicación sin re-consultar
+  // ----------------------------------------
+  $Recorrido = $RecorridoTC;
+  $Redespacho = (int)($sqlLocalizacionR['Redespacho'] ?? 0);
+
   if ($Retirado == 1) {
 
-    if (!empty($sqlLocalizacionR) && (int)$sqlLocalizacionR['Redespacho'] === 0) {
+    // ENTREGA
+    if ($Redespacho === 0) {
       $Entregado = 1;
       $status = 'delivered';
-      $st = estadoPorSlug($mysqli, $status); // o 'entregado_cliente'
-      $Estado_id = (int)$st['id'];
-      $Estado    = $st['Estado'];
-
-      // Evitar duplicar registro "Entregado al Cliente"
-      $resultado = $mysqli->query(
-        "SELECT 1 
-                 FROM Seguimiento 
-                 WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
-                   AND Entregado = 1
-                   AND Estado    = '{$Estado}'
-                   AND (Eliminado IS NULL OR Eliminado = 0)
-                 LIMIT 1"
-      );
-
-      if ($resultado && $resultado->num_rows > 0) {
-        responder([
-          'success' => 0,
-          'error'   => 'Este pedido ya fue marcado como entregado.'
-        ]);
-      }
     } else {
-
+      // ENTREGA pero redespacho => vuelve al origen / last_mile
       $Entregado = 0;
       $status = 'last_mile';
-      $st = estadoPorSlug($mysqli, $status);
-      $Estado_id = (int)$st['id'];
-      $Estado    = $st['Estado'];
-
-      $sqlTransClientes = consultaOError(
-        $mysqli,
-        "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 
-                 FROM TransClientes 
-                 WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
-                   AND Eliminado = 0",
-        'TransClientes Redespacho Origen'
-      );
-      $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
-
-      $NombreCompleto = ($datossqlTransClientes['RazonSocial'] ?? '');
-      $Localizacion   = ($datossqlTransClientes['DomicilioOrigen'] ?? '');
-      $idTransClientes = $datossqlTransClientes['id'] ?? 0;
-      $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
+      $Localizacion = (string)($rowBase['DomicilioOrigen'] ?? '');
     }
 
-    // Datos destino
-    $sqlTransClientes = consultaOError(
-      $mysqli,
-      "SELECT id,ClienteDestino,DomicilioDestino,Recorrido,idClienteDestino 
-             FROM TransClientes 
-             WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
-               AND Eliminado = 0",
-      'TransClientes Destino'
-    );
-    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
-    $idClienteDestino = $datossqlTransClientes['idClienteDestino'] ?? 0;
-    $NombreCompleto  = ($datossqlTransClientes['ClienteDestino'] ?? '');
-    $Localizacion    = ($datossqlTransClientes['DomicilioDestino'] ?? '');
-    $idTransClientes = $datossqlTransClientes['id'] ?? 0;
-    $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
+    $st = estadoPorSlug($mysqli, $status);
+    $Estado_id = (int)($st['id'] ?? 0);
+    $Estado    = (string)($st['Estado'] ?? '');
+
+    // Anti duplicado entregado (solo si delivered)
+    if ($Entregado === 1) {
+      $resultado = $mysqli->query(
+        "SELECT 1
+       FROM Seguimiento
+       WHERE CodigoSeguimiento = '{$CodigoSeguimiento}'
+         AND Entregado = 1
+         AND Estado = '{$Estado}'
+         AND (Eliminado IS NULL OR Eliminado = 0)
+       LIMIT 1"
+      );
+      if ($resultado && $resultado->num_rows > 0) {
+        responder(['success' => 0, 'error' => 'Este pedido ya fue marcado como entregado.']);
+      }
+    }
   } else {
 
-    // Caso Retiro
+    // RETIRO (colecta)
     $Entregado = 0;
     $Retirado  = 1;
+
     $status = 'pickup_ready';
     $st = estadoPorSlug($mysqli, $status);
-    $Estado_id = (int)$st['id'];
-    $Estado    = $st['Estado'];
+    $Estado_id = (int)($st['id'] ?? 0);
+    $Estado    = (string)($st['Estado'] ?? '');
 
-    $sqlTransClientes = consultaOError(
-      $mysqli,
-      "SELECT id,RazonSocial,DomicilioOrigen,Recorrido 
-             FROM TransClientes 
-             WHERE CodigoSeguimiento = '{$CodigoSeguimiento}' 
-               AND Eliminado = 0",
-      'TransClientes Origen Retiro'
-    );
-    $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
-
-    $NombreCompleto = $datossqlTransClientes['RazonSocial'] ?? '';
-    $Localizacion   = $datossqlTransClientes['DomicilioOrigen'] ?? '';
-    $idTransClientes = $datossqlTransClientes['id'] ?? 0;
-    $Recorrido       = $datossqlTransClientes['Recorrido'] ?? $Recorrido;
+    $Localizacion = (string)($rowBase['DomicilioOrigen'] ?? '');
   }
 
   // Insert en Seguimiento

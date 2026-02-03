@@ -19,52 +19,125 @@ if (!isset($_POST['ColectaBulto'])) {
     responder(['success' => 0, 'error' => 'Acción inválida']);
 }
 
-$base  = trim($_POST['base'] ?? '');
-$bulto = trim($_POST['bulto'] ?? '');
+// $base  = trim($_POST['base'] ?? '');
+// $bulto = trim($_POST['bulto'] ?? '');
+
+// if ($base === '' || $bulto === '') {
+//     responder(['success' => 0, 'error' => 'Faltan base o bulto']);
+// }
+
+// // Normalizo base por si viene con _n (por error o futuro cambio)
+// $base = explode('_', $base)[0];
+
+// // Este es el “código escaneado” real (puede ser BASE_2, etc.)
+// // Lo vamos a usar en Observaciones
+// $codigo = $bulto;
+// $base = explode('_', $codigo)[0];
+
+// $usuario   = $_SESSION['Usuario']  ?? ($_POST['Usuario']  ?? '');
+// $sucursal  = $_SESSION['Sucursal'] ?? ($_POST['Sucursal'] ?? '');
+// $recorrido = $_SESSION['RecorridoAsignado'] ?? ($_POST['Recorrido'] ?? '');
+
+// if ($usuario === '') {
+//     http_response_code(401);
+//     echo json_encode([
+//         'success' => 0,
+//         'error' => 'Sin sesión (y sin Usuario por POST)',
+//         'debug' => [
+//             'has_session' => isset($_SESSION) ? 1 : 0,
+//             'cookie' => $_COOKIE['PHPSESSID'] ?? null
+//         ]
+//     ]);
+//     exit;
+// }
+// // $recorrido = $_SESSION['RecorridoAsignado'] ?? '';
+// // $usuario   = $_SESSION['Usuario'] ?? '';
+// // $sucursal  = $_SESSION['Sucursal'] ?? '';
+
+// // if ($usuario === '') {
+// //     http_response_code(401);
+// //     responder(['success' => 0, 'error' => 'Sin sesión']);
+// // }
+
+// // Si NO vas a hacer update acá, dejalo explícito:
+// $okUp = false;
+
+// // 1) Traer datos para Seguimiento
+// $sqlT = $mysqli->prepare("
+//     SELECT id, idClienteDestino, DomicilioDestino, NumerodeOrden
+//     FROM TransClientes
+//     WHERE CodigoSeguimiento=? AND Eliminado=0
+//     ORDER BY id DESC
+//     LIMIT 1
+// ");
+// if (!$sqlT) {
+//     responder(['success' => 0, 'error' => 'prepare TransClientes failed', 'detail' => $mysqli->error]);
+// }
+// $sqlT->bind_param("s", $base);
+// $sqlT->execute();
+// $rt = $sqlT->get_result();
+// $tr = $rt ? $rt->fetch_assoc() : null;
+
+// $idTransClientes = (int)($tr['id'] ?? 0);
+// $idCliente       = (int)($tr['idClienteDestino'] ?? 0);
+// $destino         = (string)($tr['DomicilioDestino'] ?? '');
+// $nroOrden        = (string)($tr['NumerodeOrden'] ?? '');
+
+
+
+// // 🔒 Blindaje final: CodigoSeguimiento DEBE ser el interno
+// // Si base no fue resuelto a un CodigoSeguimiento válido, abortamos
+// if ($idTransClientes === 0 || $base === '' || strlen($base) > 40) {
+//     responder([
+//         'success' => 0,
+//         'error' => 'No se pudo resolver CodigoSeguimiento interno para este QR',
+//         'debug' => [
+//             'base' => $base,
+//             'tokenEscaneado' => $tokenEscaneado,
+//             'shipments_lookup' => $lookup ?? null
+//         ]
+//     ]);
+// }
+
+$base  = trim($_POST['base'] ?? '');   // puede venir tu CodigoSeguimiento o shipments_id
+$bulto = trim($_POST['bulto'] ?? '');  // token escaneado (auditoría)
 
 if ($base === '' || $bulto === '') {
     responder(['success' => 0, 'error' => 'Faltan base o bulto']);
 }
+// Cantidad confirmada visualmente (solo aplica a QR tipo ML)
+$cantidad = (int)($_POST['cantidad'] ?? 1);
+if ($cantidad <= 0) {
+    $cantidad = 1;
+}
+$tokenEscaneado = $bulto;
 
-// Normalizo base por si viene con _n (por error o futuro cambio)
-$base = explode('_', $base)[0];
+// Si bulto viene BASE_2 → lookup BASE, si viene 4225... → lookup 4225...
+$lookup = trim(explode('_', $bulto)[0]);
 
-// Este es el “código escaneado” real (puede ser BASE_2, etc.)
-// Lo vamos a usar en Observaciones
-$codigo = $bulto;
-$base = explode('_', $codigo)[0];
+// $baseCandidate: lo que intentamos primero como CodigoSeguimiento
+$baseCandidate = trim(explode('_', $base)[0]);
 
 $usuario   = $_SESSION['Usuario']  ?? ($_POST['Usuario']  ?? '');
 $sucursal  = $_SESSION['Sucursal'] ?? ($_POST['Sucursal'] ?? '');
 $recorrido = $_SESSION['RecorridoAsignado'] ?? ($_POST['Recorrido'] ?? '');
-
-if ($usuario === '') {
-    http_response_code(401);
-    echo json_encode([
-        'success' => 0,
-        'error' => 'Sin sesión (y sin Usuario por POST)',
-        'debug' => [
-            'has_session' => isset($_SESSION) ? 1 : 0,
-            'cookie' => $_COOKIE['PHPSESSID'] ?? null
-        ]
-    ]);
-    exit;
-}
-// $recorrido = $_SESSION['RecorridoAsignado'] ?? '';
-// $usuario   = $_SESSION['Usuario'] ?? '';
-// $sucursal  = $_SESSION['Sucursal'] ?? '';
-
-// if ($usuario === '') {
-//     http_response_code(401);
-//     responder(['success' => 0, 'error' => 'Sin sesión']);
-// }
-
-// Si NO vas a hacer update acá, dejalo explícito:
 $okUp = false;
+if ($usuario === '') {
+    responder(['success' => 0, 'forceLogout' => 1, 'reason' => 'NO_IDUSUARIO', 'error' => 'Sin sesión']);
+}
 
-// 1) Traer datos para Seguimiento
+// ---------------------------------------
+// 1) Resolver TransClientes
+//    Primero por CodigoSeguimiento, luego por shipments_id
+// ---------------------------------------
+$idTransClientes = 0;
+$idCliente       = 0;
+$destino         = '';
+$nroOrden        = '';
+
+/** 1.a) Buscar por CodigoSeguimiento */
 $sqlT = $mysqli->prepare("
-    SELECT id, idClienteDestino, DomicilioDestino, NumerodeOrden
+    SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
     FROM TransClientes
     WHERE CodigoSeguimiento=? AND Eliminado=0
     ORDER BY id DESC
@@ -78,14 +151,63 @@ $sqlT->execute();
 $rt = $sqlT->get_result();
 $tr = $rt ? $rt->fetch_assoc() : null;
 
-$idTransClientes = (int)($tr['id'] ?? 0);
-$idCliente       = (int)($tr['idClienteDestino'] ?? 0);
-$destino         = (string)($tr['DomicilioDestino'] ?? '');
-$nroOrden        = (string)($tr['NumerodeOrden'] ?? '');
+if ($tr && !empty($tr['id'])) {
+    $idTransClientes = (int)$tr['id'];
 
+    // base FINAL = tu CodigoSeguimiento interno, sin _n
+    $base = explode('_', (string)($tr['CodigoSeguimiento'] ?? $base))[0];
+
+    $idCliente = (int)($tr['idClienteDestino'] ?? 0);
+    $destino   = (string)($tr['DomicilioDestino'] ?? '');
+    $nroOrden  = (string)($tr['NumerodeOrden'] ?? '');
+}
+
+/** 1.b) Fallback por shipments_id */
+if ($idTransClientes === 0) {
+    $sqlS = $mysqli->prepare("
+        SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
+        FROM TransClientes
+        WHERE shipments_id=? AND Eliminado=0
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    if (!$sqlS) {
+        responder(['success' => 0, 'error' => 'prepare shipments failed', 'detail' => $mysqli->error]);
+    }
+
+    $sqlS->bind_param("s", $lookup);
+    $sqlS->execute();
+    $rsS = $sqlS->get_result();
+    $trS = $rsS ? $rsS->fetch_assoc() : null;
+
+    if ($trS && !empty($trS['CodigoSeguimiento'])) {
+        $idTransClientes = (int)($trS['id'] ?? 0);
+
+        // base FINAL = tu CodigoSeguimiento interno
+        $base = explode('_', (string)$trS['CodigoSeguimiento'])[0];
+
+        $idCliente = (int)($trS['idClienteDestino'] ?? 0);
+        $destino   = (string)($trS['DomicilioDestino'] ?? '');
+        $nroOrden  = (string)($trS['NumerodeOrden'] ?? '');
+    }
+}
+
+// Si no resolvimos un TransClientes válido, abortar
+
+if ($idTransClientes === 0 || strlen($base) > 10) {
+    responder([
+        'success' => 0,
+        'error' => 'CodigoSeguimiento interno no resuelto',
+        'debug' => [
+            'base' => $base,
+            'shipments_id' => $bulto
+        ]
+    ]);
+}
 // 2) Anti duplicado por base + status final (pickup_ready)
 $status_control = 'pickup_ready';
 $status = 'pickup_scanned';
+
 
 $sqlChk = $mysqli->prepare("
     SELECT id
@@ -121,8 +243,9 @@ $fecha = date('Y-m-d');
 $hora  = date('H:i:s');
 
 // Observación con el bulto exacto escaneado (BASE_1, BASE_2, etc.)
-$obs = 'Bulto ' . $codigo . ' escaneado (colecta)';
-
+// $obs = 'Bulto ' . $codigo . ' escaneado (colecta)';
+// $obs = 'Bulto ' . $tokenEscaneado . ' escaneado (colecta)';
+$obs = "QR ML {$bulto} | Cantidad confirmada: {$cantidad}";
 $sqlIns = $mysqli->prepare("
     INSERT INTO Seguimiento
     (Fecha, Hora, Usuario, Sucursal, CodigoSeguimiento, Observaciones,
@@ -152,30 +275,28 @@ if (!$sqlIns) {
  * => "ssssssssii s i ss" sin espacios:
  * "ssssssssii s i ss" => "ssssssssii s i ss" (vamos exacto)
  */
-$types = "ssssssssii sis"; // lo armamos prolijo abajo para evitar confusión
-
-// OJO: el string exacto correcto es:
-$types = "ssssssssii" . "s" . "i" . "ss"; // = "ssssssssii s i ss" => "ssssssssii sis s"? mejor explícito:
-$types = "ssssssssii" . "s" . "i" . "ss"; // => "ssssssssii si ss" (sin espacios) = "ssssssssii s i ss"
-$types = "ssssssssii" . "s" . "i" . "ss"; // final: "ssssssssii s i ss"
-
+// $types = "ssssssssii sis"; // lo armamos prolijo abajo para evitar confusión
+// 14 parámetros:
+// 8 strings, 2 ints, 1 string, 1 int, 2 strings
+$types = "ssssssssii s i ss";
+$types = str_replace(' ', '', $types); // "ssssssssii s i ss" → "ssssssssii s i ss"
 // Bind en el MISMO orden de los ? del INSERT:
 if (!$sqlIns->bind_param(
-    "ssssssssii" . "s" . "i" . "ss",
-    $fecha,          // 1 s
-    $hora,           // 2 s
-    $usuario,        // 3 s
-    $sucursal,       // 4 s
-    $base,           // 5 s
-    $obs,            // 6 s
-    $Estado,         // 7 s
-    $destino,        // 8 s
-    $idCliente,      // 9 i
-    $idTransClientes, //10 i
-    $recorrido,      //11 s
-    $Estado_id,      //12 i
-    $nroOrden,       //13 s
-    $status          //14 s
+    $types,
+    $fecha,
+    $hora,
+    $usuario,
+    $sucursal,
+    $base,
+    $obs,
+    $Estado,
+    $destino,
+    $idCliente,
+    $idTransClientes,
+    $recorrido,
+    $Estado_id,
+    $nroOrden,
+    $status
 )) {
     responder(['success' => 0, 'error' => 'bind_param failed', 'detail' => $sqlIns->error]);
 }
@@ -209,7 +330,7 @@ responder([
     'updated'  => $okUp ? 1 : 0,
     'inserted' => 1,
     'codigo'   => $base,
-    'bulto'    => $codigo,
+    'bulto'    => $bulto,
     'estado'   => $Estado,
     'status'   => $status
 ]);

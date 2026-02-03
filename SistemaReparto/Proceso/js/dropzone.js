@@ -196,34 +196,78 @@ $(".guardarProducto").click(function () {
     if (!Array.isArray(etiquetas)) etiquetas = [];
 
     // 4) Validación fuerte: si es RETIRO (colecta), exigir cantidad correcta
+    // if (retirado === 0) {
+    //   const esperadoTxt = ($("#card-receptor-cantidad").text() || "").trim();
+    //   const esperado = parseInt(esperadoTxt, 10) || 0;
+    //   const cargado = etiquetas.length;
+
+    //   if (esperado > 0 && cargado !== esperado) {
+    //     swalError(
+    //       "Cantidad incompleta",
+    //       `Cargados ${cargado}/${esperado}. Escaneá o cargá todos los bultos antes de confirmar.`,
+    //     );
+    //     return;
+    //   }
+
+    //   // Validar que lo escaneado pertenezca a ESTE envío (misma base)
+    //   const malos = etiquetas.filter(
+    //     (e) => (e || "").split("_")[0].trim() !== csBase,
+    //   );
+    //   if (malos.length) {
+    //     swalError(
+    //       "Códigos incorrectos",
+    //       `Estos no pertenecen a ${csBase}: ${malos.slice(0, 3).join(", ")}${
+    //         malos.length > 3 ? "..." : ""
+    //       }`,
+    //     );
+    //     return;
+    //   }
+    // }
     if (retirado === 0) {
       const esperadoTxt = ($("#card-receptor-cantidad").text() || "").trim();
       const esperado = parseInt(esperadoTxt, 10) || 0;
-      const cargado = etiquetas.length;
 
-      if (esperado > 0 && cargado !== esperado) {
-        swalError(
-          "Cantidad incompleta",
-          `Cargados ${cargado}/${esperado}. Escaneá o cargá todos los bultos antes de confirmar.`,
-        );
-        return;
-      }
+      // ✅ NUEVO: flujo ML (confirmación visual)
+      if (window.colectaML?.isML) {
+        const conf = parseInt(window.colectaML.confirmedQty || 0, 10);
 
-      // Validar que lo escaneado pertenezca a ESTE envío (misma base)
-      const malos = etiquetas.filter(
-        (e) => (e || "").split("_")[0].trim() !== csBase,
-      );
-      if (malos.length) {
-        swalError(
-          "Códigos incorrectos",
-          `Estos no pertenecen a ${csBase}: ${malos.slice(0, 3).join(", ")}${
-            malos.length > 3 ? "..." : ""
-          }`,
+        if (esperado > 0 && conf !== esperado) {
+          swalError(
+            "Cantidad incompleta",
+            `Confirmados ${conf}/${esperado}. Revisá los bultos antes de confirmar.`,
+          );
+          return;
+        }
+
+        // En ML NO validamos etiquetas por _n ni base
+        // Podés igualmente mandar 1 etiqueta (shipments_id) a backend para auditoría
+      } else {
+        // 🔽 flujo clásico (QR con BASE_1/BASE_2/BASE_3)
+        const cargado = etiquetas.length;
+
+        if (esperado > 0 && cargado !== esperado) {
+          swalError(
+            "Cantidad incompleta",
+            `Cargados ${cargado}/${esperado}. Escaneá o cargá todos los bultos antes de confirmar.`,
+          );
+          return;
+        }
+
+        // Validar que lo escaneado pertenezca a ESTE envío (misma base)
+        const malos = etiquetas.filter(
+          (e) => (e || "").split("_")[0].trim() !== csBase,
         );
-        return;
+        if (malos.length) {
+          swalError(
+            "Códigos incorrectos",
+            `Estos no pertenecen a ${csBase}: ${malos.slice(0, 3).join(", ")}${
+              malos.length > 3 ? "..." : ""
+            }`,
+          );
+          return;
+        }
       }
     }
-
     $.ajax({
       data: {
         ConfirmoEntrega: 1,
