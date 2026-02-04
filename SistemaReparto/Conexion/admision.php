@@ -80,6 +80,7 @@ try {
           AND PASSWORD = ?
           AND ACTIVO = '1'
           AND NIVEL = '3'
+          AND Estado='Activo'
         LIMIT 1
     ");
     $stmt->bind_param("ss", $user, $password);

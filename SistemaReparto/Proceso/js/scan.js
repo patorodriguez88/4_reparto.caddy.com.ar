@@ -140,7 +140,7 @@ window.addEventListener(
   () => {
     userInteracted = true;
   },
-  { once: true }
+  { once: true },
 );
 // --------------------
 // UI states
@@ -310,7 +310,7 @@ function validarBulto(rawCode) {
         // c) Si no existe ni BASE ni _1 => NO permitir “autonumerar”
         mostrarFeedback(
           "⚠️ Envío con múltiples bultos: escaneá el QR con _2, _3, etc.",
-          "warn"
+          "warn",
         );
         return resolve("requiere_sufijo");
       };
@@ -378,24 +378,64 @@ async function startScanner() {
   const onError = () => {}; // silencioso
 
   try {
-    // preferimos cámara trasera si existe
     const cams = await Html5Qrcode.getCameras();
-    if (cams && cams.length) {
-      const cam = cams[cams.length - 1]; // suele ser back
-      await html5QrCode.start(
-        { deviceId: { exact: cam.id } },
-        config,
-        onSuccess,
-        onError
-      );
-    } else {
+
+    // Config: más amigable para enfoque (qrbox más chico suele ayudar)
+    const config = {
+      fps: 10,
+      qrbox: { width: 280, height: 280 },
+      aspectRatio: 1,
+      disableFlip: true,
+      // Si tu versión lo soporta, ayuda en algunos devices
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    };
+
+    // Callbacks
+    const onSuccess = async (decodedText) => {
+      /* tu onSuccess tal cual */
+    };
+    const onError = () => {};
+
+    // 1) Primero intentamos directamente environment (lo más compatible)
+    try {
       await html5QrCode.start(
         { facingMode: "environment" },
         config,
         onSuccess,
-        onError
+        onError,
+      );
+      return;
+    } catch (eEnv) {
+      console.warn(
+        "No pude iniciar con facingMode environment, pruebo deviceId...",
+        eEnv,
       );
     }
+
+    // 2) Fallback: elegimos mejor cámara por label
+    if (cams && cams.length) {
+      // Label puede venir vacío hasta dar permisos, pero a veces viene
+      const byLabel =
+        cams.find((c) => /back|rear|environment/i.test(c.label || "")) ||
+        cams.find((c) => /wide/i.test(c.label || "")) || // a veces wide es trasera
+        cams[0];
+
+      await html5QrCode.start(
+        { deviceId: { exact: byLabel.id } },
+        config,
+        onSuccess,
+        onError,
+      );
+      return;
+    }
+
+    // 3) Último fallback
+    await html5QrCode.start(
+      { facingMode: "environment" },
+      config,
+      onSuccess,
+      onError,
+    );
   } catch (e) {
     console.error(e);
     alert("No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).");
