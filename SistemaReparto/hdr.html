@@ -23,7 +23,15 @@
         <!-- Dropzone -->
          <link href="../hyper/dist/saas/assets/css/vendor/dropzone.css" rel="stylesheet">
         <link href="css/hdr.css" rel="stylesheet" type="text/css" />
-    </head>     
+    </head> 
+    <style>
+        #qr-reader video {
+        width: 100% !important;
+        height: auto !important;
+        object-fit: cover !important;
+        }
+    </style>    
+
     <body class="loading" data-layout="topnav" data-layout-config='{"navbar":false,"layoutBoxed":false,"darkMode":false}'>
         <div id="installBanner" style="display:none;" class="card shadow-sm position-fixed bottom-0 start-0 end-0 m-3">
             <div class="card-body d-flex align-items-center justify-content-between gap-2">
@@ -388,7 +396,7 @@
                             </div>
                         </div>
                     </div>
-                    <nav class="app-bottomnav" id="app-bottomnav" style="display:none">
+                    <!-- <nav class="app-bottomnav" id="app-bottomnav" style="display:none">
                         <a href="#operacion" class="nav-item active" data-screen="operacion">
                             <i class="mdi mdi-truck-fast-outline"></i>
                             <span>Operación</span>
@@ -405,7 +413,7 @@
                             <i class="mdi mdi-account-outline"></i>
                             <span>Cuenta</span>
                         </a>
-                    </nav>
+                    </nav> -->
                 </footer>
                 <!-- end Footer -->
             </div>
