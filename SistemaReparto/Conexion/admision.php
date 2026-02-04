@@ -134,9 +134,7 @@ try {
             SELECT NombreCompleto
             FROM Empleados
             WHERE Usuario = ?
-            AND Activo=1
-            AND Estado= 'Activo'
-            AND NIVEL=3
+            AND Inactivo=0            
             LIMIT 1
         ");
         $stmtEmp->bind_param("i", $idUsuario);
@@ -144,7 +142,7 @@ try {
         $resEmp = $stmtEmp->get_result();
         $emp = $resEmp ? $resEmp->fetch_assoc() : null;
         $stmtEmp->close();
-        $nombreCompleto = $emp['NombreCompleto'] ?? '';
+        $nombreCompleto = $emp['NombreCompleto'] ?? 'Sin Nombre';
     } catch (Throwable $e) {
         // no rompemos login
         $nombreCompleto = '';

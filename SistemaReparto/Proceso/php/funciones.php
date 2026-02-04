@@ -73,7 +73,12 @@ if (isset($_POST['Datos'])) {
   if (empty($idUsuario)) {
     header('Content-Type: application/json; charset=utf-8');
     http_response_code(200);
-    echo json_encode(['forceLogout' => true, 'reason' => 'NO_IDUSUARIO', 'success' => 0, 'usuario' => 0, 'error' => 'idUsuario no definido...']);
+    // echo json_encode(['forceLogout' => true, 'reason' => 'NO_IDUSUARIO', 'success' => 0, 'usuario' => 0, 'error' => 'idUsuario no definido...']);
+    responder([
+      'success' => 0,
+      'logged'  => 0,
+      'reason'  => 'NO_IDUSUARIO'
+    ]);
     exit;
   }
 
@@ -628,6 +633,7 @@ if (isset($_POST['BuscoDatos'])) {
                 Fecha,
                 IF(Retirado = 0, RazonSocial, ClienteDestino) AS NombreCliente,
                 IF(Retirado = 0, DomicilioOrigen, DomicilioDestino) AS Domicilio,
+                idClienteDestino,
                 CodigoSeguimiento,
                 Observaciones,
                 Retirado,

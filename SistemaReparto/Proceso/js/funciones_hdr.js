@@ -12,6 +12,9 @@ function msgReason(reason) {
       return `No se pudo continuar (${r || "SIN_MOTIVO"}). Volvé a ingresar.`;
   }
 }
+function esModoColecta() {
+  return ($("#card-servicio").text() || "").trim().toUpperCase() === "COLECTA";
+}
 $(document).ajaxError(function (event, xhr) {
   if (!xhr) return;
 
@@ -255,22 +258,6 @@ $("#prueba").on("change", function () {
   $("#totalt").html(count);
 });
 
-// $(document).ready(function () {
-//   //OJO ESTO SINO LO SACAMOS.
-//   if ($("#login").is(":visible") || $("body").hasClass("login-lock")) {
-//     return;
-//   }
-
-//   $("#prueba").select2({
-//     placeholder: "Select an option",
-//     tags: true,
-//     tokenSeparators: [",", " "],
-//   });
-
-//   Dropzone.autoDiscover = false;
-//   paneles(); // carga inicial
-//   asegurarMenuWarehouse();
-// });
 $(document).ready(function () {
   if (isAppInstalled()) {
     disableBellIndicator();
@@ -300,21 +287,35 @@ function initApp() {
     .done(function (jsonData) {
       // Si tu backend manda forceLogout
       if (jsonData && jsonData.forceLogout) {
+        // ✅ Si es la primera carga o no hay usuario, NO muestres cartel
+        if (jsonData.reason === "NO_IDUSUARIO") {
+          $("#hdr,#navbar,#topnav").hide();
+          $("#login").show();
+          $("body").addClass("login-lock");
+          return;
+        }
+
+        // ✅ Si realmente expiró sesión, ahí sí
         cerrarSesionForzada(jsonData.reason || "SESSION_EXPIRED");
         return;
       }
-
       // ✅ Hay sesión -> arrancamos
       if (jsonData && jsonData.success == 1) {
         $("#hdr,#navbar,#topnav").show();
-        if (isAppInstalled()) {
-          disableBellIndicator();
-        }
         $("#login").hide();
         $("body").removeClass("login-lock");
 
-        // Si querés usar esos datos del header acá también:
+        $("#hdractivas").show();
+        $("#mis_envios").hide();
+        $("#card-envio").hide();
         $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
+        if (isAppInstalled()) {
+          disableBellIndicator();
+        }
+
+        // Si querés usar esos datos del he
+        // ader acá también:
+
         $("#badge-total").html(jsonData.Total);
         $("#badge-sinentregar").html(jsonData.Abiertos);
         $("#badge-entregados").html(jsonData.Cerrados);
@@ -438,7 +439,14 @@ function paneles(a, refrescarTotales = false) {
         return;
       }
 
-      $("#hdractivas").html(responseText).fadeIn();
+      // $("#hdractivas").html(responseText).fadeIn();
+      $("#hdractivas").stop(true, true).show().html(responseText);
+      console.log("hdractivas exists:", $("#hdractivas").length);
+      console.log(
+        "hdractivas html len:",
+        ($("#hdractivas").html() || "").length,
+      );
+      console.log("hdractivas visible:", $("#hdractivas").is(":visible"));
     },
     error: function (xhr) {
       if (tryHandleForceLogout(xhr)) return;
@@ -579,61 +587,137 @@ function limpiarInputsEntrega() {
   $("#totalt").html("0");
 }
 
+function initColectaExpected(idColecta) {
+  return $.ajax({
+    url: "Proceso/php/colecta_scan.php",
+    type: "POST",
+    dataType: "json",
+    data: { InitColecta: 1, idColecta: idColecta },
+  })
+    .done(function (r) {
+      console.log("✅ InitColecta:", r);
+
+      // ✅ Guardamos expected para el scanner
+      window.colectaExpected = r?.expected || null;
+      window.colectaExpectedOrigen = r?.origen_key || null;
+      window.colectaExpectedId = r?.idColecta || null;
+    })
+    .fail(function (xhr) {
+      console.error("❌ InitColecta fail:", xhr.status, xhr.responseText);
+      Swal.fire({
+        icon: "error",
+        title: "Colecta",
+        text: "No se pudo inicializar la colecta (expected).",
+      });
+    });
+}
+
 function verok(i) {
   limpiarInputsEntrega();
+
   $.ajax({
     data: { BuscoDatos: 1, id: i },
     type: "POST",
     url: "Proceso/php/funciones.php",
     dataType: "json",
     success: function (jsonData) {
-      var dato = jsonData.data[0];
+      const dato = jsonData?.data?.[0];
+      if (!dato) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "No se recibió dato del envío.",
+        });
+        return;
+      }
 
-      document.getElementById("botones-no-entrega").style.display = "none";
-      document.getElementById("botones-entrega").style.display = "block";
-      document.getElementById("hdractivas").style.display = "none";
-      document.getElementById("card-envio").style.display = "block";
-      document.getElementById("botonera").style.display = "none";
+      // ===== UI base =====
+      $("#botones-no-entrega").hide();
+      $("#botones-entrega").show();
+      $("#hdractivas").hide();
+      $("#card-envio").show();
+      $("#botonera").hide();
 
-      $("#card-receptor-name").show();
-      $("#card-receptor-dni").show();
       $("#card-receptor-observaciones").show();
-      $("#posicioncliente").html(dato.NombreCliente);
-      $("#direccion").html(dato.Domicilio);
-      $("#contacto").html(dato.NombreCliente);
-      $("#observaciones").html(dato.Observaciones);
-      $("#card-seguimiento").html(dato.CodigoSeguimiento);
-      $("#card-receptor-cantidad").html(dato.Cantidad);
+      $("#posicioncliente").html(dato.NombreCliente || "");
+      $("#direccion").html(dato.Domicilio || "");
+      $("#contacto").html(dato.NombreCliente || "");
+      $("#observaciones").html(dato.Observaciones || "");
+      $("#card-seguimiento").html(dato.CodigoSeguimiento || "");
+      $("#card-receptor-cantidad").html(dato.Cantidad || 0);
+
       $("#btnEscanear").attr(
         "data-expected",
         (dato.CodigoSeguimiento || "").split("_")[0],
       );
-      $("#prueba").val(null).trigger("change"); // limpia items del select2 del envío anterior
-      onCargarNuevoEnvioEnCard();
 
-      var servicio;
-      if (dato.Retirado == 0) {
-        servicio = "RETIRO";
-        $("#card-servicio").addClass("text-warning");
-        $("#icon-direccion").addClass("text-warning");
-        $("#icon-servicio").removeClass("mdi mdi-calendar");
-        $("#icon-servicio").addClass("mdi mdi-arrow-down-bold");
-        document.getElementById("card-receptor-items").style.display = "block";
-        document.getElementById("card-receptor-name").style.display = "none";
-        document.getElementById("card-receptor-dni").style.display = "none";
+      // Limpia select2 items del envío anterior
+      $("#prueba").val(null).trigger("change");
+
+      // ===== Reset de clases (evita acumulación) =====
+      $("#card-servicio").removeClass(
+        "text-warning text-success text-dark text-black",
+      );
+      $("#icon-direccion").removeClass(
+        "text-warning text-success text-dark text-black",
+      );
+
+      // ojo: icon-servicio tiene clases tipo "mdi mdi-xxx"
+      $("#icon-servicio")
+        .removeClass("mdi-calendar mdi-arrow-down-bold mdi-arrow-up-bold")
+        .addClass("mdi"); // aseguramos base mdi
+
+      // ===== Lógica servicio =====
+      const idDestino = parseInt(dato.idClienteDestino, 10) || 0;
+      const esRetiro = parseInt(dato.Retirado, 10) === 0;
+      const esColecta = esRetiro && idDestino === 18587;
+
+      let servicio = "";
+
+      if (esRetiro) {
+        servicio = esColecta ? "COLECTA" : "RETIRO";
+
+        // Bootstrap 5: text-dark (si vos tenés text-black custom, cambiá acá)
+        const clase = esColecta ? "text-dark" : "text-warning";
+
+        $("#card-servicio").addClass(clase);
+        $("#icon-direccion").addClass(clase);
+        $("#icon-servicio").addClass("mdi-arrow-down-bold");
+
+        $("#card-receptor-items").show();
+        $("#card-receptor-name, #card-receptor-dni").hide();
+
+        // Bloquea hasta validar/confirmar bultos
         setAceptarPickupEnabled(false);
+        // ✅ SOLO SI ES COLECTA: inicializo expected en backend
+        if (esColecta) {
+          const idColecta = parseInt(dato.id, 10) || parseInt(i, 10) || 0;
+          window.idColectaActual = parseInt(dato.id, 10) || 0;
+          if (idColecta > 0) {
+            initColectaExpected(idColecta);
+          } else {
+            window.idColectaActual = 0;
+            console.warn("⚠️ No tengo idColecta válido para InitColecta");
+          }
+        }
       } else {
         servicio = "ENTREGA";
+
         $("#card-servicio").addClass("text-success");
         $("#icon-direccion").addClass("text-success");
-        $("#icon-servicio").removeClass("mdi mdi-calendar");
-        $("#icon-servicio").addClass("mdi mdi-arrow-up-bold");
-        document.getElementById("card-receptor-items").style.display = "none";
-        document.getElementById("card-receptor-name").style.display = "block";
-        document.getElementById("card-receptor-dni").style.display = "block";
+        $("#icon-servicio").addClass("mdi-arrow-up-bold");
+
+        $("#card-receptor-items").hide();
+        $("#card-receptor-name, #card-receptor-dni").show();
+
+        // Entrega: habilitado (si querés)
+        // setAceptarPickupEnabled(true);
       }
+
+      $("#card-servicio").text(servicio);
+
+      // ✅ Se llama una sola vez, al final, con el servicio ya seteado
       onCargarNuevoEnvioEnCard();
-      $("#card-servicio").html(servicio);
     },
     error: function (xhr, status, error) {
       console.error(
@@ -642,7 +726,11 @@ function verok(i) {
         error,
         xhr.responseText,
       );
-      alert("No se pudo cargar la información del envío.");
+      Swal.fire({
+        icon: "error",
+        title: "No se pudo cargar el envío",
+        text: "Revisá consola / backend (funciones.php).",
+      });
     },
   });
 }
@@ -714,6 +802,24 @@ function actualizarEstadoCantidadPickup() {
     setAceptarPickupEnabled(true);
     return;
   }
+  // ✅ COLECTA: validación por expected.paquetes_total
+  if (esModoColecta()) {
+    const exp = window.colectaExpected;
+    const esperado = parseInt(exp?.paquetes_total || 0, 10);
+
+    const cargado = getCantidadCargada();
+
+    // si no tengo expected todavía, bloqueo
+    if (!esperado) {
+      setAceptarPickupEnabled(false);
+      return;
+    }
+
+    // habilita SOLO cuando coincide exacto
+    setAceptarPickupEnabled(cargado === esperado);
+    return;
+  }
+
   const esperado = getCantidadEsperada();
   // ✅ NUEVO: si es flujo ML y ya confirmó cantidad, habilitar por confirmación
   if (window.colectaML?.isML) {
@@ -804,7 +910,21 @@ $(document).on("submit", "#loginForm", function (e) {
   e.stopPropagation();
   return false;
 });
-
+function cargarHeader() {
+  return $.ajax({
+    data: { Datos: 1 },
+    type: "POST",
+    url: "Proceso/php/funciones.php",
+    dataType: "json",
+  }).done(function (jsonData) {
+    if (jsonData && jsonData.success == 1) {
+      $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
+      $("#badge-total").html(jsonData.Total);
+      $("#badge-sinentregar").html(jsonData.Abiertos);
+      $("#badge-entregados").html(jsonData.Cerrados);
+    }
+  });
+}
 //INGRESO!
 $(document).on("click", "#ingreso", function (e) {
   e.preventDefault();
@@ -828,16 +948,30 @@ $(document).on("click", "#ingreso", function (e) {
         return;
       }
 
+      // if (jsonData && jsonData.success == 1) {
+      //   $("#login").hide();
+      //   $("#hdr").show();
+      //   $("#navbar").show();
+      //   $("#topnav").show();
+
+      //   if (window.AppStatus) {
+      //     AppStatus.postStatus({ stage: "login_ok" });
+      //   }
+      //   paneles(null, false);
+      // }
+
       if (jsonData && jsonData.success == 1) {
         $("#login").hide();
-        $("#hdr").show();
-        $("#navbar").show();
-        $("#topnav").show();
+        $("#hdr,#navbar,#topnav").show();
+        $("body").removeClass("login-lock");
+        $("#hdractivas").show();
+        $("#mis_envios").hide();
+        $("#card-envio").hide();
 
-        if (window.AppStatus) {
-          AppStatus.postStatus({ stage: "login_ok" });
-        }
-        paneles(null, false);
+        cargarHeader().done(() => {
+          paneles(null, false);
+          asegurarMenuWarehouse();
+        });
       } else {
         Swal.fire({
           icon: "error",

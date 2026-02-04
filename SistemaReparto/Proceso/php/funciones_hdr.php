@@ -226,7 +226,7 @@ if (isset($_POST['Paneles'])) {
 
       // NOMBRE CLIENTE DESTINO
       $sql_nombrecliente_destino = $mysqli->query("
-                SELECT ClienteDestino 
+                SELECT ClienteDestino,idClienteDestino 
                 FROM TransClientes 
                 WHERE CodigoSeguimiento='$row[Seguimiento]' AND Eliminado=0
             ");
@@ -255,10 +255,19 @@ if (isset($_POST['Paneles'])) {
       // ---------------------------
       $idP = ($idProveedor['idProveedor'] != 0) ? '[' . $idProveedor['idProveedor'] . ']' : '';
       $Retirado = 0;
-      $Servicio = 'Retiro';
-      $color = 'warning';
-      $icon = 'down-bold';
-      $Serviciowp = 'retirar';
+      //SI ES WEPOINT NO ES RETIRO ES COLECTA 
+      //ATENCION A ESTO NO SE SI IMPACTA EN ALGUN OTRO LADO DEL SISTEMA
+      if ($dato_nombrecliente_entrega['idClienteDestino'] == 18587) {
+        $Servicio = 'Colecta';
+        $color = 'dark';
+        $icon = 'swap-vertical-bold';
+        $Serviciowp = 'colectar';
+      } else {
+        $Servicio = 'Retiro';
+        $color = 'warning';
+        $icon = 'down-bold';
+        $Serviciowp = 'retirar';
+      }
       $Direccion = $row['DomicilioOrigen'];
       $lat = isset($row['Latitud']) ? (float)$row['Latitud'] : null;
       $lng = isset($row['Longitud']) ? (float)$row['Longitud'] : null;
