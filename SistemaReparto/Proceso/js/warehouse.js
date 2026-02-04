@@ -2,6 +2,28 @@ let renderRunning = false;
 let renderQueued = false;
 let __allScannedToastShown = false;
 
+function cargarHeaderWarehouse() {
+  return $.ajax({
+    url: "Proceso/php/funciones.php",
+    type: "POST",
+    dataType: "json",
+    data: { Datos: 1 },
+  })
+    .done(function (jsonData) {
+      if (jsonData && jsonData.success == 1) {
+        $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
+        $("#badge-total").html(jsonData.Total);
+        $("#badge-sinentregar").html(jsonData.Abiertos);
+        $("#badge-entregados").html(jsonData.Cerrados);
+      } else {
+        console.warn("Header Datos no OK:", jsonData);
+      }
+    })
+    .fail(function (xhr) {
+      console.warn("No se pudo cargar header:", xhr.status, xhr.responseText);
+      if (manejar401(xhr)) return;
+    });
+}
 function marcarEnTransitoBackend(done) {
   $.ajax({
     url: "Proceso/php/warehouse.php",
@@ -128,6 +150,7 @@ $(document).ready(function () {
   abrirDB(() => {
     $("#navbar").show();
     $("#topnav").show();
+    cargarHeaderWarehouse();
 
     const reqCount = tx("expected").count();
 
@@ -491,6 +514,7 @@ function renderScanned(done) {
 window.addEventListener("pageshow", function () {
   // cuando vuelvo desde scan.html
   try {
+    cargarHeaderWarehouse();
     cargarRecorridoLocal();
     safeRenderScanned(); // 👈 NO llames renderScanned directo
   } catch (e) {}
