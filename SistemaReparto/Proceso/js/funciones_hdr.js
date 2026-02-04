@@ -77,7 +77,8 @@ function cerrarSesionForzada(reason) {
   $("#hdr, #navbar, #topnav, #mis_envios, #hdractivas, #card-envio").hide();
   $("#login").show();
   $("body").addClass("login-lock");
-
+  $("body").addClass("loading"); // si querés reaprovechar la clase
+  document.body.style.overflow = "hidden";
   Swal.fire({
     icon: "warning",
     title: "Atención",
@@ -304,7 +305,11 @@ function initApp() {
         $("#hdr,#navbar,#topnav").show();
         $("#login").hide();
         $("body").removeClass("login-lock");
-
+        // 🔓 habilitar scroll (mobile fix)
+        document.body.classList.remove("loading");
+        document.body.style.overflow = "auto";
+        document.body.style.overflowY = "auto";
+        document.body.style.webkitOverflowScrolling = "touch";
         $("#hdractivas").show();
         $("#mis_envios").hide();
         $("#card-envio").hide();
@@ -967,6 +972,10 @@ $(document).on("click", "#ingreso", function (e) {
         $("#hdractivas").show();
         $("#mis_envios").hide();
         $("#card-envio").hide();
+        // 🔓 habilitar scroll (mobile fix)
+        document.body.classList.remove("loading");
+        document.body.style.overflowY = "auto";
+        document.body.style.webkitOverflowScrolling = "touch";
 
         cargarHeader().done(() => {
           paneles(null, false);

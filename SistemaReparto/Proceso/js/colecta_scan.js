@@ -431,6 +431,8 @@
   // Stop al cerrar del todo
   $(document).on("hidden.bs.modal", "#colectaScanModal", async function () {
     await stopScanner();
+    document.body.style.overflowY = "auto";
+    document.body.style.webkitOverflowScrolling = "touch";
   });
 
   // Stop manual
