@@ -592,31 +592,42 @@ function limpiarInputsEntrega() {
   $("#totalt").html("0");
 }
 
-function initColectaExpected(idColecta) {
+// function initColectaExpected(colectaId, padreId) {
+//   return $.ajax({
+//     url: "Proceso/php/colecta_scan.php",
+//     type: "POST",
+//     dataType: "json",
+//     data: { InitColecta: 1, idColecta: idColecta },
+//   })
+//     .done(function (r) {
+//       console.log("✅ InitColecta:", r);
+
+//       // ✅ Guardamos expected para el scanner
+//       window.colectaExpected = r?.expected || null;
+//       window.colectaExpectedOrigen = r?.origen_key || null;
+//       window.colectaExpectedId = r?.idColecta || null;
+//     })
+//     .fail(function (xhr) {
+//       console.error("❌ InitColecta fail:", xhr.status, xhr.responseText);
+//       Swal.fire({
+//         icon: "error",
+//         title: "Colecta",
+//         text: "No se pudo inicializar la colecta (expected).",
+//       });
+//     });
+// }
+function initColectaExpected(colectaId, padreId) {
   return $.ajax({
     url: "Proceso/php/colecta_scan.php",
     type: "POST",
     dataType: "json",
-    data: { InitColecta: 1, idColecta: idColecta },
-  })
-    .done(function (r) {
-      console.log("✅ InitColecta:", r);
-
-      // ✅ Guardamos expected para el scanner
-      window.colectaExpected = r?.expected || null;
-      window.colectaExpectedOrigen = r?.origen_key || null;
-      window.colectaExpectedId = r?.idColecta || null;
-    })
-    .fail(function (xhr) {
-      console.error("❌ InitColecta fail:", xhr.status, xhr.responseText);
-      Swal.fire({
-        icon: "error",
-        title: "Colecta",
-        text: "No se pudo inicializar la colecta (expected).",
-      });
-    });
+    data: { InitColecta: 1, colectaId, padreId },
+  }).done(function (r) {
+    window.colectaExpected = r?.expected || null;
+    window.colectaExpectedId = r?.colectaId || colectaId;
+    window.colectaPadreId = r?.padreId || padreId;
+  });
 }
-
 function verok(i) {
   limpiarInputsEntrega();
 
@@ -695,14 +706,29 @@ function verok(i) {
         // Bloquea hasta validar/confirmar bultos
         setAceptarPickupEnabled(false);
         // ✅ SOLO SI ES COLECTA: inicializo expected en backend
+        // if (esColecta) {
+        //   const idColecta = parseInt(dato.id, 10) || parseInt(i, 10) || 0;
+        //   window.idColectaActual = parseInt(dato.id, 10) || 0;
+        //   if (idColecta > 0) {
+        //     initColectaExpected(idColecta);
+        //   } else {
+        //     window.idColectaActual = 0;
+        //     console.warn("⚠️ No tengo idColecta válido para InitColecta");
+        //   }
+        // }
         if (esColecta) {
-          const idColecta = parseInt(dato.id, 10) || parseInt(i, 10) || 0;
-          window.idColectaActual = parseInt(dato.id, 10) || 0;
-          if (idColecta > 0) {
-            initColectaExpected(idColecta);
+          const padreId = parseInt(dato.id, 10) || 0; // TransClientes.id (padre)
+          const colectaId = parseInt(dato.idColecta, 10) || 0; // Colecta.id (real)
+
+          window.colectaPadreId = padreId;
+          window.idColectaActual = colectaId;
+
+          if (colectaId > 0) {
+            initColectaExpected(colectaId, padreId);
           } else {
-            window.idColectaActual = 0;
-            console.warn("⚠️ No tengo idColecta válido para InitColecta");
+            console.warn(
+              "⚠️ El padre no tiene idColecta cargado en TransClientes",
+            );
           }
         }
       } else {

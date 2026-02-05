@@ -57,9 +57,30 @@
     const v = $("#prueba").val();
     return Array.isArray(v) ? v : [];
   }
+  // function postColectaBulto(base, token, cantidad = 1) {
+  //   const idColecta = esModoColecta()
+  //     ? parseInt(window.idColectaActual, 10) || 0
+  //     : 0;
+
+  //   return $.ajax({
+  //     url: "Proceso/php/colecta_scan.php",
+  //     type: "POST",
+  //     dataType: "json",
+  //     data: {
+  //       ColectaBulto: 1,
+  //       idColecta: idColecta, // 👈 NUEVO
+  //       base: base,
+  //       bulto: token,
+  //       cantidad: cantidad,
+  //     },
+  //   });
+  // }
   function postColectaBulto(base, token, cantidad = 1) {
-    const idColecta = esModoColecta()
+    const colectaId = esModoColecta()
       ? parseInt(window.idColectaActual, 10) || 0
+      : 0;
+    const padreId = esModoColecta()
+      ? parseInt(window.colectaPadreId, 10) || 0
       : 0;
 
     return $.ajax({
@@ -68,14 +89,14 @@
       dataType: "json",
       data: {
         ColectaBulto: 1,
-        idColecta: idColecta, // 👈 NUEVO
-        base: base,
+        colectaId,
+        padreId,
+        base,
         bulto: token,
-        cantidad: cantidad,
+        cantidad,
       },
     });
   }
-
   async function stopScanner() {
     try {
       if (colectaQr) {

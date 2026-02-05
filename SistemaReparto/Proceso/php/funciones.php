@@ -1,4 +1,5 @@
 <?php
+//funciones.php
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
@@ -637,7 +638,8 @@ if (isset($_POST['BuscoDatos'])) {
                 CodigoSeguimiento,
                 Observaciones,
                 Retirado,
-                Cantidad 
+                Cantidad,
+                idColecta 
          FROM TransClientes 
          WHERE CodigoSeguimiento = '{$seguimiento}'",
     'TransClientes BuscoDatos'
