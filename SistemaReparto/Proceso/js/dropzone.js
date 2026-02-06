@@ -280,7 +280,8 @@ $(".guardarProducto").click(function () {
 
         // ⚠️ webhooks: si te está tirando 404 / HTML, NO lo llames por ahora
         // webhooks(jsonData.estado);
-        if (email_status_notice(csBase, jsonData.estado)) {
+
+        if (mail_status_notice(csBase, jsonData.slug)) {
           console.log("Email de notificación enviado correctamente.");
         } else {
           console.error("Error al enviar el email de notificación.");
@@ -371,6 +372,7 @@ $(".guardarNoEntrega").click(function () {
         Retirado: retirado,
         Razones: razones,
       },
+
       type: "POST",
       dataType: "json",
       url: "Proceso/php/funciones.php",
@@ -390,7 +392,8 @@ $(".guardarNoEntrega").click(function () {
         $("#card-envio").css("display", "none");
         $("#info-alert-modal-header").html("Cargando entrega..");
         // webhooks(jsonData.estado);
-        mail_status_notice(cs, jsonData.estado);
+        console.log("Respuesta No Entregado:", jsonData);
+        mail_status_notice(cs, jsonData.slug);
         paneles();
       },
       error: function (xhr) {

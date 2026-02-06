@@ -2,37 +2,83 @@
 //cs= Codigo de Seguimiento
 //st= Status
 
-function mail_status_notice(cs, st) {
-  const urlNotices = "../../Mail/Proceso/php/notices.php";
-  const urlSendMail = "../../Mail/delivered.php";
+function textoEstado(slug, capitalizar = false) {
+  const estados = {
+    delivered: "fue entregado correctamente.",
+    "1st_visit_fail": "no pudo ser entregado en esta visita.",
+    picked_up: "fue retirado correctamente.",
+    in_transit: "se encuentra en tránsito.",
+    pending: "se encuentra pendiente.",
+    canceled: "fue cancelado.",
+    returned: "fue devuelto al remitente.",
+  };
+
+  let texto = estados[slug] || "actualizó su estado.";
+
+  if (capitalizar) {
+    texto = texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  return texto;
+}
+function asuntoEstado(slug, cs, destino) {
+  const asuntos = {
+    delivered: `Entregamos tu envío ${cs} a ${destino}`,
+    picked_up: `Retiramos tu envío ${cs} para ${destino}`,
+    in_transit: `Tu envío ${cs} está en tránsito hacia ${destino}`,
+    "1st_visit_fail": `No pudimos entregar tu envío ${cs} a ${destino}`,
+    pending: `Tu envío ${cs} está pendiente`,
+    canceled: `Tu envío ${cs} fue cancelado`,
+    returned: `Tu envío ${cs} fue devuelto`,
+  };
+
+  return asuntos[slug] || `Actualización de tu envío ${cs} para ${destino}`;
+}
+function mail_status_notice(cs, slug) {
+  const urlNotices = "/SistemaReparto/Mail/notices.php";
+  const urlSendMail = "/SistemaReparto/Mail/delivered.php";
 
   // ---------- ORIGEN ----------
   $.ajax({
     url: urlNotices,
     type: "POST",
     dataType: "json",
-    data: { Avisos: 1, cs: cs, st: st },
+    data: { Avisos: 1, cs: cs, slug: slug },
     success: function (jsonData) {
       if (String(jsonData.success) !== "1") return;
 
-      const destino = jsonData.destination_name || "";
-      const name = jsonData.name || "";
-      const user = jsonData.mail || "";
+      const ctx = jsonData.context || {};
+
+      const destino = (ctx.destination_name || "").trim();
+      const name = (ctx.name || "").trim();
+      const user = (ctx.mail || "").trim();
+
+      console.log("NOTICES ORIGEN:", jsonData);
+      if (jsonData.code === "SKIPPED") {
+        console.log("SKIPPED (Estados):", { cs, st, avisos: 1 });
+        return;
+      }
+
+      if (!user) {
+        console.warn("NO MAIL ORIGEN -> no envío delivered.php", {
+          cs,
+          st,
+          avisos: 1,
+          jsonData,
+        });
+        return;
+      }
 
       const mensaje =
-        "</br> Queremos avisarte que el envío " +
+        "Queremos avisarte que el envío <strong>" +
         cs +
-        " que nos diste para entregar a " +
+        "</strong> para <strong>" +
         destino +
-        " se encuentra " +
-        st +
+        "</strong> " +
+        textoEstado(slug) +
         ".";
 
-      let asunto = `Tu Envío de Caddy ${cs} para ${destino}`;
-      if (st === "Entregado al Cliente")
-        asunto = `Entregamos tu envío ${cs} a ${destino}`;
-      else if (st === "Retirado del Cliente")
-        asunto = `Retiramos tu envío ${cs} para ${destino}`;
+      const asunto = asuntoEstado(slug, cs, destino);
 
       $.ajax({
         url: urlSendMail,
@@ -43,10 +89,10 @@ function mail_status_notice(cs, st) {
           txtName: name,
           txtAsunto: asunto,
           txtMensa: mensaje,
-          txtHtml: "delivered", // o lo que uses
+          txtHtml: "delivered",
         },
         success: function (jsonData1) {
-          // opcional: console.log("mail origen", jsonData1);
+          console.log("MAIL ORIGEN:", jsonData1);
         },
       });
     },
@@ -57,27 +103,39 @@ function mail_status_notice(cs, st) {
     url: urlNotices,
     type: "POST",
     dataType: "json",
-    data: { Avisos: 2, cs: cs, st: st },
+    data: { Avisos: 2, cs: cs, slug: slug },
     success: function (jsonData) {
       if (String(jsonData.success) !== "1") return;
 
-      const origen = jsonData.origen_name || "";
-      const name = jsonData.name || "";
-      const user = jsonData.mail || "";
+      const ctx = jsonData.context || {};
+      const origen = (ctx.origen_name || "").trim();
+      const name = (ctx.name || "").trim();
+      const user = (ctx.mail || "").trim();
 
-      let mensaje = `</br> Queremos avisarte que el envío ${cs} de ${origen} se encuentra ${st}`;
-      if (st === "Entregado al Cliente") {
-        mensaje = `</br> Recibiste tu envío ${cs} de ${origen} !.`;
-      } else if (st === "Retirado del Cliente" || st === "En Transito") {
-        mensaje =
-          "</br> Queremos avisarte que el envío " +
-          cs +
-          " de " +
-          origen +
-          " se encuentra " +
-          st +
-          " , pronto haremos la entrega en tu domicilio !.";
+      console.log("NOTICES DESTINO:", jsonData);
+      if (jsonData.code === "SKIPPED") {
+        console.log("SKIPPED (Estados):", { cs, st, avisos: 1 });
+        return;
       }
+
+      if (!user) {
+        console.warn("NO MAIL DESTINO -> no envío delivered.php", {
+          cs,
+          st,
+          avisos: 2,
+          jsonData,
+        });
+        return;
+      }
+
+      const mensaje =
+        "<p>Queremos avisarte que el envío <strong>" +
+        cs +
+        "</strong> de <strong>" +
+        origen +
+        "</strong> " +
+        textoEstado(slug) +
+        "</p>";
 
       const asunto = `Tu envío de ${origen} te lo lleva Caddy !`;
 
@@ -93,7 +151,7 @@ function mail_status_notice(cs, st) {
           txtHtml: "delivered",
         },
         success: function (jsonData1) {
-          // opcional: console.log("mail destino", jsonData1);
+          console.log("MAIL DESTINO:", jsonData1);
         },
       });
     },

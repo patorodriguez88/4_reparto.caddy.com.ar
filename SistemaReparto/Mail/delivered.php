@@ -1,14 +1,11 @@
 <?php
 // SistemaReparto/Mail/delivered.php
+header('Content-Type: application/json; charset=utf-8');
+require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/config_mail.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
-
-require __DIR__ . '/PHPMailer/src/Exception.php';
-require __DIR__ . '/PHPMailer/src/PHPMailer.php';
-require __DIR__ . '/PHPMailer/src/SMTP.php';
-
-header('Content-Type: application/json; charset=utf-8');
 
 // Validación mínima
 $to      = trim($_POST['txtEmail'] ?? '');
@@ -27,18 +24,18 @@ $mail = new PHPMailer(true);
 try {
     // SMTP (cPanel)
     $mail->isSMTP();
-    $mail->Host       = 'mail.caddy.com.ar';           // SMTP real
-    $mail->SMTPAuth   = true;
-    $mail->Username   = 'notificaciones@caddy.com.ar';
-    $mail->Password   = 'TU_PASSWORD_DEL_BUZON';       // mover a config seguro
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port       = 587;
-
     $mail->CharSet = 'UTF-8';
+    $mail->Host       = MAIL_HOST;
+    $mail->SMTPAuth   = true;
+    $mail->Username   = MAIL_USER;
+    $mail->Password   = MAIL_PASS;
+    $mail->SMTPSecure = MAIL_SECURE === 'ssl'
+        ? PHPMailer::ENCRYPTION_SMTPS
+        : PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port       = MAIL_PORT;
 
-    // Headers
-    $mail->setFrom('notificaciones@caddy.com.ar', 'Caddy. Yo lo llevo!');
-    $mail->addReplyTo('noreply@caddy.com.ar', 'No responder');
+    $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
+    $mail->addReplyTo(MAIL_REPLY, 'No responder');
 
     // Destinatario
     $mail->addAddress($to, $name ?: $to);
@@ -59,8 +56,8 @@ try {
     $html = file_get_contents($tplPath);
 
     $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-    $safeMsg  = nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8'));
 
+    $safeMsg = $message;
     // Mantengo los <p> originales
     $html = str_replace('<p id="name"></p>', '<p id="name">' . $safeName . '</p>', $html);
     $html = str_replace('<p id="message"></p>', '<p id="message">' . $safeMsg . '</p>', $html);

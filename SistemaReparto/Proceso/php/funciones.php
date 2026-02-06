@@ -365,7 +365,8 @@ if (isset($_POST['ConfirmoEntrega'])) {
   responder([
     'success' => 1,
     'id'      => $id['id'] ?? null,
-    'estado'  => $Estado
+    'estado'  => $Estado,
+    'slug'    => $status
   ]);
 }
 
@@ -508,7 +509,8 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
   responder([
     'success' => 1,
     'id'      => $id['id'] ?? null,
-    'estado'  => $Estado
+    'estado'  => $Estado,
+    'slug'    => $status
   ]);
 }
 
