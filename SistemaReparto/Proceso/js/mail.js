@@ -1,110 +1,101 @@
+//SistemaReparto/Proceso/js/mail.js
 //cs= Codigo de Seguimiento
 //st= Status
 
-function mail_status_notice(cs,st){
+function mail_status_notice(cs, st) {
+  const urlNotices = "../../Mail/Proceso/php/notices.php";
+  const urlSendMail = "../../Mail/delivered.php";
 
-$.ajax({
-    data:{'Avisos':1,'cs':cs,'st':st},
-    url:'https://www.caddy.com.ar/SistemaTriangular/Mail/Proceso/php/notices.php',
-    type:'post',
-    success: function(response)
-     {
-        var jsonData = JSON.parse(response);
-        if (jsonData.success == "1")
-        {            
-        
-        var mensaje = '</br> Queremos avisarte que el envío '+cs+' que nos diste para entregar a '+jsonData.destination_name+' se encuentra '+st+'.';
-        
-        if(st=='Entregado al Cliente'){
-        
-            var asunto=` Entregamos tu envío ${cs} a ${jsonData.destination_name}`;
-        
-        }else if(st=='Retirado del Cliente'){
-        
-            var asunto=` Retiramos Tu Envio ${cs} para ${jsonData.destination_name}`;    
-        
-        }else{
+  // ---------- ORIGEN ----------
+  $.ajax({
+    url: urlNotices,
+    type: "POST",
+    dataType: "json",
+    data: { Avisos: 1, cs: cs, st: st },
+    success: function (jsonData) {
+      if (String(jsonData.success) !== "1") return;
 
-            var asunto=` Tu Envio de Caddy ${cs} para ${jsonData.destination_name}`;    
-        
-        }
+      const destino = jsonData.destination_name || "";
+      const name = jsonData.name || "";
+      const user = jsonData.mail || "";
 
-        var html='Recupero';
-        var name=jsonData.name; 
-        var user=jsonData.mail; 
+      const mensaje =
+        "</br> Queremos avisarte que el envío " +
+        cs +
+        " que nos diste para entregar a " +
+        destino +
+        " se encuentra " +
+        st +
+        ".";
 
-        $.ajax({
-            data:{'txtEmail':user,'txtName':name,'txtAsunto':asunto,'txtMensa':mensaje,'$txtHtml':html},
-            url:'https://www.caddy.com.ar/SistemaTriangular/Mail/delivered.php',
-            type:'post',
-            success: function(response1)
-             {
-             var jsonData1 = JSON.parse(response1);
-            if (jsonData1.success == "1")
-            {  
-                //MAIL ENVIADO
-                
-             }else{
-                //ERROR AL ENVIAR MAIL            
-             
-            }
-           }
-        });          
-        }
-     }  
+      let asunto = `Tu Envío de Caddy ${cs} para ${destino}`;
+      if (st === "Entregado al Cliente")
+        asunto = `Entregamos tu envío ${cs} a ${destino}`;
+      else if (st === "Retirado del Cliente")
+        asunto = `Retiramos tu envío ${cs} para ${destino}`;
+
+      $.ajax({
+        url: urlSendMail,
+        type: "POST",
+        dataType: "json",
+        data: {
+          txtEmail: user,
+          txtName: name,
+          txtAsunto: asunto,
+          txtMensa: mensaje,
+          txtHtml: "delivered", // o lo que uses
+        },
+        success: function (jsonData1) {
+          // opcional: console.log("mail origen", jsonData1);
+        },
+      });
+    },
   });
 
-  //DESTINO
+  // ---------- DESTINO ----------
   $.ajax({
-    data:{'Avisos':2,'cs':cs,'st':st},
-    url:'https://www.caddy.com.ar/SistemaTriangular/Mail/Proceso/php/notices.php',
-    type:'post',
-    success: function(response)
-     {
-        var jsonData = JSON.parse(response);
-        if (jsonData.success == "1")
-        {
-            // console.log('ver',jsonData);
-        // var user=jsonData.mail;    
-        var mensaje = ', recibiste tu pedido !.';
+    url: urlNotices,
+    type: "POST",
+    dataType: "json",
+    data: { Avisos: 2, cs: cs, st: st },
+    success: function (jsonData) {
+      if (String(jsonData.success) !== "1") return;
 
-        if(st=='Entregado al Cliente'){
-        
-            var mensaje = `</br> Recibiste tu envío ${cs} de ${jsonData.origen_name} !.`;    
-        
-        }else if((st=='Retirado del Cliente')||(st=='En Transito')){
-        
-            var mensaje = '</br> Queremos avisarte que el envío '+cs+' de '+jsonData.origen_name+' se encuentra '+st+' , pronto haremos la entrega en tu domicilio !.';
-        
-        }else{
-        
-            var mensaje = `</br> Queremos avisarte que el envío ${cs} de ${jsonData.origen_name} se encuentra ${st}`;
-        
-        }        
+      const origen = jsonData.origen_name || "";
+      const name = jsonData.name || "";
+      const user = jsonData.mail || "";
 
-        var asunto='Tu Envio de '+jsonData.origen_name+' te lo lleva Caddy !';
-        var html='Recupero';
-        var name=jsonData.name; 
-        var user=jsonData.mail; 
-        
-        $.ajax({
-            data:{'txtEmail':user,'txtName':name,'txtAsunto':asunto,'txtMensa':mensaje,'$txtHtml':html},
-            url:'https://www.caddy.com.ar/SistemaTriangular/Mail/delivered.php',
-            type:'post',
-            success: function(response1)
-             {
-             var jsonData1 = JSON.parse(response1);
-            if (jsonData1.success == "1")
-            {  
-             //MAIL ENVIADO
+      let mensaje = `</br> Queremos avisarte que el envío ${cs} de ${origen} se encuentra ${st}`;
+      if (st === "Entregado al Cliente") {
+        mensaje = `</br> Recibiste tu envío ${cs} de ${origen} !.`;
+      } else if (st === "Retirado del Cliente" || st === "En Transito") {
+        mensaje =
+          "</br> Queremos avisarte que el envío " +
+          cs +
+          " de " +
+          origen +
+          " se encuentra " +
+          st +
+          " , pronto haremos la entrega en tu domicilio !.";
+      }
 
-             }else{
-             //ERROR AL ENVIAR MAIL
+      const asunto = `Tu envío de ${origen} te lo lleva Caddy !`;
 
-             }
-           }
-        });          
-        }
-     }  
-  });  
-};
+      $.ajax({
+        url: urlSendMail,
+        type: "POST",
+        dataType: "json",
+        data: {
+          txtEmail: user,
+          txtName: name,
+          txtAsunto: asunto,
+          txtMensa: mensaje,
+          txtHtml: "delivered",
+        },
+        success: function (jsonData1) {
+          // opcional: console.log("mail destino", jsonData1);
+        },
+      });
+    },
+  });
+}
