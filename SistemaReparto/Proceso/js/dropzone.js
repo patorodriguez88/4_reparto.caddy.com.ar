@@ -413,8 +413,8 @@ $(".guardarNoEntrega").click(function () {
         $("#receptor-observaciones").val("");
         $("#card-envio").css("display", "none");
         $("#info-alert-modal-header").html("Cargando entrega..");
-        webhooks(jsonData.estado);
-        // mail_status_notice(cs, jsonData.estado);
+        // webhooks(jsonData.estado);
+        mail_status_notice(cs, jsonData.estado);
         paneles();
       },
       error: function (xhr) {
