@@ -345,20 +345,22 @@
         }).then(async (res) => {
           if (!res.isConfirmed) return;
 
-          const cantidadConfirmada = res.value;
+          const cantidadConfirmada = parseInt(res.value, 10) || 0;
 
-          await postColectaBulto(base, scannedToken, cantidadConfirmada);
-
+          // ✅ 1) Setear primero el modo ML
           window.colectaML = window.colectaML || {};
           window.colectaML.confirmedQty = cantidadConfirmada;
           window.colectaML.isML = true;
 
-          // refrescá estado UI
+          // ✅ 2) Guardar en backend
+          await postColectaBulto(base, scannedToken, cantidadConfirmada);
+
+          // ✅ 3) Refrescar UI
           actualizarEstadoCantidadPickup();
 
-          // opcional: mostrar en el badge ITEMS
+          // ✅ 4) Mostrar en badges
           $("#totalt").text(cantidadConfirmada);
-          $("#badge-items, #items_badge").text(cantidadConfirmada); // ajustá el id real si existe
+          $("#badge-items, #items_badge").text(cantidadConfirmada);
 
           Swal.fire({
             icon: "success",
