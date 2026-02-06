@@ -610,6 +610,7 @@ $("#boton-entrega-wrong").click(function () {
 
   $(".dz-preview").fadeOut("slow");
   $(".dz-preview:hidden").remove();
+  $("#razones").val("");
 });
 
 $("#boton-no-entrega-wrong").click(function () {
@@ -620,6 +621,8 @@ $("#boton-no-entrega-wrong").click(function () {
   $(".dz-preview:hidden").remove();
 
   // Limpia observaciones
+  $("#receptor-observaciones").val("");
+  $("#razones").val("");
   $("#receptor-observaciones").val("");
 });
 
@@ -703,6 +706,15 @@ function limpiarInputsEntrega() {
   $("#receptor-name").val("");
   $("#receptor-dni").val("");
   $("#receptor-observaciones").val("");
+  $("#razones").val(""); // ✅ NUEVO (motivo no entrega)
+
+  $("#observaciones").html(""); // ✅ NUEVO (card)
+  $("#posicioncliente").html(""); // ✅ NUEVO (card)
+  $("#direccion").html(""); // ✅ NUEVO (card)
+  $("#contacto").html(""); // ✅ NUEVO (card)
+  $("#card-seguimiento").html(""); // ✅ NUEVO (card)
+  $("#card-receptor-cantidad").html("0"); // ✅ NUEVO
+
   $("#prueba").val(null).trigger("change"); // si estás usando select2 para colecta
   // select2 (colecta)
   $("#prueba").val(null).trigger("change");
