@@ -280,7 +280,9 @@ $(".guardarProducto").click(function () {
 
         // ⚠️ webhooks: si te está tirando 404 / HTML, NO lo llames por ahora
         // webhooks(jsonData.estado);
-
+        console.log(
+          "Algo esta pasando con el servidor, revisa la consola para más detalles.",
+        );
         mail_status_notice(csBase, jsonData.slug);
         console.log("Email de notificación enviado correctamente.");
 
@@ -394,6 +396,7 @@ $(".guardarNoEntrega").click(function () {
         console.log(
           "Algo esta pasando con el servidor, revisa la consola para más detalles.",
         );
+
         mail_status_notice(cs, jsonData.slug);
         paneles();
       },
