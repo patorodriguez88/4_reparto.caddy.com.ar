@@ -107,7 +107,7 @@
     } catch (e) {}
   }
 
-  async function startScanner() {
+  async function startColectaScanner() {
     if (!("Html5Qrcode" in window)) {
       swalFire({
         icon: "error",
@@ -448,7 +448,7 @@
 
   // Start scanner cuando el modal terminó de mostrarse
   $(document).on("shown.bs.modal", "#colectaScanModal", async function () {
-    await startScanner();
+    await startColectaScanner();
   });
 
   // Stop al cerrar del todo
