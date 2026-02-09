@@ -2,7 +2,7 @@ name: 🚀 Deploy website on push
 on: 
   push:
     branches:
-      - main   # 👈 Solo cuando haya push en develop
+      - main   # 👈 Solo cuando haya push en main
 jobs:
   web-deploy:
     name: 🎉 Deploy
