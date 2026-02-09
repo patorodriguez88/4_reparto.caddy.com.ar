@@ -195,34 +195,6 @@ $(".guardarProducto").click(function () {
     let etiquetas = $("#prueba").val();
     if (!Array.isArray(etiquetas)) etiquetas = [];
 
-    // 4) Validación fuerte: si es RETIRO (colecta), exigir cantidad correcta
-    // if (retirado === 0) {
-    //   const esperadoTxt = ($("#card-receptor-cantidad").text() || "").trim();
-    //   const esperado = parseInt(esperadoTxt, 10) || 0;
-    //   const cargado = etiquetas.length;
-
-    //   if (esperado > 0 && cargado !== esperado) {
-    //     swalError(
-    //       "Cantidad incompleta",
-    //       `Cargados ${cargado}/${esperado}. Escaneá o cargá todos los bultos antes de confirmar.`,
-    //     );
-    //     return;
-    //   }
-
-    //   // Validar que lo escaneado pertenezca a ESTE envío (misma base)
-    //   const malos = etiquetas.filter(
-    //     (e) => (e || "").split("_")[0].trim() !== csBase,
-    //   );
-    //   if (malos.length) {
-    //     swalError(
-    //       "Códigos incorrectos",
-    //       `Estos no pertenecen a ${csBase}: ${malos.slice(0, 3).join(", ")}${
-    //         malos.length > 3 ? "..." : ""
-    //       }`,
-    //     );
-    //     return;
-    //   }
-    // }
     if (retirado === 0) {
       const esperadoTxt = ($("#card-receptor-cantidad").text() || "").trim();
       const esperado = parseInt(esperadoTxt, 10) || 0;
@@ -308,6 +280,11 @@ $(".guardarProducto").click(function () {
 
         // ⚠️ webhooks: si te está tirando 404 / HTML, NO lo llames por ahora
         // webhooks(jsonData.estado);
+        console.log(
+          "Algo esta pasando con el servidor, revisa la consola para más detalles.",
+        );
+        mail_status_notice(csBase, jsonData.slug);
+        console.log("Email de notificación enviado correctamente.");
 
         paneles();
       },
@@ -395,6 +372,7 @@ $(".guardarNoEntrega").click(function () {
         Retirado: retirado,
         Razones: razones,
       },
+
       type: "POST",
       dataType: "json",
       url: "Proceso/php/funciones.php",
@@ -413,8 +391,13 @@ $(".guardarNoEntrega").click(function () {
         $("#receptor-observaciones").val("");
         $("#card-envio").css("display", "none");
         $("#info-alert-modal-header").html("Cargando entrega..");
-        webhooks(jsonData.estado);
-        // mail_status_notice(cs, jsonData.estado);
+        // webhooks(jsonData.estado);
+        console.log("Respuesta No Entregado:", jsonData);
+        console.log(
+          "Algo esta pasando con el servidor, revisa la consola para más detalles.",
+        );
+
+        mail_status_notice(cs, jsonData.slug);
         paneles();
       },
       error: function (xhr) {

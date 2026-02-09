@@ -57,9 +57,30 @@
     const v = $("#prueba").val();
     return Array.isArray(v) ? v : [];
   }
+  // function postColectaBulto(base, token, cantidad = 1) {
+  //   const idColecta = esModoColecta()
+  //     ? parseInt(window.idColectaActual, 10) || 0
+  //     : 0;
+
+  //   return $.ajax({
+  //     url: "Proceso/php/colecta_scan.php",
+  //     type: "POST",
+  //     dataType: "json",
+  //     data: {
+  //       ColectaBulto: 1,
+  //       idColecta: idColecta, // 👈 NUEVO
+  //       base: base,
+  //       bulto: token,
+  //       cantidad: cantidad,
+  //     },
+  //   });
+  // }
   function postColectaBulto(base, token, cantidad = 1) {
-    const idColecta = esModoColecta()
+    const colectaId = esModoColecta()
       ? parseInt(window.idColectaActual, 10) || 0
+      : 0;
+    const padreId = esModoColecta()
+      ? parseInt(window.colectaPadreId, 10) || 0
       : 0;
 
     return $.ajax({
@@ -68,14 +89,14 @@
       dataType: "json",
       data: {
         ColectaBulto: 1,
-        idColecta: idColecta, // 👈 NUEVO
-        base: base,
+        colectaId,
+        padreId,
+        base,
         bulto: token,
-        cantidad: cantidad,
+        cantidad,
       },
     });
   }
-
   async function stopScanner() {
     try {
       if (colectaQr) {
@@ -86,7 +107,7 @@
     } catch (e) {}
   }
 
-  async function startScanner() {
+  async function startColectaScanner() {
     if (!("Html5Qrcode" in window)) {
       swalFire({
         icon: "error",
@@ -324,20 +345,22 @@
         }).then(async (res) => {
           if (!res.isConfirmed) return;
 
-          const cantidadConfirmada = res.value;
+          const cantidadConfirmada = parseInt(res.value, 10) || 0;
 
-          await postColectaBulto(base, scannedToken, cantidadConfirmada);
-
+          // ✅ 1) Setear primero el modo ML
           window.colectaML = window.colectaML || {};
           window.colectaML.confirmedQty = cantidadConfirmada;
           window.colectaML.isML = true;
 
-          // refrescá estado UI
+          // ✅ 2) Guardar en backend
+          await postColectaBulto(base, scannedToken, cantidadConfirmada);
+
+          // ✅ 3) Refrescar UI
           actualizarEstadoCantidadPickup();
 
-          // opcional: mostrar en el badge ITEMS
+          // ✅ 4) Mostrar en badges
           $("#totalt").text(cantidadConfirmada);
-          $("#badge-items, #items_badge").text(cantidadConfirmada); // ajustá el id real si existe
+          $("#badge-items, #items_badge").text(cantidadConfirmada);
 
           Swal.fire({
             icon: "success",
@@ -425,7 +448,7 @@
 
   // Start scanner cuando el modal terminó de mostrarse
   $(document).on("shown.bs.modal", "#colectaScanModal", async function () {
-    await startScanner();
+    await startColectaScanner();
   });
 
   // Stop al cerrar del todo

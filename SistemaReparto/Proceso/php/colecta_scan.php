@@ -1,4 +1,5 @@
 <?php
+//colecta_scan.php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -89,99 +90,206 @@ function calcularResume($payload)
  * ROUTER 1: InitColecta
  * ============================================================
  */
-if (isset($_POST['InitColecta']) && isset($_POST['idColecta'])) {
+// if (isset($_POST['InitColecta']) && isset($_POST['idColecta'])) {
 
-    $idColecta = (int)$_POST['idColecta'];
+//     $idColecta = (int)$_POST['idColecta'];
+
+//     try {
+//         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+//         // 1) Traer datos del padre
+//         $stmt = $mysqli->prepare("SELECT id, IngBrutosOrigen, RazonSocial, CodigoSeguimiento
+//                               FROM TransClientes
+//                               WHERE id = ? LIMIT 1");
+//         $stmt->bind_param("i", $idColecta);
+//         $stmt->execute();
+//         $padre = $stmt->get_result()->fetch_assoc();
+
+//         if (!$padre) responder(['success' => 0, 'error' => 'COLECTA_PADRE_NO_ENCONTRADA']);
+
+//         $origenKey = trim((string)$padre['IngBrutosOrigen']);
+//         if ($origenKey === '') responder(['success' => 0, 'error' => 'COLECTA_SIN_ORIGENKEY']);
+
+//         // 2) Buscar servicios pendientes del mismo origen (excluyendo el padre)
+//         $sql = "SELECT id, CodigoSeguimiento, Cantidad
+//             FROM TransClientes
+//             WHERE IngBrutosOrigen = ?
+//               AND Eliminado = 0
+//               AND Entregado = 0
+//               AND Devuelto = 0
+//               AND id <> ?";
+
+//         $stmt2 = $mysqli->prepare($sql);
+//         $stmt2->bind_param("si", $origenKey, $idColecta);
+//         $stmt2->execute();
+//         $res = $stmt2->get_result();
+
+//         $serviciosDetalle = [];
+//         $totalPaquetes = 0;
+
+//         while ($row = $res->fetch_assoc()) {
+//             $cs = trim((string)$row['CodigoSeguimiento']);
+//             if ($cs === '') continue;
+
+//             $base  = trim(explode('_', $cs)[0]);
+//             $cant  = (int)($row['Cantidad'] ?? 0);
+//             if ($base === '' || $cant <= 0) continue;
+
+//             $serviciosDetalle[] = [
+//                 'idTransCliente' => (int)$row['id'],
+//                 'cs_base'        => $base,
+//                 'paquetes'       => $cant,
+//             ];
+//             $totalPaquetes += $cant;
+//         }
+
+//         $expected = [
+//             'servicios' => count($serviciosDetalle),
+//             'paquetes_total' => $totalPaquetes,
+//             'servicios_detalle' => $serviciosDetalle,
+//         ];
+
+//         $payload = [
+//             'colecta_padre_id' => $idColecta,
+//             'origen_key' => $origenKey,
+//             'expected' => $expected,
+//             'scans' => [],
+//             'resume' => [
+//                 'servicios_ok' => 0,
+//                 'servicios_total' => count($serviciosDetalle),
+//                 'paquetes_ok' => 0,
+//                 'paquetes_total' => $totalPaquetes,
+//             ],
+//         ];
+
+//         $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+//         $now = date('Y-m-d H:i:s');
+
+//         $stmt3 = $mysqli->prepare("UPDATE TransClientes
+//                                SET ColectaScans = ?, ColectaScansUpdatedAt = ?
+//                                WHERE id = ?");
+//         $stmt3->bind_param("ssi", $json, $now, $idColecta);
+//         $stmt3->execute();
+
+//         responder([
+//             'success' => 1,
+//             'expected' => $expected,
+//             'resume' => $payload['resume'],
+//             'origen_key' => $origenKey,
+//             'idColecta' => $idColecta,
+//         ]);
+//     } catch (Throwable $e) {
+//         responder(['success' => 0, 'error' => 'INIT_COLECTA_ERROR', 'detail' => $e->getMessage()]);
+//     }
+// }
+if (isset($_POST['InitColecta'])) {
+
+    $colectaId = (int)($_POST['colectaId'] ?? 0); // Colecta.id
+    $padreId   = (int)($_POST['padreId'] ?? 0);   // TransClientes.id (padre)
+
+    if ($colectaId <= 0 || $padreId <= 0) {
+        responder(['success' => 0, 'error' => 'FALTA_COLECTAID_O_PADREID']);
+    }
 
     try {
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-        // 1) Traer datos del padre
-        $stmt = $mysqli->prepare("SELECT id, IngBrutosOrigen, RazonSocial, CodigoSeguimiento
-                              FROM TransClientes
-                              WHERE id = ? LIMIT 1");
-        $stmt->bind_param("i", $idColecta);
-        $stmt->execute();
-        $padre = $stmt->get_result()->fetch_assoc();
+        // 1) Traer colecta real
+        $stC = $mysqli->prepare("
+          SELECT id, Cantidad, Cantidad_m
+          FROM Colecta
+          WHERE id=? AND Eliminado=0
+          LIMIT 1
+        ");
+        $stC->bind_param("i", $colectaId);
+        $stC->execute();
+        $c = $stC->get_result()->fetch_assoc();
 
-        if (!$padre) responder(['success' => 0, 'error' => 'COLECTA_PADRE_NO_ENCONTRADA']);
+        if (!$c) responder(['success' => 0, 'error' => 'COLECTA_NO_ENCONTRADA']);
 
-        $origenKey = trim((string)$padre['IngBrutosOrigen']);
-        if ($origenKey === '') responder(['success' => 0, 'error' => 'COLECTA_SIN_ORIGENKEY']);
+        $totalEsperado = (int)($c['Cantidad_m'] ?? 0);
+        if ($totalEsperado <= 0) $totalEsperado = (int)($c['Cantidad'] ?? 0);
 
-        // 2) Buscar servicios pendientes del mismo origen (excluyendo el padre)
-        $sql = "SELECT id, CodigoSeguimiento, Cantidad
-            FROM TransClientes
-            WHERE IngBrutosOrigen = ?
-              AND Eliminado = 0
-              AND Entregado = 0
-              AND Devuelto = 0
-              AND id <> ?";
-
-        $stmt2 = $mysqli->prepare($sql);
-        $stmt2->bind_param("si", $origenKey, $idColecta);
-        $stmt2->execute();
-        $res = $stmt2->get_result();
+        // 2) Servicios asignados a esa colecta (excluyo padre)
+        $stT = $mysqli->prepare("
+          SELECT id, CodigoSeguimiento, Cantidad
+          FROM TransClientes
+          WHERE idColecta = ?
+            AND Eliminado=0 AND Entregado=0 AND Devuelto=0
+            AND id <> ?
+        ");
+        $stT->bind_param("ii", $colectaId, $padreId);
+        $stT->execute();
+        $res = $stT->get_result();
 
         $serviciosDetalle = [];
-        $totalPaquetes = 0;
+        $sumaTrans = 0;
 
         while ($row = $res->fetch_assoc()) {
             $cs = trim((string)$row['CodigoSeguimiento']);
             if ($cs === '') continue;
 
-            $base  = trim(explode('_', $cs)[0]);
-            $cant  = (int)($row['Cantidad'] ?? 0);
-            if ($base === '' || $cant <= 0) continue;
+            $base = trim(explode('_', $cs)[0]);
+            $cant = (int)($row['Cantidad'] ?? 0);
+            if ($cant <= 0) $cant = 1;
 
             $serviciosDetalle[] = [
                 'idTransCliente' => (int)$row['id'],
                 'cs_base'        => $base,
                 'paquetes'       => $cant,
             ];
-            $totalPaquetes += $cant;
+            $sumaTrans += $cant;
         }
+
+        // ⚠️ Sugerencia práctica:
+        // si la colecta dice 10 pero asignaste 12 envíos reales,
+        // no te conviene bloquear al rider.
+        if ($totalEsperado <= 0) $totalEsperado = $sumaTrans;
+        if ($sumaTrans > 0 && $totalEsperado < $sumaTrans) $totalEsperado = $sumaTrans;
 
         $expected = [
             'servicios' => count($serviciosDetalle),
-            'paquetes_total' => $totalPaquetes,
+            'paquetes_total' => $totalEsperado,
             'servicios_detalle' => $serviciosDetalle,
+            'colecta_id' => $colectaId
         ];
 
         $payload = [
-            'colecta_padre_id' => $idColecta,
-            'origen_key' => $origenKey,
+            'colecta_id' => $colectaId,
+            'padre_id'   => $padreId,
             'expected' => $expected,
             'scans' => [],
             'resume' => [
                 'servicios_ok' => 0,
                 'servicios_total' => count($serviciosDetalle),
                 'paquetes_ok' => 0,
-                'paquetes_total' => $totalPaquetes,
+                'paquetes_total' => $totalEsperado,
             ],
         ];
 
+        // 3) Guardar JSON en el padre (como ya hacías)
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
         $now = date('Y-m-d H:i:s');
 
-        $stmt3 = $mysqli->prepare("UPDATE TransClientes
-                               SET ColectaScans = ?, ColectaScansUpdatedAt = ?
-                               WHERE id = ?");
-        $stmt3->bind_param("ssi", $json, $now, $idColecta);
-        $stmt3->execute();
+        $up = $mysqli->prepare("
+          UPDATE TransClientes
+          SET ColectaScans=?, ColectaScansUpdatedAt=?
+          WHERE id=?
+        ");
+        $up->bind_param("ssi", $json, $now, $padreId);
+        $up->execute();
 
         responder([
             'success' => 1,
             'expected' => $expected,
             'resume' => $payload['resume'],
-            'origen_key' => $origenKey,
-            'idColecta' => $idColecta,
+            'colectaId' => $colectaId,
+            'padreId' => $padreId
         ]);
     } catch (Throwable $e) {
         responder(['success' => 0, 'error' => 'INIT_COLECTA_ERROR', 'detail' => $e->getMessage()]);
     }
 }
-
 
 /**
  * ============================================================
@@ -194,7 +302,7 @@ if (!isset($_POST['ColectaBulto'])) {
 
 $basePost  = trim($_POST['base'] ?? '');   // puede venir CodigoSeguimiento o shipments_id
 $bultoPost = trim($_POST['bulto'] ?? '');  // token escaneado (auditoría)
-$idColecta = (int)($_POST['idColecta'] ?? 0);
+// $idColecta = (int)($_POST['idColecta'] ?? 0);
 
 if ($basePost === '' || $bultoPost === '') {
     responder(['success' => 0, 'error' => 'Faltan base o bulto']);
@@ -219,24 +327,25 @@ $idCliente       = 0;
 $destino         = '';
 $nroOrden        = '';
 
-$lookupShip = trim(explode('_', $bultoPost)[0]); // para shipments_id
-$baseCandidate = trim(explode('_', $basePost)[0]);
-
+$baseCandidate = trim(explode('_', $basePost)[0]);  // siempre primero
+$lookupShip    = $baseCandidate;                    // si basePost es shipments_id, esto sirve
+$base          = $baseCandidate;                    // base default SIEMPRE
 // 1.a) Buscar por CodigoSeguimiento
 $sqlT = $mysqli->prepare("
   SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
   FROM TransClientes
-  WHERE CodigoSeguimiento=? AND Eliminado=0
-  ORDER BY id DESC
-  LIMIT 1
+  WHERE SUBSTRING_INDEX(CodigoSeguimiento,'_',1)=? AND Eliminado=0
+    ORDER BY id DESC
+    LIMIT 1
 ");
-$sqlT->bind_param("s", $basePost);
+
+$sqlT->bind_param("s", $baseCandidate);
 $sqlT->execute();
 $tr = $sqlT->get_result()->fetch_assoc();
 
 if ($tr && !empty($tr['id'])) {
     $idTransClientes = (int)$tr['id'];
-    $base = explode('_', (string)($tr['CodigoSeguimiento'] ?? $basePost))[0];
+    $base = explode('_', (string)($tr['CodigoSeguimiento'] ?? $baseCandidate))[0];
     $idCliente = (int)($tr['idClienteDestino'] ?? 0);
     $destino   = (string)($tr['DomicilioDestino'] ?? '');
     $nroOrden  = (string)($tr['NumerodeOrden'] ?? '');
@@ -262,7 +371,8 @@ if ($tr && !empty($tr['id'])) {
     }
 }
 
-if ($idTransClientes === 0 || strlen($base ?? '') > 30) {
+// if ($idTransClientes === 0 || strlen($base ?? '') > 30) {
+if ($idTransClientes === 0 || !preg_match('/^[A-Za-z0-9\-]+$/', $base)) {
     responder([
         'success' => 0,
         'error' => 'SERVICIO_NO_RESUELTO',
@@ -275,12 +385,14 @@ if ($idTransClientes === 0 || strlen($base ?? '') > 30) {
 // ---------------------------------------
 $scanSavedToColecta = 0;
 $colectaResume = null;
+$colectaId = (int)($_POST['colectaId'] ?? 0);
+$padreId   = (int)($_POST['padreId'] ?? 0);
 
-if ($idColecta > 0) {
+if ($colectaId > 0 && $padreId > 0) {
 
     // 2.a) traer JSON del padre
     $stp = $mysqli->prepare("SELECT ColectaScans FROM TransClientes WHERE id=? LIMIT 1");
-    $stp->bind_param("i", $idColecta);
+    $stp->bind_param("i", $padreId);
     $stp->execute();
     $rowP = $stp->get_result()->fetch_assoc();
 
@@ -295,6 +407,7 @@ if ($idColecta > 0) {
     }
 
     // 2.b) validar que base pertenezca a expected
+
     $svc = getExpectedServicio($payload, $base);
     if (!$svc) {
         responder(['success' => 0, 'error' => 'SERVICIO_FUERA_DE_COLECTA', 'base' => $base]);
@@ -309,8 +422,8 @@ if ($idColecta > 0) {
     $codigoEscaneado = $bultoPost;
 
     // Si el token es numérico (ML) no aplica sufijo. Usamos heurística: si contiene "_" y empieza por la base, tratamos QR
-    $esQR = (strpos($codigoEscaneado, $base . '_') === 0) || ($codigoEscaneado === $base);
-
+    // $esQR = (strpos($codigoEscaneado, $base . '_') === 0) || ($codigoEscaneado === $base);
+    $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
     if ($esQR) {
         [$bScan, $suf] = parseBaseAndSuffix($codigoEscaneado);
 
@@ -389,8 +502,10 @@ if ($idColecta > 0) {
     $jsonNew = json_encode($payload, JSON_UNESCAPED_UNICODE);
     $now = date('Y-m-d H:i:s');
 
+    // $up = $mysqli->prepare("UPDATE TransClientes SET ColectaScans=?, ColectaScansUpdatedAt=? WHERE id=?");
+    // $up->bind_param("ssi", $jsonNew, $now, $idColecta);
     $up = $mysqli->prepare("UPDATE TransClientes SET ColectaScans=?, ColectaScansUpdatedAt=? WHERE id=?");
-    $up->bind_param("ssi", $jsonNew, $now, $idColecta);
+    $up->bind_param("ssi", $jsonNew, $now, $padreId);
     $up->execute();
 
     $scanSavedToColecta = 1;
@@ -405,10 +520,12 @@ $status = 'pickup_scanned';
 
 $sqlChk = $mysqli->prepare("
   SELECT id FROM Seguimiento
-  WHERE CodigoSeguimiento=? AND status=? AND Eliminado=0
+  WHERE SUBSTRING_INDEX(CodigoSeguimiento,'_',1)=?
+  AND status=?
+  AND Eliminado=0
   LIMIT 1
 ");
-$sqlChk->bind_param("ss", $base, $status_control);
+$sqlChk->bind_param("ss", $base, $status);
 $sqlChk->execute();
 $chk = $sqlChk->get_result();
 if ($chk && $chk->num_rows > 0) {
@@ -448,7 +565,9 @@ $sqlIns = $mysqli->prepare("
 ");
 if (!$sqlIns) responder(['success' => 0, 'error' => 'prepare insert failed', 'detail' => $mysqli->error]);
 
-$types = "ssssssssii" . "s" . "i" . "ss"; // 14 params
+// $types = "ssssssssii" . "s" . "i" . "ss"; // 14 params
+$types = "ssssssssii" . "s" . "i" . "ss";
+// y verificá con strlen($types) == 14 durante debug
 if (!$sqlIns->bind_param(
     $types,
     $fecha,

@@ -15,6 +15,92 @@ function msgReason(reason) {
 function esModoColecta() {
   return ($("#card-servicio").text() || "").trim().toUpperCase() === "COLECTA";
 }
+function determinarTipoServicio(dato) {
+  const retirado = parseInt(dato?.Retirado, 10);
+  const idDestino = parseInt(dato?.idClienteDestino, 10) || 0;
+
+  // ENTREGA: Retirado != 0
+  if (!Number.isNaN(retirado) && retirado !== 0) return "ENTREGA";
+
+  // COLECTA: Retirado == 0 y destino especial
+  if (retirado === 0 && idDestino === 18587) return "COLECTA";
+
+  // RETIRO: Retirado == 0 (y no es colecta)
+  if (retirado === 0) return "RETIRO";
+
+  return "DESCONOCIDO";
+}
+/*************  ✨ Windsurf Command ⭐  *************/
+/**
+ * Limpia la UI de escaneo: Select2, total visual, estado de ML y oculta el botón de escaneo y el bloque de items (campo de escanear).
+ */
+/*******  6fb114c4-dfe4-47f3-bdf6-2d3cebc37fc4  *******/
+function resetEscaneoUI() {
+  // Limpia items seleccionados (Select2)
+  try {
+    $("#prueba").val(null).trigger("change");
+  } catch (e) {}
+
+  // Total visual
+  $("#totalt").html("0");
+
+  // Si estabas en flujo ML, resetealo también
+  window.colectaML = { isML: false, confirmedQty: 0 };
+
+  // Oculta el botón de escaneo y el bloque de items (campo de escanear)
+
+  $("#card-receptor-items").hide();
+}
+function mostrarCancelarColecta(show) {
+  if (show) {
+    $("#alert-cancelar-colecta").show();
+  } else {
+    $("#alert-cancelar-colecta").hide();
+  }
+}
+function actualizarColorHeaderCard(tipo) {
+  const $card = $("#border-single-card");
+  if (!$card.length) return;
+
+  // limpiamos bordes previos
+  $card.removeClass(
+    "border-success border-danger border-warning border-dark border-primary",
+  );
+
+  switch ((tipo || "").toUpperCase()) {
+    case "ENTREGA":
+      $card.addClass("border-success");
+      break;
+    case "NO_ENTREGA":
+      $card.addClass("border-danger");
+      break;
+    case "RETIRO":
+      $card.addClass("border-warning");
+      break;
+    case "COLECTA":
+      $card.addClass("border-dark");
+      break;
+    default:
+      $card.addClass("border-primary");
+  }
+}
+function actualizarEscaneoPorServicio(tipo) {
+  switch ((tipo || "").toUpperCase()) {
+    case "COLECTA":
+    case "RETIRO":
+      $("#btnEscanear").show();
+      $("#card-receptor-items").show();
+      break;
+
+    case "NO_ENTREGA":
+    case "ENTREGA":
+    default:
+      $("#btnEscanear").hide();
+      $("#card-receptor-items").hide();
+      break;
+  }
+}
+
 $(document).ajaxError(function (event, xhr) {
   if (!xhr) return;
 
@@ -255,7 +341,14 @@ $("#close_rec").click(function () {
 
 // CONTAR LOS ELEMENTOS DEL SELECT2 (ITEMS)
 $("#prueba").on("change", function () {
-  var count = $("#prueba :selected").length;
+  let count = $("#prueba :selected").length;
+
+  // ✅ Si es flujo ML, el total real viene de la confirmación
+  if (window.colectaML?.isML) {
+    const conf = parseInt(window.colectaML.confirmedQty || 0, 10);
+    if (conf > 0) count = conf;
+  }
+
   $("#totalt").html(count);
 });
 
@@ -517,6 +610,7 @@ $("#boton-entrega-wrong").click(function () {
 
   $(".dz-preview").fadeOut("slow");
   $(".dz-preview:hidden").remove();
+  $("#razones").val("");
 });
 
 $("#boton-no-entrega-wrong").click(function () {
@@ -527,6 +621,8 @@ $("#boton-no-entrega-wrong").click(function () {
   $(".dz-preview:hidden").remove();
 
   // Limpia observaciones
+  $("#receptor-observaciones").val("");
+  $("#razones").val("");
   $("#receptor-observaciones").val("");
 });
 
@@ -540,28 +636,52 @@ Dropzone.prototype.removeThumbnail = function () {
 // ==================================================
 function verwrong(i) {
   limpiarInputsEntrega();
+
   $.ajax({
     data: { BuscoDatos: 1, id: i },
     type: "POST",
     url: "Proceso/php/funciones.php",
     dataType: "json",
     success: function (jsonData) {
-      var dato = jsonData.data[0];
+      const dato = jsonData?.data?.[0];
+      if (!dato) return;
 
-      document.getElementById("botones-no-entrega").style.display = "block";
-      document.getElementById("botones-entrega").style.display = "none";
-      document.getElementById("botonera").style.display = "block";
-      document.getElementById("hdractivas").style.display = "none";
-      document.getElementById("card-envio").style.display = "block";
+      // Detecto si era COLECTA
+      const esRetiro = parseInt(dato?.Retirado, 10) === 0;
+      const idDestino = parseInt(dato?.idClienteDestino, 10) || 0;
+      const eraColecta = esRetiro && idDestino === 18587;
 
+      // Seteo tipo + color + UI de escaneo (NO_ENTREGA siempre sin escaneo)
+      window.tipoServicioActual = "NO_ENTREGA";
+      actualizarColorHeaderCard("NO_ENTREGA");
+      actualizarEscaneoPorServicio("NO_ENTREGA"); // ✅ BLINDAJE
+
+      // UI específica: cancelar colecta
+      if (eraColecta) {
+        resetEscaneoUI(); // ✅ limpia select2 + totalt + flags ML
+        mostrarCancelarColecta(true); // ✅ muestra el título / aviso
+      } else {
+        mostrarCancelarColecta(false);
+      }
+
+      // Mostrar pantalla NO ENTREGA
+      $("#botones-no-entrega").show();
+      $("#botones-entrega").hide();
+      $("#botonera").show();
+      $("#hdractivas").hide();
+      $("#card-envio").show();
+
+      // Datos básicos
       $("#card-receptor-observaciones").show();
-      $("#posicioncliente").html(dato.NombreCliente);
-      $("#direccion").html(dato.Domicilio);
-      $("#card-receptor-dni").css("display", "none");
-      $("#card-receptor-name").css("display", "none");
+      $("#posicioncliente").html(dato.NombreCliente || "");
+      $("#direccion").html(dato.Domicilio || "");
+      $("#card-receptor-dni").hide();
+      $("#card-receptor-name").hide();
       $("#receptor-observaciones").val("");
       $("#razones").val("");
-      $("#card-seguimiento").html(dato.CodigoSeguimiento);
+      $("#card-seguimiento").html(dato.CodigoSeguimiento || "");
+
+      // data-expected (no molesta aunque esté oculto)
       $("#btnEscanear").attr(
         "data-expected",
         (dato.CodigoSeguimiento || "").split("_")[0],
@@ -586,37 +706,37 @@ function limpiarInputsEntrega() {
   $("#receptor-name").val("");
   $("#receptor-dni").val("");
   $("#receptor-observaciones").val("");
+  $("#razones").val(""); // ✅ NUEVO (motivo no entrega)
+
+  $("#observaciones").html(""); // ✅ NUEVO (card)
+  $("#posicioncliente").html(""); // ✅ NUEVO (card)
+  $("#direccion").html(""); // ✅ NUEVO (card)
+  $("#contacto").html(""); // ✅ NUEVO (card)
+  $("#card-seguimiento").html(""); // ✅ NUEVO (card)
+  $("#card-receptor-cantidad").html("0"); // ✅ NUEVO
+
   $("#prueba").val(null).trigger("change"); // si estás usando select2 para colecta
   // select2 (colecta)
   $("#prueba").val(null).trigger("change");
   $("#totalt").html("0");
+  window.tipoServicioActual = "";
+  actualizarColorHeaderCard(""); // vuelve a border-primary
+  mostrarCancelarColecta(false);
+  actualizarEscaneoPorServicio(""); // default → oculto
 }
 
-function initColectaExpected(idColecta) {
+function initColectaExpected(colectaId, padreId) {
   return $.ajax({
     url: "Proceso/php/colecta_scan.php",
     type: "POST",
     dataType: "json",
-    data: { InitColecta: 1, idColecta: idColecta },
-  })
-    .done(function (r) {
-      console.log("✅ InitColecta:", r);
-
-      // ✅ Guardamos expected para el scanner
-      window.colectaExpected = r?.expected || null;
-      window.colectaExpectedOrigen = r?.origen_key || null;
-      window.colectaExpectedId = r?.idColecta || null;
-    })
-    .fail(function (xhr) {
-      console.error("❌ InitColecta fail:", xhr.status, xhr.responseText);
-      Swal.fire({
-        icon: "error",
-        title: "Colecta",
-        text: "No se pudo inicializar la colecta (expected).",
-      });
-    });
+    data: { InitColecta: 1, colectaId, padreId },
+  }).done(function (r) {
+    window.colectaExpected = r?.expected || null;
+    window.colectaExpectedId = r?.colectaId || colectaId;
+    window.colectaPadreId = r?.padreId || padreId;
+  });
 }
-
 function verok(i) {
   limpiarInputsEntrega();
 
@@ -676,7 +796,10 @@ function verok(i) {
       const idDestino = parseInt(dato.idClienteDestino, 10) || 0;
       const esRetiro = parseInt(dato.Retirado, 10) === 0;
       const esColecta = esRetiro && idDestino === 18587;
-
+      const tipoServicio = determinarTipoServicio(dato);
+      window.tipoServicioActual = tipoServicio;
+      actualizarColorHeaderCard(tipoServicio);
+      actualizarEscaneoPorServicio(tipoServicio);
       let servicio = "";
 
       if (esRetiro) {
@@ -694,15 +817,20 @@ function verok(i) {
 
         // Bloquea hasta validar/confirmar bultos
         setAceptarPickupEnabled(false);
-        // ✅ SOLO SI ES COLECTA: inicializo expected en backend
+
         if (esColecta) {
-          const idColecta = parseInt(dato.id, 10) || parseInt(i, 10) || 0;
-          window.idColectaActual = parseInt(dato.id, 10) || 0;
-          if (idColecta > 0) {
-            initColectaExpected(idColecta);
+          const padreId = parseInt(dato.id, 10) || 0; // TransClientes.id (padre)
+          const colectaId = parseInt(dato.idColecta, 10) || 0; // Colecta.id (real)
+
+          window.colectaPadreId = padreId;
+          window.idColectaActual = colectaId;
+
+          if (colectaId > 0) {
+            initColectaExpected(colectaId, padreId);
           } else {
-            window.idColectaActual = 0;
-            console.warn("⚠️ No tengo idColecta válido para InitColecta");
+            console.warn(
+              "⚠️ El padre no tiene idColecta cargado en TransClientes",
+            );
           }
         }
       } else {
@@ -714,9 +842,6 @@ function verok(i) {
 
         $("#card-receptor-items").hide();
         $("#card-receptor-name, #card-receptor-dni").show();
-
-        // Entrega: habilitado (si querés)
-        // setAceptarPickupEnabled(true);
       }
 
       $("#card-servicio").text(servicio);
@@ -952,18 +1077,6 @@ $(document).on("click", "#ingreso", function (e) {
         });
         return;
       }
-
-      // if (jsonData && jsonData.success == 1) {
-      //   $("#login").hide();
-      //   $("#hdr").show();
-      //   $("#navbar").show();
-      //   $("#topnav").show();
-
-      //   if (window.AppStatus) {
-      //     AppStatus.postStatus({ stage: "login_ok" });
-      //   }
-      //   paneles(null, false);
-      // }
 
       if (jsonData && jsonData.success == 1) {
         $("#login").hide();
