@@ -4,6 +4,8 @@ let lastTime = 0;
 let userInteracted = false;
 let coolingDown = false; // 👈 ESTA LÍNEA FALTABA
 let feedbackTimeout = null;
+let scannerStarting = false;
+let scannerRunning = false;
 function tieneSufijoBulto(code) {
   return /_\d+$/.test(code); // termina en _numero
 }
@@ -320,195 +322,89 @@ function validarBulto(rawCode) {
 // --------------------
 // Scanner
 // --------------------
-// async function startScanner() {
-//   if (!("Html5Qrcode" in window)) {
-//     alert("No se cargó la librería QR (html5-qrcode).");
-//     return;
-//   }
 
-//   html5QrCode = new Html5Qrcode("qr-reader");
+const onSuccess = async (decodedText) => {
+  const raw = (decodedText || "").trim();
+  if (!raw) return;
 
-//   const config = {
-//     fps: 12,
-//     qrbox: { width: 360, height: 360 },
-//     aspectRatio: 1,
-//   };
+  const now = Date.now();
+  if (coolingDown) return;
+  if (raw === lastCode && now - lastTime < 1500) return;
 
-//   const onSuccess = async (decodedText) => {
-//     const raw = (decodedText || "").trim();
-//     if (!raw) return;
+  lastCode = raw;
+  lastTime = now;
 
-//     // anti-rebote + cooldown
-//     const now = Date.now();
-//     if (coolingDown) return;
-//     if (raw === lastCode && now - lastTime < 1500) return;
+  const normalized = normalizarCodigo(raw);
+  const r = await validarBulto(normalized);
 
-//     lastCode = raw;
-//     lastTime = now;
+  if (r === "ok") {
+    coolingDown = true;
 
-//     const normalized = normalizarCodigo(raw);
-
-//     // validarBulto debería devolver: "ok" | "ya_ok" | "no_pertenece"
-//     const r = await validarBulto(normalized);
-
-//     // Si lo marcó OK recién, frenamos un toque el scanner
-//     if (r === "ok") {
-//       coolingDown = true;
-
-//       try {
-//         // html5-qrcode soporta pause/resume en varias versiones
-//         if (html5QrCode && typeof html5QrCode.pause === "function") {
-//           html5QrCode.pause(true);
-//           setTimeout(() => {
-//             try {
-//               html5QrCode.resume();
-//             } catch (e) {}
-//             coolingDown = false;
-//           }, 900);
-//         } else {
-//           // fallback: cooldown sin pausar cámara
-//           setTimeout(() => (coolingDown = false), 900);
-//         }
-//       } catch (e) {
-//         setTimeout(() => (coolingDown = false), 900);
-//       }
-//     }
-//   };
-
-//   const onError = () => {}; // silencioso
-
-//   try {
-//     const cams = await Html5Qrcode.getCameras();
-
-//     // Config: más amigable para enfoque (qrbox más chico suele ayudar)
-//     const config = {
-//       fps: 10,
-//       qrbox: { width: 280, height: 280 },
-//       aspectRatio: 1,
-//       disableFlip: true,
-//       // Si tu versión lo soporta, ayuda en algunos devices
-//       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-//     };
-
-//     // Callbacks
-//     const onSuccess = async (decodedText) => {
-//       /* tu onSuccess tal cual */
-//     };
-//     const onError = () => {};
-
-//     // 1) Primero intentamos directamente environment (lo más compatible)
-//     try {
-//       await html5QrCode.start(
-//         { facingMode: "environment" },
-//         config,
-//         onSuccess,
-//         onError,
-//       );
-//       return;
-//     } catch (eEnv) {
-//       console.warn(
-//         "No pude iniciar con facingMode environment, pruebo deviceId...",
-//         eEnv,
-//       );
-//     }
-
-//     // 2) Fallback: elegimos mejor cámara por label
-//     if (cams && cams.length) {
-//       // Label puede venir vacío hasta dar permisos, pero a veces viene
-//       const byLabel =
-//         cams.find((c) => /back|rear|environment/i.test(c.label || "")) ||
-//         cams.find((c) => /wide/i.test(c.label || "")) || // a veces wide es trasera
-//         cams[0];
-
-//       await html5QrCode.start(
-//         { deviceId: { exact: byLabel.id } },
-//         config,
-//         onSuccess,
-//         onError,
-//       );
-//       return;
-//     }
-
-//     // 3) Último fallback
-//     await html5QrCode.start(
-//       { facingMode: "environment" },
-//       config,
-//       onSuccess,
-//       onError,
-//     );
-//   } catch (e) {
-//     console.error(e);
-//     alert("No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).");
-//   }
-// }
-
-async function startScanner() {
-  if (!("Html5Qrcode" in window)) {
-    alert("No se cargó la librería QR (html5-qrcode).");
-    return;
-  }
-
-  html5QrCode = new Html5Qrcode("qr-reader");
-
-  // ⚙️ Config QR
-  const qrConfig = {
-    fps: 10,
-    qrbox: { width: 280, height: 280 },
-    aspectRatio: 1,
-    disableFlip: true,
-    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-  };
-
-  // ✅ TU onSuccess REAL (no lo redefines más abajo)
-  const onSuccess = async (decodedText) => {
-    const raw = (decodedText || "").trim();
-    if (!raw) return;
-
-    const now = Date.now();
-    if (coolingDown) return;
-    if (raw === lastCode && now - lastTime < 1500) return;
-
-    lastCode = raw;
-    lastTime = now;
-
-    const normalized = normalizarCodigo(raw);
-    const r = await validarBulto(normalized);
-
-    if (r === "ok") {
-      coolingDown = true;
-
-      try {
-        if (html5QrCode && typeof html5QrCode.pause === "function") {
-          html5QrCode.pause(true);
-          setTimeout(() => {
-            try {
-              html5QrCode.resume();
-            } catch (e) {}
-            coolingDown = false;
-          }, 900);
-        } else {
-          setTimeout(() => (coolingDown = false), 900);
-        }
-      } catch (e) {
+    try {
+      if (html5QrCode && typeof html5QrCode.pause === "function") {
+        html5QrCode.pause(true);
+        setTimeout(() => {
+          try {
+            html5QrCode.resume();
+          } catch (e) {}
+          coolingDown = false;
+        }, 900);
+      } else {
         setTimeout(() => (coolingDown = false), 900);
       }
+    } catch (e) {
+      setTimeout(() => (coolingDown = false), 900);
     }
-  };
+  }
+};
 
-  const onError = () => {}; // silencioso
+const onError = () => {}; // silencioso
 
-  // 🎥 Pedimos cámara con resolución alta (esto ayuda mucho al “borroso”)
-  const constraintsHiRes = {
-    facingMode: { ideal: "environment" },
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-  };
+async function startScanner() {
+  if (scannerStarting || scannerRunning) return;
+  scannerStarting = true;
 
   try {
-    // 1) Intento directo: environment + hi-res
-    await html5QrCode.start(constraintsHiRes, qrConfig, onSuccess, onError);
+    if (!("Html5Qrcode" in window)) {
+      alert("No se cargó la librería QR (html5-qrcode).");
+      return;
+    }
 
-    // 2) Post-fix iOS: forzamos playsinline y estilos al video
+    // si quedó una instancia anterior “colgada”, limpiamos
+    if (html5QrCode) {
+      try {
+        await html5QrCode.stop();
+      } catch (e) {}
+      try {
+        await html5QrCode.clear();
+      } catch (e) {}
+      html5QrCode = null;
+    }
+
+    html5QrCode = new Html5Qrcode("qr-reader");
+
+    const qrConfig = {
+      fps: 10,
+      qrbox: { width: 280, height: 280 },
+      aspectRatio: 1,
+      disableFlip: true,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      videoConstraints: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    };
+
+    await html5QrCode.start(
+      { facingMode: "environment" }, // 👈 1 sola key => OK
+      qrConfig,
+      onSuccess,
+      onError,
+    );
+
+    scannerRunning = true;
+
     setTimeout(() => {
       const v = document.querySelector("#qr-reader video");
       if (v) {
@@ -519,52 +415,11 @@ async function startScanner() {
         v.style.objectFit = "cover";
       }
     }, 250);
-
-    return;
-  } catch (e1) {
-    console.warn("No pude iniciar con constraintsHiRes, pruebo cámaras...", e1);
-  }
-
-  try {
-    // 2) Fallback: listar cámaras y elegir la más “rear/back”
-    const cams = await Html5Qrcode.getCameras();
-    if (cams && cams.length) {
-      const back =
-        cams.find((c) => /back|rear|environment/i.test(c.label || "")) ||
-        cams[0];
-
-      await html5QrCode.start(
-        { deviceId: { exact: back.id } },
-        qrConfig,
-        onSuccess,
-        onError,
-      );
-
-      setTimeout(() => {
-        const v = document.querySelector("#qr-reader video");
-        if (v) {
-          v.setAttribute("playsinline", "true");
-          v.setAttribute("webkit-playsinline", "true");
-          v.style.width = "100%";
-          v.style.height = "auto";
-          v.style.objectFit = "cover";
-        }
-      }, 250);
-
-      return;
-    }
-
-    // 3) Último fallback
-    await html5QrCode.start(
-      { facingMode: "environment" },
-      qrConfig,
-      onSuccess,
-      onError,
-    );
-  } catch (e2) {
-    console.error(e2);
-    // alert("No se pudo abrir la cámara. Revisá permisos / HTTPS / iOS.");
-    alert("No se pudo abrir la cámara: " + (e2?.message || e2));
+  } catch (e) {
+    console.error(e);
+    alert("No se pudo abrir la cámara: " + (e?.message || e));
+  } finally {
+    scannerStarting = false;
   }
 }
 
@@ -576,6 +431,8 @@ async function stopScanner() {
       html5QrCode = null;
     }
   } catch (e) {}
+  scannerRunning = false;
+  scannerStarting = false;
 }
 
 // --------------------
