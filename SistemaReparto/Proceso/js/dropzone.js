@@ -391,6 +391,9 @@ $(".guardarNoEntrega").click(function () {
         $("#info-alert-modal-header").html("Cargando entrega..");
         // webhooks(jsonData.estado);
         console.log("Respuesta No Entregado:", jsonData);
+        console.log(
+          "Algo esta pasando con el servidor, revisa la consola para más detalles.",
+        );
         mail_status_notice(cs, jsonData.slug);
         paneles();
       },
