@@ -281,11 +281,9 @@ $(".guardarProducto").click(function () {
         // ⚠️ webhooks: si te está tirando 404 / HTML, NO lo llames por ahora
         // webhooks(jsonData.estado);
 
-        if (mail_status_notice(csBase, jsonData.slug)) {
-          console.log("Email de notificación enviado correctamente.");
-        } else {
-          console.error("Error al enviar el email de notificación.");
-        }
+        mail_status_notice(csBase, jsonData.slug);
+        console.log("Email de notificación enviado correctamente.");
+
         paneles();
       },
       error: function (xhr) {
