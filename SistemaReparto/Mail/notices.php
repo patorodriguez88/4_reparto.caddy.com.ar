@@ -1,7 +1,14 @@
 <?php
 // SistemaReparto/Mail/notices.php
 
-require_once "../Conexion/conexioni.php";
+$conexionPath = __DIR__ . "/../Conexion/conexioni.php";
+if (!file_exists($conexionPath)) {
+    respond(0, 'CONEXIONI_NOT_FOUND', 'No se encontró conexioni.php', [
+        'expected_path' => $conexionPath
+    ], 500);
+}
+require_once $conexionPath;
+
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 function getClienteById(mysqli $mysqli, int $id): ?array
 {
