@@ -1,3 +1,4 @@
+//scan.js
 let html5QrCode = null;
 let lastCode = "";
 let lastTime = 0;
