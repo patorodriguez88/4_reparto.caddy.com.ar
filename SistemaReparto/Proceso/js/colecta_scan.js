@@ -429,23 +429,15 @@
       // Ajuste visual del video + debug de resolución real
       setTimeout(() => {
         const v = document.querySelector("#colecta-qr-reader video");
-        if (!v) return;
-
-        v.setAttribute("playsinline", "true");
-        v.setAttribute("webkit-playsinline", "true");
-        v.style.width = "100%";
-        v.style.height = "100%";
-        v.style.objectFit = "cover";
-
-        console.log("VIDEO size:", v.videoWidth, v.videoHeight);
-
-        const stream = v.srcObject;
-        if (stream && stream.getVideoTracks && stream.getVideoTracks()[0]) {
-          const track = stream.getVideoTracks()[0];
-          console.log("TRACK settings:", track.getSettings());
-          console.log("TRACK capabilities:", track.getCapabilities?.());
+        if (v) {
+          v.setAttribute("playsinline", "true");
+          v.setAttribute("webkit-playsinline", "true");
+          v.style.width = "100%";
+          v.style.height = "100%"; // <-- clave (NO auto)
+          v.style.objectFit = "cover";
+          v.style.display = "block";
         }
-      }, 900);
+      }, 250);
     } catch (e) {
       console.error(e);
       swalFire({

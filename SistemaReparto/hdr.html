@@ -68,6 +68,31 @@
   transform: none !important;
   filter: none !important;
 }
+/* 1) Neutraliza blur por transform del modal en iOS */
+.modal .modal-dialog,
+.modal.show .modal-dialog,
+.modal.fade .modal-dialog {
+  transform: none !important;
+  -webkit-transform: none !important;
+  transition: none !important;
+}
+
+/* 2) Hacemos el reader cuadrado (porque tu stream es 1080x1080) */
+#colecta-qr-reader {
+  width: 100% !important;
+  max-width: 420px;
+  margin: 0 auto;
+  aspect-ratio: 1 / 1;     /* <-- clave */
+  overflow: hidden;
+}
+
+/* 3) Video ocupa el cuadrado completo */
+#colecta-qr-reader video {
+  width: 100% !important;
+  height: 100% !important; /* <-- NO auto */
+  object-fit: cover !important;
+  display: block;
+}
     </style>    
 
     <body class="loading" data-layout="topnav" data-layout-config='{"navbar":false,"layoutBoxed":false,"darkMode":false}'>
@@ -145,8 +170,9 @@
                             
                             <!-- end Topbar -->
                     <!-- Modal: Escaneo Colecta -->
-                    <div class="modal fade" id="colectaScanModal" tabindex="-1" aria-hidden="true">
+                    <!-- <div class="modal fade" id="colectaScanModal" tabindex="-1" aria-hidden="true"> -->
                      <!-- <div id="colectaScanModal" tabindex="-1" aria-hidden="true"></div> -->
+                      <!-- <div class="modal" id="colectaScanModal" tabindex="-1" aria-hidden="true"></div>
                         <div class="modal-dialog modal-dialog-centered modal-md">
                             <div class="modal-content">
                             <div class="modal-header">
@@ -160,10 +186,10 @@
                                 <span class="badge bg-primary" id="colecta-expected">–</span>
                                 </div>
 
-                                <div id="colecta-feedback" class="mb-2"></div>
+                                <div id="colecta-feedback" class="mb-2"></div> -->
 
                                 <!-- <div id="colecta-qr-reader" style="width:100%; max-width:420px; margin:0 auto;"></div> -->
-                            <div id="colecta-qr-reader"></div>
+                            <!-- <div id="colecta-qr-reader"></div>
                             </div>
 
                             <div class="modal-footer">
@@ -171,9 +197,34 @@
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                             </div>
                             </div>
-                        </div>
-                    </div>
+                        </div> -->
+                    <!-- </div> -->
+<div class="modal" id="colectaScanModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-md">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Escanear bulto (colecta)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
 
+      <div class="modal-body">
+        <div class="mb-2">
+          <span class="badge bg-secondary">Esperado:</span>
+          <span class="badge bg-primary" id="colecta-expected">–</span>
+        </div>
+
+        <div id="colecta-feedback" class="mb-2"></div>
+
+        <div id="colecta-qr-reader"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" id="btnStopColectaScan">Detener</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
 
                     <div class="topnav" id="topnav" style="display:none">
                         <div class="container-fluid">
