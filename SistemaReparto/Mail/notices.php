@@ -3,19 +3,73 @@
 
 $conexionPath = __DIR__ . "/../Conexion/conexioni.php";
 if (!file_exists($conexionPath)) {
-    respond(0, 'CONEXIONI_NOT_FOUND', 'No se encontró conexioni.php', [
-        'expected_path' => $conexionPath
-    ], 500);
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'success' => 0,
+        'code' => 'CONEXIONI_NOT_FOUND',
+        'message' => 'No se encontró conexioni.php',
+        'context' => ['expected_path' => $conexionPath],
+    ]);
+    exit;
 }
 require_once $conexionPath;
 
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+set_exception_handler(function (Throwable $e) {
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'success' => 0,
+        'code' => 'FATAL',
+        'message' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine()
+    ]);
+    exit;
+});
+
+function stmt_fetch_assoc(mysqli_stmt $stmt): ?array
+{
+    // Si existe mysqlnd, ok
+    if (method_exists($stmt, 'get_result')) {
+        $res = $stmt->get_result();
+
+        if (!$res) return null;
+        $row = $res->fetch_assoc();
+        return $row ?: null;
+    }
+
+    // Fallback sin mysqlnd
+    $stmt->store_result();
+    $meta = $stmt->result_metadata();
+    if (!$meta) return null;
+
+    $row = [];
+    $bind = [];
+    while ($field = $meta->fetch_field()) {
+        $row[$field->name] = null;
+        $bind[] = &$row[$field->name];
+    }
+
+    call_user_func_array([$stmt, 'bind_result'], $bind);
+
+    if (!$stmt->fetch()) return null;
+
+    // copiar valores (romper referencias)
+    $out = [];
+    foreach ($row as $k => $v) $out[$k] = $v;
+    return $out ?: null;
+}
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 function getClienteById(mysqli $mysqli, int $id): ?array
 {
     $stmt = $mysqli->prepare("SELECT nombrecliente, Mail FROM Clientes WHERE id=? LIMIT 1");
     $stmt->bind_param("i", $id);
     $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
+    // $row = $stmt->get_result()->fetch_assoc();
+    $row = stmt_fetch_assoc($stmt);
     return $row ?: null;
 }
 function notificationExists(mysqli $mysqli, int $idCliente, string $cs, string $slug): ?array
@@ -23,7 +77,8 @@ function notificationExists(mysqli $mysqli, int $idCliente, string $cs, string $
     $stmt = $mysqli->prepare("SELECT id FROM Notifications WHERE idCliente=? AND CodigoSeguimiento=? AND State=? LIMIT 1");
     $stmt->bind_param("iss", $idCliente, $cs, $slug);
     $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
+    // $row = $stmt->get_result()->fetch_assoc();
+    $row = stmt_fetch_assoc($stmt);
     return $row ?: null;
 }
 function getEstadoFlagsBySlug(mysqli $mysqli, string $slug): array
@@ -34,7 +89,8 @@ function getEstadoFlagsBySlug(mysqli $mysqli, string $slug): array
                               LIMIT 1");
     $stmt->bind_param("s", $slug);
     $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
+    // $row = $stmt->get_result()->fetch_assoc();
+    $row = stmt_fetch_assoc($stmt);
     if (!$row) return ['found' => false];
 
     return [
@@ -100,7 +156,8 @@ if ($avisos === 1) {
                               LIMIT 1");
     $stmt->bind_param("s", $cs);
     $stmt->execute();
-    $tc = $stmt->get_result()->fetch_assoc();
+    // $tc = $stmt->get_result()->fetch_assoc();
+    $tc = stmt_fetch_assoc($stmt);
 
     if (!$tc) {
         respond(0, 'NOT_FOUND_TRANSCLIENTES', 'No se encontró TransClientes para ese Código', ['cs' => $cs]);
@@ -118,7 +175,8 @@ if ($avisos === 1) {
     $stmt2->bind_param("i", $idCliente);
     $stmt2->execute();
 
-    $cl = $stmt2->get_result()->fetch_assoc();
+    // $cl = $stmt2->get_result()->fetch_assoc();
+    $cl = stmt_fetch_assoc($stmt2);
 
     if (!$cl) {
         respond(0, 'NOT_FOUND_CLIENTE', 'No se encontró Cliente origen', ['idCliente' => $idCliente]);
@@ -137,7 +195,8 @@ if ($avisos === 1) {
                                LIMIT 1");
     $stmt3->bind_param("iss", $idCliente, $cs, $slug);
     $stmt3->execute();
-    $exists = $stmt3->get_result()->fetch_assoc();
+    // $exists = $stmt3->get_result()->fetch_assoc();
+    $exists = stmt_fetch_assoc($stmt3);
 
     if ($exists) {
         respond(0, 'ALREADY_EXISTS', 'La notificación ya existe', ['id' => $exists['id'], 'idCliente' => $idCliente, 'cs' => $cs, 'slug' => $slug, 'label' => $label]);
@@ -171,7 +230,8 @@ if ($avisos === 2) {
                               LIMIT 1");
     $stmt->bind_param("s", $cs);
     $stmt->execute();
-    $tc = $stmt->get_result()->fetch_assoc();
+    // $tc = $stmt->get_result()->fetch_assoc();
+    $tc = stmt_fetch_assoc($stmt);
 
     if (!$tc) {
         respond(0, 'NOT_FOUND_TRANSCLIENTES', 'No se encontró TransClientes para ese Código', ['cs' => $cs]);
@@ -188,7 +248,8 @@ if ($avisos === 2) {
                                LIMIT 1");
     $stmt2->bind_param("i", $idCliente);
     $stmt2->execute();
-    $cl = $stmt2->get_result()->fetch_assoc();
+    // $cl = $stmt2->get_result()->fetch_assoc();
+    $cl = stmt_fetch_assoc($stmt2);
 
     if (!$cl) {
         respond(0, 'NOT_FOUND_CLIENTE', 'No se encontró Cliente destino', ['idCliente' => $idCliente]);
@@ -207,7 +268,8 @@ if ($avisos === 2) {
                                LIMIT 1");
     $stmt3->bind_param("iss", $idCliente, $cs, $slug);
     $stmt3->execute();
-    $exists = $stmt3->get_result()->fetch_assoc();
+    // $exists = $stmt3->get_result()->fetch_assoc();
+    $exists = stmt_fetch_assoc($stmt3);
 
     if ($exists) {
         respond(0, 'ALREADY_EXISTS', 'La notificación ya existe', ['id' => $exists['id'], 'idCliente' => $idCliente, 'cs' => $cs, 'slug' => $slug, 'label' => $label]);
@@ -247,7 +309,8 @@ function TransClientes(mysqli $mysqli, string $codigo, string $estado): void
     $stmt = $mysqli->prepare("SELECT id FROM TransClientes WHERE Eliminado=0 AND CodigoSeguimiento=? AND Estado=? LIMIT 1");
     $stmt->bind_param("ss", $codigo, $estado);
     $stmt->execute();
-    $ok = $stmt->get_result()->fetch_assoc();
+    // $ok = $stmt->get_result()->fetch_assoc();
+    $ok = stmt_fetch_assoc($stmt);
 
     if (!$ok) {
         $stmt2 = $mysqli->prepare("UPDATE TransClientes SET Estado=? WHERE CodigoSeguimiento=? AND Eliminado=0 LIMIT 1");
@@ -267,7 +330,10 @@ function Seguimiento(mysqli $mysqli, string $codigo, string $estado): void
     $stmt = $mysqli->prepare("SELECT id FROM Seguimiento WHERE CodigoSeguimiento=? AND Estado=? LIMIT 1");
     $stmt->bind_param("ss", $codigo, $estado);
     $stmt->execute();
-    if ($stmt->get_result()->fetch_assoc()) return;
+    $exists = stmt_fetch_assoc($stmt);
+
+    if ($exists) return;
+    // if ($stmt->get_result()->fetch_assoc()) return;
 
     // Base data desde TransClientes (ajustá campos reales)
     $stmt2 = $mysqli->prepare("SELECT Destinatario AS NombreCompleto, Dni, Domicilio AS Destino, idCliente, id AS idTransClientes, Recorrido
@@ -275,7 +341,12 @@ function Seguimiento(mysqli $mysqli, string $codigo, string $estado): void
                                WHERE CodigoSeguimiento=? AND Eliminado=0 LIMIT 1");
     $stmt2->bind_param("s", $codigo);
     $stmt2->execute();
-    $tc = $stmt2->get_result()->fetch_assoc();
+    // $tc = $stmt2->get_result()->fetch_assoc();
+    $tc = stmt_fetch_assoc($stmt2);
+    if (!$tc) {
+        error_log("[Seguimiento] No se encontró TransClientes para $codigo");
+        return;
+    }
 
     $NombreCompleto  = $tc['NombreCompleto'] ?? '';
     $Dni             = $tc['Dni'] ?? '';
@@ -285,14 +356,36 @@ function Seguimiento(mysqli $mysqli, string $codigo, string $estado): void
     $Recorrido       = $tc['Recorrido'] ?? '';
 
     $stmt3 = $mysqli->prepare("INSERT INTO Seguimiento
-      (Fecha, Hora, Usuario, Sucursal, CodigoSeguimiento, Observaciones, Entregado, Estado, NombreCompleto, Dni, Destino, Avisado, idCliente, Retirado, Visitas, idTransClientes, Recorrido, Devuelto, Webhook, state_id, NumerodeOrden, status)
+      (Fecha, 
+      Hora, 
+      Usuario, 
+      Sucursal, 
+      CodigoSeguimiento,
+      Observaciones, 
+      Entregado, 
+      Estado, 
+      NombreCompleto, 
+      Dni, 
+      Destino, 
+      Avisado, 
+      idCliente, 
+      Retirado, 
+      Visitas, 
+      idTransClientes, 
+      Recorrido, 
+      Devuelto, 
+      Webhook, 
+      state_id, 
+      NumerodeOrden, 
+      status)
       VALUES (?, ?, ?, ?, ?, '', 0, ?, ?, ?, ?, 0, ?, 0, 0, ?, ?, 0, 0, 0, 0, '')");
 
     // OJO: tipos: Fecha/Hora/Usuario/Sucursal/Codigo/Estado/Nombre/Dni/Destino = string
     // idCliente/idTransClientes = int
     // Recorrido = string
     $stmt3->bind_param(
-        "sssssssssiis",
+
+        "sssssssssiii",
         $Fecha,
         $Hora,
         $Usuario,
