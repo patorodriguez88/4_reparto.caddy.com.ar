@@ -1,19 +1,7 @@
 <?php
 // SistemaReparto/Mail/notices.php
 
-ini_set('display_errors', '0');
-ini_set('log_errors', '1');
-ini_set('error_log', __DIR__ . '/notices_error.log');
-error_reporting(E_ALL);
-
-header('Content-Type: application/json; charset=utf-8');
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-header('Content-Type: application/json; charset=utf-8');
-
-require_once "../Conexion/Conexioni.php";
+require_once "../Conexion/conexioni.php";
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 function getClienteById(mysqli $mysqli, int $id): ?array
 {
