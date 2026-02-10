@@ -48,6 +48,25 @@
   }
 
 }
+/* COLECTA: darle un viewport real al video (evita blur por reescalado) */
+#colecta-qr-reader {
+  width: 100%;
+  max-width: 420px;
+  height: 60vh;            /* clave */
+  max-height: 520px;       /* opcional, para que no sea gigante */
+  margin: 0 auto;
+  overflow: hidden;
+  background: #000;        /* opcional: evita “gris” mientras carga */
+  border-radius: 12px;     /* opcional */
+}
+
+/* Asegurar que el video ocupe el contenedor y no quede “auto” */
+#colecta-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;     /* clave */
+  object-fit: cover !important;
+  transform: translateZ(0);    /* ayuda Safari a renderizar más nítido */
+}
     </style>    
 
     <body class="loading" data-layout="topnav" data-layout-config='{"navbar":false,"layoutBoxed":false,"darkMode":false}'>
@@ -141,7 +160,8 @@
 
                                 <div id="colecta-feedback" class="mb-2"></div>
 
-                                <div id="colecta-qr-reader" style="width:100%; max-width:420px; margin:0 auto;"></div>
+                                <!-- <div id="colecta-qr-reader" style="width:100%; max-width:420px; margin:0 auto;"></div> -->
+                            <div id="colecta-qr-reader"></div>
                             </div>
 
                             <div class="modal-footer">

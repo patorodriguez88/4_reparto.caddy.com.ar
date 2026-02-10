@@ -469,14 +469,24 @@
         );
       }
 
-      setTimeout(() => {
-        const host = document.getElementById("colecta-qr-reader");
-        if (host) {
-          host.style.width = "100%";
-          host.style.height = "60vh";
-          host.style.overflow = "hidden";
-        }
+      // setTimeout(() => {
+      //   const host = document.getElementById("colecta-qr-reader");
+      //   if (host) {
+      //     host.style.width = "100%";
+      //     host.style.height = "60vh";
+      //     host.style.overflow = "hidden";
+      //   }
 
+      //   const v = document.querySelector("#colecta-qr-reader video");
+      //   if (v) {
+      //     v.setAttribute("playsinline", "true");
+      //     v.setAttribute("webkit-playsinline", "true");
+      //     v.style.width = "100%";
+      //     v.style.height = "100%";
+      //     v.style.objectFit = "cover";
+      //   }
+      // }, 250);
+      setTimeout(() => {
         const v = document.querySelector("#colecta-qr-reader video");
         if (v) {
           v.setAttribute("playsinline", "true");
