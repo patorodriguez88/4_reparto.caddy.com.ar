@@ -577,6 +577,8 @@
 
   // Abrir modal (sin recrear instancias) + start cuando está visible
   $(document).on("click", "#btnEscanear", function () {
+    console.log("✅ Click en #btnEscanear");
+
     const modalEl = document.getElementById("colectaScanModal");
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
@@ -597,7 +599,34 @@
 
   // Start scanner cuando el modal terminó de mostrarse
   $(document).on("shown.bs.modal", "#colectaScanModal", async function () {
+    console.log("✅ MODAL shown -> startColectaScanner()");
+
     await startColectaScanner();
+    // DEBUG: esperar a que aparezca el <video> real y loguear resolución / settings
+    (function waitVideoAndLog() {
+      const v = document.querySelector("#colecta-qr-reader video");
+      if (!v) return setTimeout(waitVideoAndLog, 120);
+
+      // cuando el video ya tiene metadata
+      const logNow = () => {
+        console.log("✅ COLECTA VIDEO size:", v.videoWidth, v.videoHeight);
+
+        const stream = v.srcObject;
+        const track = stream?.getVideoTracks?.()[0];
+        if (track) {
+          console.log("✅ COLECTA TRACK settings:", track.getSettings());
+          console.log(
+            "✅ COLECTA TRACK capabilities:",
+            track.getCapabilities?.(),
+          );
+        } else {
+          console.log("⚠️ No track en srcObject");
+        }
+      };
+
+      if (v.readyState >= 2) logNow();
+      else v.addEventListener("loadedmetadata", logNow, { once: true });
+    })();
   });
 
   // Stop al cerrar del todo
