@@ -397,7 +397,63 @@
         showConfirmButton: false,
       });
     };
+    try {
+      // ⛔ En iOS, elegir cam.id puede agarrar ultra-wide o low-res.
+      // ✅ Forzamos environment + mínimos de resolución.
+      const configHiRes = {
+        fps: 15,
+        qrbox: { width: 280, height: 280 },
+        aspectRatio: 1,
+        disableFlip: true,
+        // probá primero OFF para evitar pipelines raros en iOS
+        experimentalFeatures: { useBarCodeDetectorIfSupported: false },
+        videoConstraints: {
+          facingMode: "environment",
 
+          // ✅ esto evita que caiga a 640x480
+          width: { min: 1280, ideal: 1920 },
+          height: { min: 720, ideal: 1080 },
+
+          // iOS puede ignorar, pero no molesta
+          advanced: [{ focusMode: "continuous" }],
+        },
+      };
+
+      await colectaQr.start(
+        { facingMode: "environment" },
+        configHiRes,
+        onSuccess,
+        () => {},
+      );
+
+      // Ajuste visual del video + debug de resolución real
+      setTimeout(() => {
+        const v = document.querySelector("#colecta-qr-reader video");
+        if (!v) return;
+
+        v.setAttribute("playsinline", "true");
+        v.setAttribute("webkit-playsinline", "true");
+        v.style.width = "100%";
+        v.style.height = "100%";
+        v.style.objectFit = "cover";
+
+        console.log("VIDEO size:", v.videoWidth, v.videoHeight);
+
+        const stream = v.srcObject;
+        if (stream && stream.getVideoTracks && stream.getVideoTracks()[0]) {
+          const track = stream.getVideoTracks()[0];
+          console.log("TRACK settings:", track.getSettings());
+          console.log("TRACK capabilities:", track.getCapabilities?.());
+        }
+      }, 900);
+    } catch (e) {
+      console.error(e);
+      swalFire({
+        icon: "error",
+        title: "Cámara",
+        text: "No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).",
+      });
+    }
     // try {
     //   const cams = await Html5Qrcode.getCameras();
     //   if (cams && cams.length) {
@@ -424,86 +480,99 @@
     //     text: "No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).",
     //   });
     // }
-    try {
-      const cams = await Html5Qrcode.getCameras();
+    // try {
+    //   const cams = await Html5Qrcode.getCameras();
 
-      const pickBackCam = (cams) => {
-        if (!cams || !cams.length) return null;
+    //   const pickBackCam = (cams) => {
+    //     if (!cams || !cams.length) return null;
 
-        // iOS: labels pueden venir vacíos hasta que el permiso está otorgado
-        const hasLabels = cams.some((c) => (c.label || "").trim().length > 0);
-        if (!hasLabels) return null;
+    //     // iOS: labels pueden venir vacíos hasta que el permiso está otorgado
+    //     const hasLabels = cams.some((c) => (c.label || "").trim().length > 0);
+    //     if (!hasLabels) return null;
 
-        const byLabel =
-          cams.find((c) => /back|rear|environment/i.test(c.label)) ||
-          cams.find((c) => /iphone.*back/i.test(c.label)) ||
-          null;
+    //     const byLabel =
+    //       cams.find((c) => /back|rear|environment/i.test(c.label)) ||
+    //       cams.find((c) => /iphone.*back/i.test(c.label)) ||
+    //       null;
 
-        return byLabel || cams[cams.length - 1];
-      };
+    //     return byLabel || cams[cams.length - 1];
+    //   };
 
-      const cam = pickBackCam(cams);
+    //   const cam = pickBackCam(cams);
 
-      const configHiRes = {
-        fps: 15,
-        qrbox: { width: 280, height: 280 },
-        aspectRatio: 1,
-        disableFlip: true,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-        videoConstraints: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, max: 30 },
-        },
-      };
+    //   const configHiRes = {
+    //     fps: 15,
+    //     qrbox: { width: 280, height: 280 },
+    //     aspectRatio: 1,
+    //     disableFlip: true,
+    //     experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    //     videoConstraints: {
+    //       facingMode: { ideal: "environment" },
+    //       width: { ideal: 1920 },
+    //       height: { ideal: 1080 },
+    //       frameRate: { ideal: 30, max: 30 },
+    //     },
+    //   };
 
-      if (cam && cam.id) {
-        await colectaQr.start(cam.id, configHiRes, onSuccess, () => {});
-      } else {
-        await colectaQr.start(
-          { facingMode: "environment" },
-          configHiRes,
-          onSuccess,
-          () => {},
-        );
-      }
+    //   if (cam && cam.id) {
+    //     await colectaQr.start(cam.id, configHiRes, onSuccess, () => {});
+    //     setTimeout(() => {
+    //       const v = document.querySelector("#colecta-qr-reader video");
+    //       if (!v) return;
 
-      // setTimeout(() => {
-      //   const host = document.getElementById("colecta-qr-reader");
-      //   if (host) {
-      //     host.style.width = "100%";
-      //     host.style.height = "60vh";
-      //     host.style.overflow = "hidden";
-      //   }
+    //       console.log("VIDEO size:", v.videoWidth, v.videoHeight);
 
-      //   const v = document.querySelector("#colecta-qr-reader video");
-      //   if (v) {
-      //     v.setAttribute("playsinline", "true");
-      //     v.setAttribute("webkit-playsinline", "true");
-      //     v.style.width = "100%";
-      //     v.style.height = "100%";
-      //     v.style.objectFit = "cover";
-      //   }
-      // }, 250);
-      setTimeout(() => {
-        const v = document.querySelector("#colecta-qr-reader video");
-        if (v) {
-          v.setAttribute("playsinline", "true");
-          v.setAttribute("webkit-playsinline", "true");
-          v.style.width = "100%";
-          v.style.height = "100%";
-          v.style.objectFit = "cover";
-        }
-      }, 250);
-    } catch (e) {
-      console.error(e);
-      swalFire({
-        icon: "error",
-        title: "Cámara",
-        text: "No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).",
-      });
-    }
+    //       const stream = v.srcObject;
+    //       if (stream && stream.getVideoTracks && stream.getVideoTracks()[0]) {
+    //         const track = stream.getVideoTracks()[0];
+    //         console.log("TRACK settings:", track.getSettings());
+    //         console.log("TRACK capabilities:", track.getCapabilities?.());
+    //       }
+    //     }, 800);
+    //   } else {
+    //     await colectaQr.start(
+    //       { facingMode: "environment" },
+    //       configHiRes,
+    //       onSuccess,
+    //       () => {},
+    //     );
+    //   }
+
+    //   // setTimeout(() => {
+    //   //   const host = document.getElementById("colecta-qr-reader");
+    //   //   if (host) {
+    //   //     host.style.width = "100%";
+    //   //     host.style.height = "60vh";
+    //   //     host.style.overflow = "hidden";
+    //   //   }
+
+    //   //   const v = document.querySelector("#colecta-qr-reader video");
+    //   //   if (v) {
+    //   //     v.setAttribute("playsinline", "true");
+    //   //     v.setAttribute("webkit-playsinline", "true");
+    //   //     v.style.width = "100%";
+    //   //     v.style.height = "100%";
+    //   //     v.style.objectFit = "cover";
+    //   //   }
+    //   // }, 250);
+    //   setTimeout(() => {
+    //     const v = document.querySelector("#colecta-qr-reader video");
+    //     if (v) {
+    //       v.setAttribute("playsinline", "true");
+    //       v.setAttribute("webkit-playsinline", "true");
+    //       v.style.width = "100%";
+    //       v.style.height = "100%";
+    //       v.style.objectFit = "cover";
+    //     }
+    //   }, 250);
+    // } catch (e) {
+    //   console.error(e);
+    //   swalFire({
+    //     icon: "error",
+    //     title: "Cámara",
+    //     text: "No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).",
+    //   });
+    // }
   }
 
   // Abrir modal (sin recrear instancias) + start cuando está visible

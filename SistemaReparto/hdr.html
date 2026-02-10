@@ -50,22 +50,23 @@
 }
 /* COLECTA: darle un viewport real al video (evita blur por reescalado) */
 #colecta-qr-reader {
-  width: 100%;
-  max-width: 420px;
-  height: 60vh;            /* clave */
-  max-height: 520px;       /* opcional, para que no sea gigante */
-  margin: 0 auto;
+  width: 100% !important;
+  height: 60vh;              /* buen tamaño sin estirar raro */
   overflow: hidden;
-  background: #000;        /* opcional: evita “gris” mientras carga */
-  border-radius: 12px;     /* opcional */
 }
 
-/* Asegurar que el video ocupe el contenedor y no quede “auto” */
 #colecta-qr-reader video {
   width: 100% !important;
-  height: 100% !important;     /* clave */
+  height: 100% !important;
   object-fit: cover !important;
-  transform: translateZ(0);    /* ayuda Safari a renderizar más nítido */
+  transform: translateZ(0);
+}
+
+/* iOS + Bootstrap modal: a veces aplica transforms que “suavizan” el video */
+#colectaScanModal .modal-dialog,
+#colectaScanModal .modal-content {
+  transform: none !important;
+  filter: none !important;
 }
     </style>    
 
@@ -144,7 +145,8 @@
                             
                             <!-- end Topbar -->
                     <!-- Modal: Escaneo Colecta -->
-                    <div class="modal fade" id="colectaScanModal" tabindex="-1" aria-hidden="true">
+                    <!-- <div class="modal fade" id="colectaScanModal" tabindex="-1" aria-hidden="true"> -->
+                     <div id="colectaScanModal" tabindex="-1" aria-hidden="true"></div>
                         <div class="modal-dialog modal-dialog-centered modal-md">
                             <div class="modal-content">
                             <div class="modal-header">
