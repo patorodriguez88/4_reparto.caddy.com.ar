@@ -1,4 +1,5 @@
 // Proceso/js/colecta_scan.js
+
 (function () {
   let colectaQr = null;
   let colectaLast = "";
