@@ -428,26 +428,75 @@
       // ---------------------------
       // Config cámara
       // ---------------------------
+      // const configHiRes = {
+      //   fps: 15,
+      //   qrbox: { width: 280, height: 280 },
+      //   aspectRatio: 1,
+      //   disableFlip: true,
+      //   experimentalFeatures: { useBarCodeDetectorIfSupported: false },
+      //   videoConstraints: {
+      //     facingMode: "environment",
+      //     width: { min: 1280, ideal: 1920 },
+      //     height: { min: 720, ideal: 1080 },
+      //     advanced: [{ focusMode: "continuous" }],
+      //   },
+      // };
+
+      // await colectaQr.start(
+      //   { facingMode: "environment" },
+      //   configHiRes,
+      //   onSuccess,
+      //   () => {},
+      // );
+      // ---------------------------
+      // Config cámara (iPhone-safe + fallback)
+      // ---------------------------
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+      const configIOS = {
+        fps: 10,
+        qrbox: { width: 240, height: 240 },
+        disableFlip: true,
+        // En iOS conviene dejar que el browser elija aspect ratio real
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        videoConstraints: { facingMode: "environment" }, // 👈 liviano
+      };
+
       const configHiRes = {
         fps: 15,
         qrbox: { width: 280, height: 280 },
-        aspectRatio: 1,
         disableFlip: true,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: false },
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        // ⚠️ OJO: nada de advanced focusMode, y no fuerces 1920 en iPhone
         videoConstraints: {
           facingMode: "environment",
-          width: { min: 1280, ideal: 1920 },
-          height: { min: 720, ideal: 1080 },
-          advanced: [{ focusMode: "continuous" }],
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
         },
       };
 
-      await colectaQr.start(
-        { facingMode: "environment" },
-        configHiRes,
-        onSuccess,
-        () => {},
-      );
+      // Intento 1: en iOS usar config liviana
+      // Intento 2: si falla, probar hi-res
+      try {
+        await colectaQr.start(
+          { facingMode: "environment" },
+          isIOS ? configIOS : configHiRes,
+          onSuccess,
+          () => {},
+        );
+      } catch (e1) {
+        console.warn("Start failed, fallback...", e1);
+        try {
+          await colectaQr.start(
+            { facingMode: "environment" },
+            configIOS,
+            onSuccess,
+            () => {},
+          );
+        } catch (e2) {
+          throw e2; // cae al catch general y muestra Swal
+        }
+      }
 
       // Ajuste visual del video
       setTimeout(() => {
