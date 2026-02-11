@@ -1,4 +1,10 @@
 /* App-like shell */
+button,
+input[type="submit"],
+input[type="button"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
 body {
   padding-bottom: 74px;
 }
@@ -348,13 +354,14 @@ body.login-lock {
   display: block;
 }
 .btn-caddy {
-  background-color: #e24f30;
-  border-color: #e24f30;
-  color: #fff;
+  background-color: #e24f30 !important;
+  border-color: #e24f30 !important;
+  color: #fff !important;
 }
-
-.btn-caddy:hover,
-.btn-caddy:focus {
-  background-color: #cf452a;
-  border-color: #cf452a;
+.btn-caddy:active,
+.btn-caddy:focus,
+.btn-caddy:hover {
+  background-color: #cf452a !important;
+  border-color: #cf452a !important;
+  color: #fff !important;
 }
