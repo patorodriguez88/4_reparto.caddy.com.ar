@@ -7,6 +7,8 @@
   let scannerStopPromise = Promise.resolve();
   let scannerStarting = false;
   let scannerStopping = false;
+  let coolingDown = false;
+  let cooldownMs = 1200; // ajustable
 
   const codigosEscaneados = new Set(); // guarda codeToStore válidos (solo cuando backend confirma)
   let _audioCtx = null;
@@ -21,7 +23,11 @@
       ($("#card-servicio").text() || "").trim().toUpperCase() === "COLECTA"
     );
   }
-
+  // Si borran desde la X en el Select2, sincronizamos el Set
+  $(document).on("select2:unselect", "#prueba", function (e) {
+    const code = e.params?.data?.id || e.params?.data?.text;
+    if (code) codigosEscaneados.delete(String(code));
+  });
   // ===== Feedback beep/vibra (iOS-safe, 1 solo contexto) =====
   function feedbackScan(ok = true) {
     if (navigator.vibrate) navigator.vibrate(ok ? 120 : [60, 60, 60]);
@@ -238,6 +244,9 @@
       $("#colecta-expected-qty").text(qtyExpected || 1);
 
       const onSuccess = async (decodedText) => {
+        if (coolingDown) return;
+        coolingDown = true;
+        setTimeout(() => (coolingDown = false), cooldownMs);
         const raw = (decodedText || "").trim();
         if (!raw) return;
 
@@ -403,7 +412,26 @@
         let res;
         try {
           res = await postColectaBulto(base, scannedToken);
-          if (!res || res.success != 1) throw new Error("backend rejected");
+
+          // 🔹 Si el backend dice que ya estaba registrado
+          if (res && res.success == 1 && res.duplicate == 1) {
+            feedbackScan(false); // sonido diferente
+            swalFire({
+              icon: "info",
+              title: "Ya registrado",
+              text: codeToStore,
+              timer: 700,
+              showConfirmButton: false,
+            });
+            return;
+          }
+
+          // 🔹 Si falla realmente
+          if (!res || res.success != 1) {
+            throw new Error("backend rejected");
+          }
+
+          // 🔹 OK real
           feedbackScan(true);
         } catch (e) {
           console.error("ColectaBulto error:", e);
