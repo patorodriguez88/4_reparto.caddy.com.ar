@@ -308,3 +308,53 @@ body.login-lock {
 .caddy-typing {
   z-index: 10000 !important;
 }
+/* CAMARA: */
+#qr-reader video {
+  width: 100% !important;
+  height: auto !important;
+  object-fit: cover !important;
+}
+/* MOBILE: acercar lupa a campana */
+/* MOBILE: evitar que los badges bajen de línea */
+@media (max-width: 576px) {
+  #navbar .page-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  #navbar .page-title .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+}
+/* COLECTA: contenedor cuadrado (tu stream es 1080x1080) */
+#colecta-qr-reader {
+  width: 100% !important;
+  max-width: 420px;
+  margin: 0 auto;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+
+/* Video ocupa todo el cuadrado */
+#colecta-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block;
+}
+.btn-caddy {
+  background-color: #e24f30;
+  border-color: #e24f30;
+  color: #fff;
+}
+
+.btn-caddy:hover,
+.btn-caddy:focus {
+  background-color: #cf452a;
+  border-color: #cf452a;
+}
