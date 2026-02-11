@@ -497,48 +497,71 @@ function paneles(a, refrescarTotales = false) {
     if (pendientes <= 0) $("#info-alert-modal").modal("hide");
   }
 
+  const tStart = performance.now();
+  console.log("🟦 paneles() start", { search: a, refrescarTotales });
+
   // PANELES HTML
   $.ajax({
     data: { Paneles: 1, search: a },
     type: "POST",
     url: "Proceso/php/funciones_hdr.php",
     dataType: "text",
-    success: function (responseText) {
-      let obj = null;
-      try {
-        obj = JSON.parse(responseText);
-      } catch (e) {}
 
-      if (obj && obj.forceLogout) {
-        cerrarSesionForzada(obj.reason);
-        return;
-      }
-      // Limpio espacios
+    beforeSend: function () {
+      console.log("🟨 Paneles request -> send");
+    },
+
+    success: function (responseText) {
+      const tResponse = performance.now();
+      console.log(
+        "🟩 Paneles response received (ms):",
+        (tResponse - tStart).toFixed(0),
+      );
+
+      // ✅ Limpio espacios
       const limpio = (responseText || "").trim();
 
+      // ✅ Empty state (y OJO: acá también deberías cerrar loader)
       if (!limpio || limpio === "[]" || limpio === "{}") {
-        // 👉 EMPTY STATE
+        const tRender0 = performance.now();
+
         $("#hdractivas")
           .html(
             `
-      <div class="empty-state text-center p-4">
-        <div class="mb-3">
-          <i class="mdi mdi-car-wrench mdi-48px text-muted"></i>
-        </div>
-        <h4 class="text-muted mb-2">Sin envíos por ahora</h4>
-        <p class="text-muted">
-          Todavía no tenés paquetes para retirar ni entregar.<br>
-          Cuando se asignen, van a aparecer automáticamente acá.
-        </p>
-      </div>
-    `,
+            <div class="empty-state text-center p-4">
+              <div class="mb-3">
+                <i class="mdi mdi-car-wrench mdi-48px text-muted"></i>
+              </div>
+              <h4 class="text-muted mb-2">Sin envíos por ahora</h4>
+              <p class="text-muted">
+                Todavía no tenés paquetes para retirar ni entregar.<br>
+                Cuando se asignen, van a aparecer automáticamente acá.
+              </p>
+            </div>
+          `,
           )
           .fadeIn();
+
+        console.log(
+          "🟧 Paneles render empty (ms):",
+          (performance.now() - tRender0).toFixed(0),
+        );
         return;
       }
 
-      // $("#hdractivas").html(responseText).fadeIn();
+      // ✅ Render normal
+      const tRender1 = performance.now();
       $("#hdractivas").stop(true, true).show().html(responseText);
+
+      console.log(
+        "🟧 Paneles render html (ms):",
+        (performance.now() - tRender1).toFixed(0),
+      );
+      console.log(
+        "🟦 Paneles total (ms):",
+        (performance.now() - tStart).toFixed(0),
+      );
+
       console.log("hdractivas exists:", $("#hdractivas").length);
       console.log(
         "hdractivas html len:",
@@ -546,57 +569,96 @@ function paneles(a, refrescarTotales = false) {
       );
       console.log("hdractivas visible:", $("#hdractivas").is(":visible"));
     },
+
     error: function (xhr) {
       if (tryHandleForceLogout(xhr)) return;
-
-      console.error("Error Paneles:", xhr.responseText || xhr);
+      console.error("Error Paneles:", xhr.status, xhr.responseText || xhr);
       Swal.fire({
         icon: "error",
         title: "Error",
         text: "No se pudieron cargar los paneles.",
       });
     },
-    complete: doneRequest,
+
+    complete: function () {
+      console.log(
+        "✅ Paneles complete total (ms):",
+        (performance.now() - tStart).toFixed(0),
+      );
+      doneRequest();
+    },
   });
-
-  // TOTALES
-  // $.ajax({
-  //   data: { Datos: 1 },
-  //   type: "POST",
-  //   url: "Proceso/php/funciones.php",
-  //   dataType: "json",
-  //   success: function (jsonData) {
-  //     if (jsonData && jsonData.forceLogout) {
-  //       cerrarSesionForzada(jsonData.reason);
-  //       return;
-  //     }
-
-  //     if (jsonData.success == 1) {
-  //       $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
-  //       $("#badge-total").html(jsonData.Total);
-  //       $("#badge-sinentregar").html(jsonData.Abiertos);
-  //       $("#badge-entregados").html(jsonData.Cerrados);
-  //       $("#hdr,#navbar,#topnav").show();
-  //       asegurarMenuWarehouse();
-  //       $("#login").hide();
-  //     } else {
-  //       console.warn("Datos no OK:", jsonData);
-  //       $("#login").show();
-  //     }
-  //   },
-  //   error: function (xhr) {
-  //     if (tryHandleForceLogout(xhr)) return;
-
-  //     console.error("Error Datos:", xhr.status, xhr.responseText);
-  //     Swal.fire({
-  //       icon: "error",
-  //       title: "Error",
-  //       text: "No se pudieron cargar los datos.",
-  //     });
-  //   },
-  //   complete: doneRequest,
-  // });
 }
+// function paneles(a, refrescarTotales = false) {
+//   let pendientes = refrescarTotales ? 2 : 1;
+
+//   function doneRequest() {
+//     pendientes--;
+//     if (pendientes <= 0) $("#info-alert-modal").modal("hide");
+//   }
+
+//   // PANELES HTML
+//   $.ajax({
+//     data: { Paneles: 1, search: a },
+//     type: "POST",
+//     url: "Proceso/php/funciones_hdr.php",
+//     dataType: "text",
+//     success: function (responseText) {
+//       let obj = null;
+//       try {
+//         obj = JSON.parse(responseText);
+//       } catch (e) {}
+
+//       if (obj && obj.forceLogout) {
+//         cerrarSesionForzada(obj.reason);
+//         return;
+//       }
+//       // Limpio espacios
+//       const limpio = (responseText || "").trim();
+
+//       if (!limpio || limpio === "[]" || limpio === "{}") {
+//         // 👉 EMPTY STATE
+//         $("#hdractivas")
+//           .html(
+//             `
+//       <div class="empty-state text-center p-4">
+//         <div class="mb-3">
+//           <i class="mdi mdi-car-wrench mdi-48px text-muted"></i>
+//         </div>
+//         <h4 class="text-muted mb-2">Sin envíos por ahora</h4>
+//         <p class="text-muted">
+//           Todavía no tenés paquetes para retirar ni entregar.<br>
+//           Cuando se asignen, van a aparecer automáticamente acá.
+//         </p>
+//       </div>
+//     `,
+//           )
+//           .fadeIn();
+//         return;
+//       }
+
+//       // $("#hdractivas").html(responseText).fadeIn();
+//       $("#hdractivas").stop(true, true).show().html(responseText);
+//       console.log("hdractivas exists:", $("#hdractivas").length);
+//       console.log(
+//         "hdractivas html len:",
+//         ($("#hdractivas").html() || "").length,
+//       );
+//       console.log("hdractivas visible:", $("#hdractivas").is(":visible"));
+//     },
+//     error: function (xhr) {
+//       if (tryHandleForceLogout(xhr)) return;
+
+//       console.error("Error Paneles:", xhr.responseText || xhr);
+//       Swal.fire({
+//         icon: "error",
+//         title: "Error",
+//         text: "No se pudieron cargar los paneles.",
+//       });
+//     },
+//     complete: doneRequest,
+//   });
+// }
 
 // BOTONERA / DROPZONE
 
