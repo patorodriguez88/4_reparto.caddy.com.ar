@@ -3,10 +3,12 @@
     <head>
         <title>Reparto Caddy | Panel Visual </title>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">       
+        <meta name="viewport" content="width=device-width, initial-scale=1,maximum-scale=1, viewport-fit=cover">       
         <meta content="Sistema de Gestion de envíos Caddy." name="description" />
         <meta content="Coderthemes" name="author" />
         <meta name="theme-color" content="#111827">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
         <link rel="manifest" href="pwa/manifest.webmanifest">
         <!-- App favicon -->
         <link rel="shortcut icon" href="images/favicon.ico">
@@ -55,7 +57,7 @@
                                 </div>
                                 </a>
 
-                                <ul class="list-unstyled topbar-menu mb-0 d-flex align-items-center gap-2">
+                                <ul class="list-unstyled topbar-menu mb-0 d-flex align-items-center gap-0">
                                     <li class="dropdown notification-list mt-0">
                                         <h4 class="page-title mb-0">
                                         <span class="badge bg-warning text-light" id="hdr-header"></span>
@@ -79,16 +81,17 @@
                                         </div>
                                         </div>
                                     </li>
-
-                                <li class="dropdown notification-list">
-                                    <a class="nav-link arrow-none position-relative" href="#" id="btnInstallBell" role="button" aria-label="Instalar app">
-                                    <i class="dripicons-bell noti-icon"></i>
-                                    <span class="noti-icon-badge"></span>
-                                    </a>
-                                </li>
+                                    <li class="dropdown notification-list">
+                                        <a class="nav-link arrow-none" href="#" id="btnInstallBell" role="button" aria-label="Instalar app">
+                                        <i class="dripicons-bell noti-icon"></i>
+                                        <span class="noti-icon-badge"></span>
+                                        </a>
+                                    </li>
                                 </ul>
+                                </div>
+                            </div>
 
-                        </div>
+                        
                     </div>
              
                     <div class="modal" id="colectaScanModal" tabindex="-1" aria-hidden="true">
