@@ -1,4 +1,10 @@
 /* App-like shell */
+button,
+input[type="submit"],
+input[type="button"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
 body {
   padding-bottom: 74px;
 }
@@ -307,4 +313,105 @@ body.login-lock {
 }
 .caddy-typing {
   z-index: 10000 !important;
+}
+/* CAMARA: */
+#qr-reader video {
+  width: 100% !important;
+  height: auto !important;
+  object-fit: cover !important;
+}
+/* MOBILE: acercar lupa a campana */
+/* MOBILE: evitar que los badges bajen de línea */
+@media (max-width: 576px) {
+  #navbar .page-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap; /* ✅ clave: evita salto */
+    white-space: nowrap; /* ✅ */
+    overflow-x: auto; /* ✅ si no entra, scrollea */
+    -webkit-overflow-scrolling: touch;
+    max-width: 60vw; /* ✅ opcional: no invadir iconos derecha */
+  }
+
+  #navbar .page-title::-webkit-scrollbar {
+    display: none;
+  }
+
+  #navbar .page-title .badge {
+    flex: 0 0 auto; /* ✅ no se achican raro */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    white-space: nowrap;
+    font-size: 12px;
+    padding: 0.35rem 0.45rem;
+  }
+}
+/* COLECTA: contenedor cuadrado (tu stream es 1080x1080) */
+/* COLECTA QR: cuadrado pero con tope de altura (iPhone-friendly) */
+#colecta-qr-reader {
+  width: min(92vw, 420px) !important; /* no 100% */
+  margin: 0 auto;
+  aspect-ratio: 1 / 1;
+  max-height: 45dvh; /* ✅ clave (iOS moderno) */
+  height: auto;
+  overflow: hidden;
+  border-radius: 10px; /* opcional */
+}
+
+/* fallback si el navegador no soporta dvh */
+@supports not (height: 1dvh) {
+  #colecta-qr-reader {
+    max-height: 45vh;
+  }
+}
+
+/* Video ocupa todo el cuadro */
+#colecta-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block;
+}
+
+/* Video ocupa todo el cuadrado */
+#colecta-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block;
+}
+.btn-caddy {
+  background-color: #e24f30 !important;
+  border-color: #e24f30 !important;
+  color: #fff !important;
+}
+.btn-caddy:active,
+.btn-caddy:focus,
+.btn-caddy:hover {
+  background-color: #cf452a !important;
+  border-color: #cf452a !important;
+  color: #fff !important;
+}
+#login .btn-caddy {
+  background-color: #e24f30 !important;
+  border-color: #e24f30 !important;
+  color: #fff !important;
+}
+input.btn-caddy {
+  -webkit-appearance: none;
+  appearance: none;
+}
+/* Modal colecta: asegurar que el contenido haga scroll y no tape el footer */
+#colectaScanModal .modal-body {
+  overflow-y: auto;
+  max-height: calc(100dvh - 160px); /* header+footer aprox */
+}
+
+@supports not (height: 1dvh) {
+  #colectaScanModal .modal-body {
+    max-height: calc(100vh - 160px);
+  }
 }

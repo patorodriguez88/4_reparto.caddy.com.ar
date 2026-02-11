@@ -23,48 +23,6 @@
          <link href="../hyper/dist/saas/assets/css/vendor/dropzone.css" rel="stylesheet">
         <link href="css/hdr.css" rel="stylesheet" type="text/css" />
     </head> 
-    <style>
-            #qr-reader video {
-            width: 100% !important;
-            height: auto !important;
-            object-fit: cover !important;
-            }
-            /* MOBILE: acercar lupa a campana */
-            /* MOBILE: evitar que los badges bajen de línea */
-            @media (max-width: 576px) {
-
-            #navbar .page-title {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            white-space: nowrap;
-            }
-
-            #navbar .page-title .badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-            }
-
-            }
-            /* COLECTA: contenedor cuadrado (tu stream es 1080x1080) */
-            #colecta-qr-reader{
-            width: 100% !important;
-            max-width: 420px;
-            margin: 0 auto;
-            aspect-ratio: 1 / 1;
-            overflow: hidden;
-            }
-
-            /* Video ocupa todo el cuadrado */
-            #colecta-qr-reader video{
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-            display: block;
-            }
-    </style>    
 
     <body class="loading" data-layout="topnav" data-layout-config='{"navbar":false,"layoutBoxed":false,"darkMode":false}'>
         <div id="installBanner" style="display:none;" class="card shadow-sm position-fixed bottom-0 start-0 end-0 m-3">
@@ -140,21 +98,18 @@
                                 <h5 class="modal-title">Escanear bulto (colecta)</h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                             </div>
-
                             <div class="modal-body">
                                 <div class="mb-2">
                                 <span class="badge bg-secondary">Esperado:</span>
                                 <span class="badge bg-primary" id="colecta-expected">–</span>
                                 </div>
-
                                 <div id="colecta-feedback" class="mb-2"></div>
-
                                 <div id="colecta-qr-reader"></div>
                             </div>
 
                             <div class="modal-footer">
-                                <button type="button" class="btn btn-danger" id="btnStopColectaScan">Detener</button>
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                <button type="button" class="btn btn-warning" id="btnValidarFaltantes">Validar faltantes</button>                                
+                                <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Cerrar</button>
                             </div>
                             </div>
                         </div>
@@ -209,13 +164,13 @@
                     </div><!-- /.modal-dialog -->
                 </div><!-- /.modal -->
                  <!--LOGIN-->
-           <div id="login" class="account-pages" style="display:none">
-            <div class="login-wrapper">
-             <div class="login-card">
-                        <div class="card">
+                <div id="login" class="account-pages" style="display:none">
+                    <div class="login-wrapper bg-white;">
+                        <div class="login-card" >
+                            <div class="card">
 
                             <!-- Logo -->
-                            <div class="card-header pt-4 pb-4 text-center bg-white">
+                            <div class="card-header pt-4 pb-4 text-center bg-white" >
                                 <a href="">
                                     <span><img src="images/LogoCaddy.png" alt="" height="88"></span>
                                 </a>
@@ -234,7 +189,6 @@
                                             Looks good!
                                         </div>  
                                   </div>
-
                                     <div class="mb-3">
                                         <label for="password" class="form-label">Contraseña</label>
                                         <div class="input-group input-group-merge">
@@ -244,12 +198,12 @@
                                             </div>
                                         </div>
                                     </div>
-
                                     <div class="mb-3 mb-0 text-center">
-                                      <!-- <a class="btn btn-primary" id="ingreso"> Ingresar </a> -->
-                                      <button type="button" class="btn btn-primary" id="ingreso">Ingresar</button>
+                                      <div class="d-grid mt-4">   
+                                        <button type="submit" class="btn btn-caddy w-100"  id="ingreso">Ingresar</button>                                     
+                                        
+                                        </div>                                      
                                     </div>
-
                                 </form>
                             </div> <!-- end card-body -->
                         </div>
