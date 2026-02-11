@@ -162,6 +162,34 @@
     return scannerStopPromise;
   }
 
+  function feedbackScan() {
+    // Vibración (si el navegador lo permite)
+    if (navigator.vibrate) {
+      navigator.vibrate(120);
+    }
+
+    // Beep corto usando Web Audio
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.value = 1200; // tono agudo
+      gainNode.gain.value = 0.15;
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.12); // 120ms
+    } catch (e) {
+      console.warn("Audio no permitido", e);
+    }
+  }
+
   async function startColectaScanner() {
     if (!("Html5Qrcode" in window)) {
       swalFire({
@@ -400,6 +428,7 @@
         try {
           res = await postColectaBulto(base, scannedToken);
           if (!res || res.success != 1) throw new Error("backend rejected");
+          feedbackScan();
         } catch (e) {
           console.error("ColectaBulto error:", e);
           swalFire({
