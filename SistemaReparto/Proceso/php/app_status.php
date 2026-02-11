@@ -1,91 +1,98 @@
 <?php
+// SistemaReparto/Proceso/php/app_status.php
+declare(strict_types=1);
+
 header('Content-Type: application/json; charset=utf-8');
-date_default_timezone_set('America/Argentina/Buenos_Aires');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 require_once "../../Conexion/conexioni.php";
 
+function responder(array $arr, int $code = 200): void
+{
+    http_response_code($code);
+    echo json_encode($arr, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$raw = file_get_contents("php://input");
+$data = json_decode($raw ?: '', true);
+
+if (!is_array($data)) {
+    responder(['success' => 0, 'error' => 'INVALID_JSON'], 400);
+}
+
+// ✅ Si querés permitir app_status SIN sesión, comentá este bloque.
+// Yo lo dejaría con sesión, así te sirve para auditar y detectar caídas.
+$usuario = $_SESSION['Usuario'] ?? '';
+$userId  = (int)($_SESSION['idUsuario'] ?? 0);
+
+if ($usuario === '' && $userId <= 0) {
+    responder(['success' => 0, 'forceLogout' => 1, 'reason' => 'NO_SESSION'], 401);
+}
+
+// payload
+$app         = trim((string)($data['app'] ?? ''));
+$version     = trim((string)($data['version'] ?? ''));
+$deviceId    = trim((string)($data['device_id'] ?? ''));
+$isStandalone = !empty($data['is_standalone']) ? 1 : 0;
+$platform    = trim((string)($data['platform'] ?? ''));
+$ua          = trim((string)($data['ua'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? '')));
+$ip          = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+$now         = date('Y-m-d H:i:s');
+
+if ($app === '' || $deviceId === '') {
+    responder(['success' => 0, 'error' => 'MISSING_APP_OR_DEVICE'], 400);
+}
 
 try {
-    $raw = file_get_contents('php://input');
-    $data = json_decode($raw, true);
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-    if (!is_array($data)) {
-        http_response_code(400);
-        echo json_encode(['success' => 0, 'error' => 'JSON inválido']);
-        exit;
-    }
+    // ✅ Tabla sugerida: AppDevices (si no existe, podés crearla)
+    // Si NO querés DB ahora, comentá el bloque INSERT/UPDATE y devolvé success=1.
 
-    $appName      = isset($data['app']) ? trim((string)$data['app']) : 'reparto';
-    $deviceId     = isset($data['device_id']) ? trim((string)$data['device_id']) : '';
-    $isStandalone = !empty($data['is_standalone']) ? 1 : 0;
-    $platform     = isset($data['platform']) ? trim((string)$data['platform']) : null;
-    $appVersion   = isset($data['version']) ? trim((string)$data['version']) : null;
+    // 1) Crear tabla (una vez) - te dejo el SQL aparte abajo
+    // 2) Upsert por deviceId+app
 
-    if ($deviceId === '' || strlen($deviceId) < 10) {
-        http_response_code(422);
-        echo json_encode(['success' => 0, 'error' => 'device_id requerido']);
-        exit;
-    }
-
-    // Si tenés login, guardá el ID de usuario real desde sesión
-    // Ajustá el nombre del índice según tu sistema:
-    $userId = null;
-    if (isset($_SESSION['idusuario'])) {
-        $userId = (int)$_SESSION['idusuario'];
-    } elseif (isset($_SESSION['id'])) {
-        $userId = (int)$_SESSION['id'];
-    }
-
-    $now = date('Y-m-d H:i:s');
-    $ip  = $_SERVER['REMOTE_ADDR'] ?? null;
-    $ua  = $_SERVER['HTTP_USER_AGENT'] ?? null;
-
-    // UPSERT: si existe DeviceId+AppName → update, si no → insert
-    $sql = "
-        INSERT INTO AppInstalls
-            (UserId, DeviceId, AppName, Platform, IsStandalone, AppVersion, FirstSeen, LastSeen, LastIp, LastUserAgent)
-        VALUES
-            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    $stmt = $mysqli->prepare("
+        INSERT INTO AppDevices
+        (app, device_id, user_id, usuario, version, is_standalone, platform, ua, ip, last_seen)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
-            UserId = COALESCE(VALUES(UserId), UserId),
-            Platform = VALUES(Platform),
-            IsStandalone = VALUES(IsStandalone),
-            AppVersion = VALUES(AppVersion),
-            LastSeen = VALUES(LastSeen),
-            LastIp = VALUES(LastIp),
-            LastUserAgent = VALUES(LastUserAgent)
-    ";
-
-    $stmt = $mysqli->prepare($sql);
-    if (!$stmt) {
-        throw new Exception('Prepare failed: ' . $mysqli->error);
-    }
+          user_id=VALUES(user_id),
+          usuario=VALUES(usuario),
+          version=VALUES(version),
+          is_standalone=VALUES(is_standalone),
+          platform=VALUES(platform),
+          ua=VALUES(ua),
+          ip=VALUES(ip),
+          last_seen=VALUES(last_seen)
+    ");
 
     $stmt->bind_param(
-        "issssissss",
-        $userId,
+        "ssississss",
+        $app,
         $deviceId,
-        $appName,
-        $platform,
+        $userId,
+        $usuario,
+        $version,
         $isStandalone,
-        $appVersion,
-        $now,
-        $now,
+        $platform,
+        $ua,
         $ip,
-        $ua
+        $now
     );
+    $stmt->execute();
 
-    if (!$stmt->execute()) {
-        throw new Exception('Execute failed: ' . $stmt->error);
-    }
-
-    echo json_encode([
+    responder([
         'success' => 1,
-        'installed' => (bool)$isStandalone,
+        'installed' => ($isStandalone === 1),
         'userId' => $userId,
         'deviceId' => $deviceId
     ]);
 } catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['success' => 0, 'error' => $e->getMessage()]);
+    responder(['success' => 0, 'error' => 'APP_STATUS_ERROR', 'detail' => $e->getMessage()], 500);
 }
