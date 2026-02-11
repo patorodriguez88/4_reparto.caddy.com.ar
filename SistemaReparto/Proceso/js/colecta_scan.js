@@ -395,23 +395,28 @@
         }
 
         // 6️⃣ guardar y mostrar
-        codigosEscaneados.add(codeToStore);
-        addToSelect2(codeToStore);
-        if (esModoColecta()) {
-          const faltan = getFaltantesColecta().length;
-          $("#colecta-faltan").text(faltan); // si tenés un span
-        }
-        // guardar en backend
+        // 6️⃣ guardar en backend PRIMERO (autoridad)
+        let res;
         try {
-          await postColectaBulto(base, scannedToken);
+          res = await postColectaBulto(base, scannedToken);
+          if (!res || res.success != 1) throw new Error("backend rejected");
         } catch (e) {
           console.error("ColectaBulto error:", e);
           swalFire({
             icon: "error",
             title: "No se pudo registrar",
-            text: "Se leyó el QR pero no se pudo guardar el bulto en el sistema.",
+            text: "Ese código no pertenece a la colecta o no se pudo guardar.",
           });
           return;
+        }
+
+        // recién acá lo damos por válido en UI
+        codigosEscaneados.add(codeToStore);
+        addToSelect2(codeToStore);
+
+        if (esModoColecta()) {
+          const faltan = getFaltantesColecta().length;
+          $("#colecta-faltan").text(faltan);
         }
 
         // 7️⃣ feedback (en colecta usamos total global)
@@ -566,6 +571,39 @@
   $(document).on("shown.bs.modal", "#colectaScanModal", async function () {
     console.log("✅ MODAL shown -> startColectaScanner()");
 
+    // 🔒 COLECTA: evitar carga manual de códigos en Select2
+    (function lockSelect2ManualInput() {
+      const $sel = $("#prueba");
+      if (!$sel.length) return;
+
+      // 1) si tenés select2 con tags, lo más seguro es deshabilitar el search input
+      const s2 = $sel.data("select2");
+      if (s2 && s2.$dropdown) {
+        s2.$dropdown.find(".select2-search__field").prop("disabled", true);
+      }
+
+      // 2) bloquear teclado (por si select2 usa el search dentro del container)
+      $(document).off("keydown.colectaLock", ".select2-search__field");
+      $(document).on(
+        "keydown.colectaLock",
+        ".select2-search__field",
+        function (e) {
+          e.preventDefault();
+          return false;
+        },
+      );
+
+      // 3) si alguien pega o intenta escribir, lo cortamos
+      $(document).off("input.colectaLock", ".select2-search__field");
+      $(document).on(
+        "input.colectaLock",
+        ".select2-search__field",
+        function () {
+          $(this).val("");
+        },
+      );
+    })();
+
     await startColectaScanner();
     // DEBUG: esperar a que aparezca el <video> real y loguear resolución / settings
     (function waitVideoAndLog() {
@@ -598,5 +636,8 @@
   $(document).on("hidden.bs.modal", "#colectaScanModal", function () {
     document.body.style.overflowY = "auto";
     document.body.style.webkitOverflowScrolling = "touch";
+    // 🔓 liberar handlers de lock
+    $(document).off("keydown.colectaLock", ".select2-search__field");
+    $(document).off("input.colectaLock", ".select2-search__field");
   });
 })();
