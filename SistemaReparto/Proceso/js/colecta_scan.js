@@ -278,22 +278,28 @@
           }
         }
 
-        // 2️⃣ VALIDACIÓN DE BASE
+        // 2️⃣ VALIDACIÓN DE BASE / PERTENENCIA (COLECTA + ENVÍO)
         if (esModoColecta()) {
-          if (!jsonId) {
-            const svc = getServicioEsperadoPorBase(base);
-            if (!svc) {
-              swalFire({
-                icon: "error",
-                title: "Servicio fuera de la colecta",
-                text: `El servicio ${base} no pertenece a esta colecta.`,
-                timer: 1400,
-                showConfirmButton: false,
-              });
-              return;
-            }
+          // En colecta validamos pertenencia siempre:
+          // - Si viene JSON, usamos jsonId como base a chequear
+          // - Si no, usamos base
+          const baseCheck = jsonId
+            ? String(jsonId).trim()
+            : String(base).trim();
+          const svc = getServicioEsperadoPorBase(baseCheck);
+
+          if (!svc) {
+            swalFire({
+              icon: "error",
+              title: "Servicio fuera de la colecta",
+              text: `El servicio ${baseCheck} no pertenece a esta colecta.`,
+              timer: 1400,
+              showConfirmButton: false,
+            });
+            return;
           }
         } else {
+          // En modo envío normal
           if (!jsonId && base !== expectedBase) {
             swalFire({
               icon: "error",
@@ -306,6 +312,7 @@
           }
         }
 
+        // 3️⃣ VALIDACIÓN DE CANTIDAD
         let paquetesSvc = 1;
         if (esModoColecta()) {
           if (!jsonId) {
@@ -425,29 +432,6 @@
         });
       };
 
-      // ---------------------------
-      // Config cámara
-      // ---------------------------
-      // const configHiRes = {
-      //   fps: 15,
-      //   qrbox: { width: 280, height: 280 },
-      //   aspectRatio: 1,
-      //   disableFlip: true,
-      //   experimentalFeatures: { useBarCodeDetectorIfSupported: false },
-      //   videoConstraints: {
-      //     facingMode: "environment",
-      //     width: { min: 1280, ideal: 1920 },
-      //     height: { min: 720, ideal: 1080 },
-      //     advanced: [{ focusMode: "continuous" }],
-      //   },
-      // };
-
-      // await colectaQr.start(
-      //   { facingMode: "environment" },
-      //   configHiRes,
-      //   onSuccess,
-      //   () => {},
-      // );
       // ---------------------------
       // Config cámara (iPhone-safe + fallback)
       // ---------------------------
