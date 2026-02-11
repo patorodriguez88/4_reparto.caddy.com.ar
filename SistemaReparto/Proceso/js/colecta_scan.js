@@ -3,7 +3,9 @@
   let colectaQr = null;
   let colectaLast = "";
   let colectaLastT = 0;
-
+  let scannerStopPromise = Promise.resolve();
+  let scannerStarting = false;
+  let scannerStopping = false;
   const codigosEscaneados = new Set(); // guarda BASE_1, BASE_2, etc.
   function swalFire(opts) {
     if (window.Swal && Swal.fire) return Swal.fire(opts);
@@ -27,6 +29,42 @@
         (s) => String(s.cs_base).trim() === String(base).trim(),
       ) || null
     );
+  }
+  function buildExpectedCodesForColecta() {
+    const exp = getColectaExpected();
+    if (!exp || !Array.isArray(exp.servicios_detalle)) return [];
+
+    const out = [];
+    exp.servicios_detalle.forEach((s) => {
+      const base = String(s.cs_base || "").trim();
+      if (!base) return;
+
+      const paquetes = parseInt(s.paquetes || 1, 10) || 1;
+      if (paquetes <= 1) {
+        out.push(base);
+      } else {
+        for (let i = 1; i <= paquetes; i++) out.push(`${base}_${i}`);
+      }
+    });
+
+    return out;
+  }
+
+  function getNextPendingExpectedCodeForColecta() {
+    const expected = buildExpectedCodesForColecta();
+    if (!expected.length) return "";
+
+    // lo ya escaneado: tu set + select2
+    const scanned = new Set(codigosEscaneados);
+    (getSelectedValues() || []).forEach((v) => scanned.add(v));
+
+    // devolvemos el primero pendiente
+    const next = expected.find((c) => !scanned.has(c));
+    return next || "";
+  }
+
+  function getTotalExpectedQtyForColecta() {
+    return buildExpectedCodesForColecta().length || 0;
   }
   function getExpectedBase() {
     // card-seguimiento puede venir BASE o BASE_1
@@ -56,6 +94,18 @@
   function getSelectedValues() {
     const v = $("#prueba").val();
     return Array.isArray(v) ? v : [];
+  }
+  function getFaltantesColecta() {
+    const expected = buildExpectedCodesForColecta();
+    const scanned = new Set();
+
+    // set interno
+    codigosEscaneados.forEach((v) => scanned.add(String(v)));
+
+    // select2 por si ya estaba cargado antes
+    (getSelectedValues() || []).forEach((v) => scanned.add(String(v)));
+
+    return expected.filter((c) => !scanned.has(c));
   }
   // function postColectaBulto(base, token, cantidad = 1) {
   //   const idColecta = esModoColecta()
@@ -98,13 +148,35 @@
     });
   }
   async function stopScanner() {
-    try {
-      if (colectaQr) {
-        await colectaQr.stop();
-        await colectaQr.clear();
-        colectaQr = null;
+    // try {
+    //   if (colectaQr) {
+    //     await colectaQr.stop();
+    //     await colectaQr.clear();
+    //     colectaQr = null;
+    //   }
+    // } catch (e) {}
+    // Encolamos el stop para evitar transiciones superpuestas
+    scannerStopPromise = scannerStopPromise.then(async () => {
+      if (scannerStopping) return;
+      scannerStopping = true;
+
+      try {
+        if (colectaQr) {
+          // stop() a veces explota si ya está detenido: lo envolvemos
+          try {
+            await colectaQr.stop();
+          } catch (e) {}
+          try {
+            await colectaQr.clear();
+          } catch (e) {}
+          colectaQr = null;
+        }
+      } finally {
+        scannerStopping = false;
       }
-    } catch (e) {}
+    });
+
+    return scannerStopPromise;
   }
 
   async function startColectaScanner() {
@@ -117,304 +189,266 @@
       return;
     }
 
-    await stopScanner();
-    colectaQr = new Html5Qrcode("colecta-qr-reader");
+    // ✅ esperar cualquier stop en curso
+    await scannerStopPromise;
 
-    const expectedBase = getExpectedBase();
-    const qtyExpected = getCantidadEsperada();
+    // ✅ evitar doble start
+    if (scannerStarting) return;
+    scannerStarting = true;
 
-    // Mostrar esperado en el modal (si tenés esos spans)
-    $("#colecta-expected").text(expectedBase || "—");
-    $("#colecta-expected-qty").text(qtyExpected || 1);
+    try {
+      // ✅ siempre frenar/limpiar antes de iniciar
+      await stopScanner();
 
-    const config = {
-      fps: 12,
-      qrbox: { width: 320, height: 320 },
-      aspectRatio: 1,
-    };
-    function extraerIdDesdeJson(raw) {
-      const t = (raw || "").trim();
-      if (!t.startsWith("{") || !t.endsWith("}")) return null;
-      try {
-        const obj = JSON.parse(t);
-        return obj?.id ? String(obj.id).trim() : null;
-      } catch (e) {
-        return null;
-      }
-    }
+      colectaQr = new Html5Qrcode("colecta-qr-reader");
 
-    const onSuccess = async (decodedText) => {
-      const raw = (decodedText || "").trim();
-      if (!raw) return;
+      // ---------------------------
+      // UI: esperado
+      // ---------------------------
+      let expectedDisplay = "";
+      let qtyExpected = 1;
 
-      // anti-rebote
-      const now = Date.now();
-      if (raw === colectaLast && now - colectaLastT < 900) return;
-      colectaLast = raw;
-      colectaLastT = now;
-
-      const expectedBase = ($("#card-seguimiento").text() || "")
-        .trim()
-        .split("_")[0]
-        .trim();
-
-      let qtyExpected =
-        parseInt(($("#card-receptor-cantidad").text() || "1").trim(), 10) || 1;
-
-      // 🔎 Detectar QR JSON
-      const jsonId = extraerIdDesdeJson(raw);
-
-      let scannedToken = raw; // lo que queda en Observaciones
-      let base = "";
-      let esQRML = false;
-
-      let hasN = false;
-
-      if (jsonId) {
-        esQRML = true;
-
-        // 🟢 QR de MercadoLibre (JSON)
-        scannedToken = jsonId; // auditoría
-        base = jsonId; // backend resuelve shipments_id → CodigoSeguimiento
-        // qtyExpected = 1; // por ahora siempre 1
-        // hasN = false;
-      } else {
-        // 🟢 QR normal (BASE o BASE_2)
-        base = raw.split("_")[0].trim();
-        hasN = raw.includes("_");
-      }
-
-      // 1️⃣ validar que haya envío abierto
-      if (!expectedBase) {
-        swalFire({
-          icon: "warning",
-          title: "Sin envío",
-          text: "Abrí un envío antes de escanear.",
-        });
-        return;
-      }
-
-      // 2️⃣ VALIDACIÓN DE BASE
       if (esModoColecta()) {
-        // En colecta: la base debe existir en servicios_detalle
-        if (!jsonId) {
-          const svc = getServicioEsperadoPorBase(base);
-          if (!svc) {
-            swalFire({
-              icon: "error",
-              title: "Servicio fuera de la colecta",
-              text: `El servicio ${base} no pertenece a esta colecta.`,
-              timer: 1400,
-              showConfirmButton: false,
-            });
-            return;
-          }
-        }
+        const expectedList = buildExpectedCodesForColecta();
+        qtyExpected = expectedList.length || 1;
+        expectedDisplay = `${qtyExpected} PAQUETES TOTAL`;
       } else {
-        // En retiro normal: base debe coincidir con expectedBase
-        if (!jsonId && base !== expectedBase) {
-          swalFire({
-            icon: "error",
-            title: "Código incorrecto",
-            text: `Escaneaste ${base} y se esperaba ${expectedBase}`,
-            timer: 1400,
-            showConfirmButton: false,
-          });
-          return;
-        }
+        expectedDisplay = getExpectedBase();
+        qtyExpected = getCantidadEsperada();
       }
-      let paquetesSvc = 1; // default
-      // 3️⃣ múltiples bultos → exigir sufijo
-      if (esModoColecta()) {
-        if (!jsonId) {
-          const svc = getServicioEsperadoPorBase(base);
-          paquetesSvc = parseInt(svc?.paquetes || 1, 10) || 1;
-          if (paquetesSvc > 1 && !hasN) {
-            swalFire({
-              icon: "info",
-              title: "Falta el sufijo",
-              text: `Para el servicio ${base} necesitás ${base}_1 / ${base}_2 / ...`,
-              timer: 1400,
-              showConfirmButton: false,
-            });
-            return;
-          }
-        }
-      } else {
-        // Retiro normal
-        if (!jsonId && qtyExpected > 1 && !hasN) {
-          swalFire({
-            icon: "info",
-            title: "Falta el sufijo",
-            text: "Para este envío necesitás escanear BASE_1 / BASE_2 / BASE_3…",
-            timer: 1400,
-            showConfirmButton: false,
-          });
-          return;
-        }
-      }
-      // ✅ NUEVO: validar rango del sufijo _n SOLO en COLECTA y QR normal
-      if (esModoColecta() && !jsonId) {
-        if (paquetesSvc > 1) {
-          const parts = raw.split("_");
-          const suf = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
 
-          if (!Number.isInteger(suf) || suf < 1 || suf > paquetesSvc) {
+      $("#colecta-expected").text(expectedDisplay || "—");
+      $("#colecta-expected-qty").text(qtyExpected || 1);
+
+      // ---------------------------
+      // Helpers + callback
+      // ---------------------------
+      function extraerIdDesdeJson(raw) {
+        const t = (raw || "").trim();
+        if (!t.startsWith("{") || !t.endsWith("}")) return null;
+        try {
+          const obj = JSON.parse(t);
+          return obj?.id ? String(obj.id).trim() : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      const onSuccess = async (decodedText) => {
+        const raw = (decodedText || "").trim();
+        if (!raw) return;
+
+        // anti-rebote
+        const now = Date.now();
+        if (raw === colectaLast && now - colectaLastT < 900) return;
+        colectaLast = raw;
+        colectaLastT = now;
+
+        const expectedBase = ($("#card-seguimiento").text() || "")
+          .trim()
+          .split("_")[0]
+          .trim();
+
+        let qtyExpectedLocal =
+          parseInt(($("#card-receptor-cantidad").text() || "1").trim(), 10) ||
+          1;
+
+        const jsonId = extraerIdDesdeJson(raw);
+
+        let scannedToken = raw;
+        let base = "";
+        let esQRML = false;
+        let hasN = false;
+
+        if (jsonId) {
+          esQRML = true;
+          scannedToken = jsonId;
+          base = jsonId;
+        } else {
+          base = raw.split("_")[0].trim();
+          hasN = raw.includes("_");
+        }
+
+        // ✅ validar "hay colecta" o "hay envio"
+        if (esModoColecta()) {
+          const exp = getColectaExpected();
+          if (
+            !exp ||
+            !Array.isArray(exp.servicios_detalle) ||
+            !exp.servicios_detalle.length
+          ) {
             swalFire({
-              icon: "error",
-              title: "Bulto inválido",
-              text: `Para ${base} sólo se permiten ${base}_1 … ${base}_${paquetesSvc}`,
-              timer: 1600,
-              showConfirmButton: false,
+              icon: "warning",
+              title: "Sin colecta",
+              text: "Abrí una colecta antes de escanear.",
             });
             return;
           }
         } else {
-          // paquetesSvc === 1 → NO debería venir con _n
-          if (hasN) {
+          if (!expectedBase) {
+            swalFire({
+              icon: "warning",
+              title: "Sin envío",
+              text: "Abrí un envío antes de escanear.",
+            });
+            return;
+          }
+        }
+
+        // 2️⃣ VALIDACIÓN DE BASE
+        if (esModoColecta()) {
+          if (!jsonId) {
+            const svc = getServicioEsperadoPorBase(base);
+            if (!svc) {
+              swalFire({
+                icon: "error",
+                title: "Servicio fuera de la colecta",
+                text: `El servicio ${base} no pertenece a esta colecta.`,
+                timer: 1400,
+                showConfirmButton: false,
+              });
+              return;
+            }
+          }
+        } else {
+          if (!jsonId && base !== expectedBase) {
             swalFire({
               icon: "error",
-              title: "Bulto inválido",
-              text: `El servicio ${base} tiene 1 bulto. Escaneá ${base} (sin sufijo).`,
-              timer: 1600,
+              title: "Código incorrecto",
+              text: `Escaneaste ${base} y se esperaba ${expectedBase}`,
+              timer: 1400,
               showConfirmButton: false,
             });
             return;
           }
         }
-      }
 
-      // 4️⃣ normalización del código a guardar
-      let codeToStore;
+        let paquetesSvc = 1;
+        if (esModoColecta()) {
+          if (!jsonId) {
+            const svc = getServicioEsperadoPorBase(base);
+            paquetesSvc = parseInt(svc?.paquetes || 1, 10) || 1;
 
-      if (jsonId) {
-        // ML: guardamos el identificador (por ahora)
-        codeToStore = base;
-      } else if (esModoColecta()) {
-        const svc = getServicioEsperadoPorBase(base);
-        const paquetesSvc = parseInt(svc?.paquetes || 1, 10) || 1;
-
-        codeToStore = paquetesSvc <= 1 ? base : raw;
-      } else {
-        // Retiro normal
-        codeToStore = qtyExpected <= 1 ? expectedBase : raw;
-      }
-
-      // 5️⃣ anti-duplicado
-      if (codigosEscaneados.has(codeToStore)) {
-        swalFire({
-          icon: "info",
-          title: "Ya escaneado",
-          text: codeToStore,
-          timer: 900,
-          showConfirmButton: false,
-        });
-        return;
-      }
-
-      // 6️⃣ guardar y mostrar
-      codigosEscaneados.add(codeToStore);
-      addToSelect2(codeToStore);
-
-      if (esQRML && qtyExpected > 1) {
-        Swal.fire({
-          icon: "question",
-          title: "Confirmar cantidad de bultos",
-          html: `
-      <p>Este envío indica <b>${qtyExpected}</b> bultos.</p>
-      <p>¿Cuántos tenés físicamente?</p>
-      <input 
-        type="number" 
-        id="confirmQty" 
-        class="swal2-input"
-        min="1"
-        max="${qtyExpected}"
-        value="${qtyExpected}">
-    `,
-          showCancelButton: true,
-          confirmButtonText: "Confirmar",
-          cancelButtonText: "Cancelar",
-          preConfirm: () => {
-            const v = parseInt(document.getElementById("confirmQty").value, 10);
-            if (!v || v < 1) {
-              Swal.showValidationMessage("Ingresá una cantidad válida");
-              return false;
+            if (paquetesSvc > 1 && !hasN) {
+              swalFire({
+                icon: "info",
+                title: "Falta el sufijo",
+                text: `Para el servicio ${base} necesitás ${base}_1 / ${base}_2 / ...`,
+                timer: 1400,
+                showConfirmButton: false,
+              });
+              return;
             }
-            return v;
-          },
-        }).then(async (res) => {
-          if (!res.isConfirmed) return;
+          }
+        } else {
+          if (!jsonId && qtyExpectedLocal > 1 && !hasN) {
+            swalFire({
+              icon: "info",
+              title: "Falta el sufijo",
+              text: "Para este envío necesitás escanear BASE_1 / BASE_2 / BASE_3…",
+              timer: 1400,
+              showConfirmButton: false,
+            });
+            return;
+          }
+        }
 
-          const cantidadConfirmada = parseInt(res.value, 10) || 0;
+        // rango _n en colecta
+        if (esModoColecta() && !jsonId) {
+          if (paquetesSvc > 1) {
+            const parts = raw.split("_");
+            const suf = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
+            if (!Number.isInteger(suf) || suf < 1 || suf > paquetesSvc) {
+              swalFire({
+                icon: "error",
+                title: "Bulto inválido",
+                text: `Para ${base} sólo se permiten ${base}_1 … ${base}_${paquetesSvc}`,
+                timer: 1600,
+                showConfirmButton: false,
+              });
+              return;
+            }
+          } else {
+            if (hasN) {
+              swalFire({
+                icon: "error",
+                title: "Bulto inválido",
+                text: `El servicio ${base} tiene 1 bulto. Escaneá ${base} (sin sufijo).`,
+                timer: 1600,
+                showConfirmButton: false,
+              });
+              return;
+            }
+          }
+        }
 
-          // ✅ 1) Setear primero el modo ML
-          window.colectaML = window.colectaML || {};
-          window.colectaML.confirmedQty = cantidadConfirmada;
-          window.colectaML.isML = true;
+        // 4️⃣ normalización del código a guardar
+        let codeToStore;
+        if (jsonId) {
+          codeToStore = base;
+        } else if (esModoColecta()) {
+          codeToStore = paquetesSvc <= 1 ? base : raw;
+        } else {
+          codeToStore = qtyExpectedLocal <= 1 ? expectedBase : raw;
+        }
 
-          // ✅ 2) Guardar en backend
-          await postColectaBulto(base, scannedToken, cantidadConfirmada);
-
-          // ✅ 3) Refrescar UI
-          actualizarEstadoCantidadPickup();
-
-          // ✅ 4) Mostrar en badges
-          $("#totalt").text(cantidadConfirmada);
-          $("#badge-items, #items_badge").text(cantidadConfirmada);
-
-          Swal.fire({
-            icon: "success",
-            title: "Colecta registrada",
-            text: `Cantidad confirmada: ${cantidadConfirmada}`,
-            timer: 1200,
+        // 5️⃣ anti-duplicado
+        if (codigosEscaneados.has(codeToStore)) {
+          swalFire({
+            icon: "info",
+            title: "Ya escaneado",
+            text: codeToStore,
+            timer: 900,
             showConfirmButton: false,
           });
-        });
+          return;
+        }
 
-        return; // ⛔ IMPORTANTE: cortamos acá
-      }
+        // 6️⃣ guardar y mostrar
+        codigosEscaneados.add(codeToStore);
+        addToSelect2(codeToStore);
 
-      try {
-        await postColectaBulto(base, scannedToken);
-      } catch (e) {
-        console.error("ColectaBulto error:", e);
+        // guardar en backend
+        try {
+          await postColectaBulto(base, scannedToken);
+        } catch (e) {
+          console.error("ColectaBulto error:", e);
+          swalFire({
+            icon: "error",
+            title: "No se pudo registrar",
+            text: "Se leyó el QR pero no se pudo guardar el bulto en el sistema.",
+          });
+          return;
+        }
+
+        // 7️⃣ feedback (en colecta usamos total global)
+        const cargados = $("#prueba").val()?.length || 0;
+        const totalEsperado = esModoColecta()
+          ? buildExpectedCodesForColecta().length || 0
+          : qtyExpectedLocal;
+
         swalFire({
-          icon: "error",
-          title: "No se pudo registrar",
-          text: "Se leyó el QR pero no se pudo guardar el bulto en el sistema.",
+          icon: "success",
+          title: "OK",
+          text: `Cargado ${cargados}/${totalEsperado}`,
+          timer: 650,
+          showConfirmButton: false,
         });
-        return;
-      }
+      };
 
-      // 7️⃣ feedback
-      const cargados = $("#prueba").val()?.length || 0;
-
-      swalFire({
-        icon: "success",
-        title: "OK",
-        text: `Cargado ${cargados}/${qtyExpected}`,
-        timer: 650,
-        showConfirmButton: false,
-      });
-    };
-    try {
-      // ⛔ En iOS, elegir cam.id puede agarrar ultra-wide o low-res.
-      // ✅ Forzamos environment + mínimos de resolución.
+      // ---------------------------
+      // Config cámara
+      // ---------------------------
       const configHiRes = {
         fps: 15,
         qrbox: { width: 280, height: 280 },
         aspectRatio: 1,
         disableFlip: true,
-        // probá primero OFF para evitar pipelines raros en iOS
         experimentalFeatures: { useBarCodeDetectorIfSupported: false },
         videoConstraints: {
           facingMode: "environment",
-
-          // ✅ esto evita que caiga a 640x480
           width: { min: 1280, ideal: 1920 },
           height: { min: 720, ideal: 1080 },
-
-          // iOS puede ignorar, pero no molesta
           advanced: [{ focusMode: "continuous" }],
         },
       };
@@ -426,14 +460,14 @@
         () => {},
       );
 
-      // Ajuste visual del video + debug de resolución real
+      // Ajuste visual del video
       setTimeout(() => {
         const v = document.querySelector("#colecta-qr-reader video");
         if (v) {
           v.setAttribute("playsinline", "true");
           v.setAttribute("webkit-playsinline", "true");
           v.style.width = "100%";
-          v.style.height = "100%"; // <-- clave (NO auto)
+          v.style.height = "100%";
           v.style.objectFit = "cover";
           v.style.display = "block";
         }
@@ -445,128 +479,36 @@
         title: "Cámara",
         text: "No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).",
       });
+    } finally {
+      scannerStarting = false;
     }
-    // try {
-    //   const cams = await Html5Qrcode.getCameras();
-    //   if (cams && cams.length) {
-    //     const cam = cams[cams.length - 1];
-    //     await colectaQr.start(
-    //       { deviceId: { exact: cam.id } },
-    //       config,
-    //       onSuccess,
-    //       () => {},
-    //     );
-    //   } else {
-    //     await colectaQr.start(
-    //       { facingMode: "environment" },
-    //       config,
-    //       onSuccess,
-    //       () => {},
-    //     );
-    //   }
-    // } catch (e) {
-    //   console.error(e);
-    //   swalFire({
-    //     icon: "error",
-    //     title: "Cámara",
-    //     text: "No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).",
-    //   });
-    // }
-    // try {
-    //   const cams = await Html5Qrcode.getCameras();
-
-    //   const pickBackCam = (cams) => {
-    //     if (!cams || !cams.length) return null;
-
-    //     // iOS: labels pueden venir vacíos hasta que el permiso está otorgado
-    //     const hasLabels = cams.some((c) => (c.label || "").trim().length > 0);
-    //     if (!hasLabels) return null;
-
-    //     const byLabel =
-    //       cams.find((c) => /back|rear|environment/i.test(c.label)) ||
-    //       cams.find((c) => /iphone.*back/i.test(c.label)) ||
-    //       null;
-
-    //     return byLabel || cams[cams.length - 1];
-    //   };
-
-    //   const cam = pickBackCam(cams);
-
-    //   const configHiRes = {
-    //     fps: 15,
-    //     qrbox: { width: 280, height: 280 },
-    //     aspectRatio: 1,
-    //     disableFlip: true,
-    //     experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-    //     videoConstraints: {
-    //       facingMode: { ideal: "environment" },
-    //       width: { ideal: 1920 },
-    //       height: { ideal: 1080 },
-    //       frameRate: { ideal: 30, max: 30 },
-    //     },
-    //   };
-
-    //   if (cam && cam.id) {
-    //     await colectaQr.start(cam.id, configHiRes, onSuccess, () => {});
-    //     setTimeout(() => {
-    //       const v = document.querySelector("#colecta-qr-reader video");
-    //       if (!v) return;
-
-    //       console.log("VIDEO size:", v.videoWidth, v.videoHeight);
-
-    //       const stream = v.srcObject;
-    //       if (stream && stream.getVideoTracks && stream.getVideoTracks()[0]) {
-    //         const track = stream.getVideoTracks()[0];
-    //         console.log("TRACK settings:", track.getSettings());
-    //         console.log("TRACK capabilities:", track.getCapabilities?.());
-    //       }
-    //     }, 800);
-    //   } else {
-    //     await colectaQr.start(
-    //       { facingMode: "environment" },
-    //       configHiRes,
-    //       onSuccess,
-    //       () => {},
-    //     );
-    //   }
-
-    //   // setTimeout(() => {
-    //   //   const host = document.getElementById("colecta-qr-reader");
-    //   //   if (host) {
-    //   //     host.style.width = "100%";
-    //   //     host.style.height = "60vh";
-    //   //     host.style.overflow = "hidden";
-    //   //   }
-
-    //   //   const v = document.querySelector("#colecta-qr-reader video");
-    //   //   if (v) {
-    //   //     v.setAttribute("playsinline", "true");
-    //   //     v.setAttribute("webkit-playsinline", "true");
-    //   //     v.style.width = "100%";
-    //   //     v.style.height = "100%";
-    //   //     v.style.objectFit = "cover";
-    //   //   }
-    //   // }, 250);
-    //   setTimeout(() => {
-    //     const v = document.querySelector("#colecta-qr-reader video");
-    //     if (v) {
-    //       v.setAttribute("playsinline", "true");
-    //       v.setAttribute("webkit-playsinline", "true");
-    //       v.style.width = "100%";
-    //       v.style.height = "100%";
-    //       v.style.objectFit = "cover";
-    //     }
-    //   }, 250);
-    // } catch (e) {
-    //   console.error(e);
-    //   swalFire({
-    //     icon: "error",
-    //     title: "Cámara",
-    //     text: "No se pudo abrir la cámara. Revisá permisos (HTTPS o localhost).",
-    //   });
-    // }
   }
+  $(document).on("click", "#btnValidarFaltantes", function () {
+    const faltan = getFaltantesColecta();
 
+    if (!faltan.length) {
+      swalFire({
+        icon: "success",
+        title: "Completo",
+        text: "No falta ningún paquete.",
+        timer: 1200,
+        showConfirmButton: false,
+      });
+      return;
+    }
+
+    // mostrar lista corta o larga
+    const maxShow = 15;
+    const listado = faltan.slice(0, maxShow).join("<br>");
+    const extra =
+      faltan.length > maxShow ? `<br>… y ${faltan.length - maxShow} más` : "";
+
+    Swal.fire({
+      icon: "warning",
+      title: `Faltan ${faltan.length} paquete(s)`,
+      html: `<div style="text-align:left">${listado}${extra}</div>`,
+    });
+  });
   // Abrir modal (sin recrear instancias) + start cuando está visible
   $(document).on("click", "#btnEscanear", function () {
     console.log("✅ Click en #btnEscanear");
@@ -587,6 +529,7 @@
   // Quitar foco ANTES de que bootstrap ponga aria-hidden=true
   $(document).on("hide.bs.modal", "#colectaScanModal", function () {
     document.activeElement?.blur();
+    stopScanner(); // no await (bootstrap no espera), pero queda encolado
   });
 
   // Start scanner cuando el modal terminó de mostrarse
@@ -622,20 +565,24 @@
   });
 
   // Stop al cerrar del todo
-  $(document).on("hidden.bs.modal", "#colectaScanModal", async function () {
-    await stopScanner();
+  $(document).on("hidden.bs.modal", "#colectaScanModal", function () {
     document.body.style.overflowY = "auto";
     document.body.style.webkitOverflowScrolling = "touch";
   });
+  // $(document).on("hidden.bs.modal", "#colectaScanModal", async function () {
+  //   await stopScanner();
+  //   document.body.style.overflowY = "auto";
+  //   document.body.style.webkitOverflowScrolling = "touch";
+  // });
 
   // Stop manual
-  $(document).on("click", "#btnStopColectaScan", async function () {
-    await stopScanner();
-    swalFire({
-      icon: "info",
-      title: "Scanner detenido",
-      timer: 700,
-      showConfirmButton: false,
-    });
-  });
+  // $(document).on("click", "#btnStopColectaScan", async function () {
+  //   await stopScanner();
+  //   swalFire({
+  //     icon: "info",
+  //     title: "Scanner detenido",
+  //     timer: 700,
+  //     showConfirmButton: false,
+  //   });
+  // });
 })();
