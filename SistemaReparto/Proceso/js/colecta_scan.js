@@ -107,24 +107,7 @@
 
     return expected.filter((c) => !scanned.has(c));
   }
-  // function postColectaBulto(base, token, cantidad = 1) {
-  //   const idColecta = esModoColecta()
-  //     ? parseInt(window.idColectaActual, 10) || 0
-  //     : 0;
 
-  //   return $.ajax({
-  //     url: "Proceso/php/colecta_scan.php",
-  //     type: "POST",
-  //     dataType: "json",
-  //     data: {
-  //       ColectaBulto: 1,
-  //       idColecta: idColecta, // 👈 NUEVO
-  //       base: base,
-  //       bulto: token,
-  //       cantidad: cantidad,
-  //     },
-  //   });
-  // }
   function postColectaBulto(base, token, cantidad = 1) {
     const colectaId = esModoColecta()
       ? parseInt(window.idColectaActual, 10) || 0
@@ -407,7 +390,10 @@
         // 6️⃣ guardar y mostrar
         codigosEscaneados.add(codeToStore);
         addToSelect2(codeToStore);
-
+        if (esModoColecta()) {
+          const faltan = getFaltantesColecta().length;
+          $("#colecta-faltan").text(faltan); // si tenés un span
+        }
         // guardar en backend
         try {
           await postColectaBulto(base, scannedToken);
@@ -423,9 +409,12 @@
 
         // 7️⃣ feedback (en colecta usamos total global)
         const cargados = $("#prueba").val()?.length || 0;
-        const totalEsperado = esModoColecta()
-          ? buildExpectedCodesForColecta().length || 0
-          : qtyExpectedLocal;
+        let totalEsperado = qtyExpectedLocal;
+
+        if (esModoColecta()) {
+          const n = buildExpectedCodesForColecta().length;
+          totalEsperado = n > 0 ? n : Math.max(cargados, 1); // fallback razonable
+        }
 
         swalFire({
           icon: "success",
@@ -510,20 +499,28 @@
     });
   });
   // Abrir modal (sin recrear instancias) + start cuando está visible
-  $(document).on("click", "#btnEscanear", function () {
-    console.log("✅ Click en #btnEscanear");
+  $(document).on("click", "#btnEscanear", async function () {
+    const $btn = $(this);
+    if ($btn.data("busy")) return;
+    $btn.data("busy", 1).prop("disabled", true);
 
-    const modalEl = document.getElementById("colectaScanModal");
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    try {
+      // Esperar a que termine cualquier stop pendiente antes de abrir
+      await scannerStopPromise;
 
-    // reconstruyo el set a partir de lo que ya hay cargado en select2
-    codigosEscaneados.clear();
-    (getSelectedValues() || []).forEach((v) => codigosEscaneados.add(v));
+      const modalEl = document.getElementById("colectaScanModal");
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
-    colectaLast = "";
-    colectaLastT = 0;
+      codigosEscaneados.clear();
+      (getSelectedValues() || []).forEach((v) => codigosEscaneados.add(v));
 
-    modal.show();
+      colectaLast = "";
+      colectaLastT = 0;
+
+      modal.show();
+    } finally {
+      $btn.data("busy", 0).prop("disabled", false);
+    }
   });
 
   // Quitar foco ANTES de que bootstrap ponga aria-hidden=true
@@ -569,20 +566,4 @@
     document.body.style.overflowY = "auto";
     document.body.style.webkitOverflowScrolling = "touch";
   });
-  // $(document).on("hidden.bs.modal", "#colectaScanModal", async function () {
-  //   await stopScanner();
-  //   document.body.style.overflowY = "auto";
-  //   document.body.style.webkitOverflowScrolling = "touch";
-  // });
-
-  // Stop manual
-  // $(document).on("click", "#btnStopColectaScan", async function () {
-  //   await stopScanner();
-  //   swalFire({
-  //     icon: "info",
-  //     title: "Scanner detenido",
-  //     timer: 700,
-  //     showConfirmButton: false,
-  //   });
-  // });
 })();
