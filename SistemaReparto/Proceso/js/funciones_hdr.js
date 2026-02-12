@@ -21,25 +21,7 @@ function doLogout() {
     },
   });
 }
-// function cargarMisEnvios() {
-//   $.ajax({
-//     data: { MisEnvios: 1 },
-//     type: "POST",
-//     url: "Proceso/php/funciones_hdr.php",
-//     dataType: "json",
-//     success: function (jsonData) {
-//       if (jsonData && jsonData.success == 1) {
-//         $("#mis_envios_total").html(jsonData.Total);
-//         $("#mis_noenvios_total").html(jsonData.Totalno);
-//       } else {
-//         console.warn("MisEnvios no OK:", jsonData);
-//       }
-//     },
-//     error: function (xhr, status, error) {
-//       console.error("Error MisEnvios:", status, error, xhr.responseText);
-//     },
-//   });
-// }
+
 function cargarCuentaHTML() {
   return $.ajax({
     data: { MisEnviosHTML: 1 },
@@ -66,60 +48,6 @@ function cargarCuentaHTML() {
     cuenta: "#screen-cuenta",
   };
 
-  // function showScreen(key) {
-  //   $(".app-screen").removeClass("active").hide();
-
-  //   const sel = screenMap[key] || screenMap.operacion;
-  //   if (!$(sel).length) {
-  //     console.warn("Screen no existe:", key, sel);
-  //     return;
-  //   }
-
-  //   $(sel).addClass("active").show();
-
-  //   $(".app-bottomnav .nav-item").removeClass("active");
-  //   $(`.app-bottomnav .nav-item[data-screen="${key}"]`).addClass("active");
-
-  //   if (key === "totales") {
-  //     const $tpl = $("#mis_envios");
-  //     const $dst = $("#mis_envios_clone");
-  //     if ($tpl.length && $dst.length) $dst.empty().append($tpl.clone(true, true).children());
-  //     cargarMisEnvios();
-  //   }
-
-  //   if (key === "cuenta") {
-  //     const $tpl = $("#mis_envios");
-  //     const $dst = $("#mis_envios_cuenta");
-  //     if ($tpl.length && $dst.length) $dst.empty().append($tpl.clone(true, true).children());
-  //     cargarMisEnvios();
-  //   }
-  // }
-
-  // function showScreen(key) {
-  //   $(".app-screen").removeClass("active").hide();
-
-  //   const realKey = screenMap[key] ? key : "operacion";
-  //   const sel = screenMap[realKey];
-
-  //   $(sel).addClass("active").show();
-
-  //   $(".app-bottomnav .nav-item").removeClass("active");
-  //   $(`.app-bottomnav .nav-item[data-screen="${realKey}"]`).addClass("active");
-
-  //   if (key === "totales") {
-  //     const $tpl = $("#mis_envios");
-  //     const $dst = $("#mis_envios_clone");
-  //     if ($tpl.length && $dst.length) $dst.empty().append($tpl.clone(true, true).children());
-  //     cargarMisEnvios();
-  //   }
-
-  //   if (key === "cuenta") {
-  //     const $tpl = $("#mis_envios");
-  //     const $dst = $("#mis_envios_cuenta");
-  //     if ($tpl.length && $dst.length) $dst.empty().append($tpl.clone(true, true).children());
-  //     cargarMisEnvios();
-  //   }
-  // }
   function showScreen(key) {
     // 1) Apago TODAS las screens
     $(".app-screen").removeClass("active").hide();
@@ -150,12 +78,6 @@ function cargarCuentaHTML() {
       // cargarMisEnvios();
     }
 
-    // if (realKey === "cuenta") {
-    //   const $tpl = $("#mis_envios");
-    //   const $dst = $("#mis_envios_cuenta");
-    //   if ($tpl.length && $dst.length) $dst.empty().append($tpl.children().clone(true, true));
-    //   cargarMisEnvios();
-    // }
     if (realKey === "cuenta") {
       cargarCuentaHTML();
     }
@@ -467,54 +389,6 @@ function asegurarMenuWarehouse() {
   // });
 }
 
-// MI CUENTA
-// $("#mi_cuenta").on("click", function () {
-//   // Cierro el menú colapsable si está abierto
-//   let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
-//   if (closeMenu) closeMenu.click();
-
-//   $("#mis_envios").show();
-//   $("#hdractivas").hide();
-
-//   $.ajax({
-//     data: { MisEnvios: 1 },
-//     type: "POST",
-//     url: "Proceso/php/funciones_hdr.php", // PHP que devuelve JSON
-//     dataType: "json",
-//     beforeSend: function () {
-//       // $("#info-alert-modal-header").html("Cargando datos...");
-//       // $("#info-alert-modal").modal("show");
-//     },
-//     success: function (jsonData) {
-//       if (jsonData.success == 1) {
-//         $("#mis_envios_total").html(jsonData.Total);
-//         $("#mis_noenvios_total").html(jsonData.Totalno);
-//       } else {
-//         console.warn("MisEnvios no OK:", jsonData);
-//         // Podés mostrar un aviso suave si querés
-//         // alert(jsonData.error || "No se pudieron cargar tus envíos.");
-//       }
-//     },
-//     error: function (xhr, status, error) {
-//       console.error("Error MisEnvios:", status, error, xhr.responseText);
-//       alert("No se pudieron cargar tus envíos. Probá de nuevo.");
-//     },
-//     complete: function () {
-//       // 🔴 SE EJECUTA SIEMPRE, HAYA ÉXITO O ERROR (inclusive parsererror)
-//       $("#info-alert-modal").modal("hide");
-//     },
-//   });
-// });
-
-// MI RECORRIDO
-// $("#mi_recorrido").click(function () {
-//   let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
-//   if (closeMenu) closeMenu.click();
-
-//   $("#mis_envios").hide();
-//   $("#hdractivas").show();
-// });
-
 // NO DESPLEGAR EL MENU EN SELECT2 (ITEMS)
 $("#prueba").on("select2:unselecting", function () {
   var opts = $(this).data("select2").options;
@@ -644,7 +518,6 @@ $("#salir").click(function () {
     url: "../../SistemaReparto/Conexion/admision.php",
     beforeSend: function () {
       $("#info-alert-modal-header").html("Cerrando Sesión...");
-      // $("#info-alert-modal").modal("show");
     },
     success: function () {
       $("#hdr").hide();
@@ -795,76 +668,6 @@ function paneles(a, refrescarTotales = false) {
     },
   });
 }
-// function paneles(a, refrescarTotales = false) {
-//   let pendientes = refrescarTotales ? 2 : 1;
-
-//   function doneRequest() {
-//     pendientes--;
-//     if (pendientes <= 0) $("#info-alert-modal").modal("hide");
-//   }
-
-//   // PANELES HTML
-//   $.ajax({
-//     data: { Paneles: 1, search: a },
-//     type: "POST",
-//     url: "Proceso/php/funciones_hdr.php",
-//     dataType: "text",
-//     success: function (responseText) {
-//       let obj = null;
-//       try {
-//         obj = JSON.parse(responseText);
-//       } catch (e) {}
-
-//       if (obj && obj.forceLogout) {
-//         cerrarSesionForzada(obj.reason);
-//         return;
-//       }
-//       // Limpio espacios
-//       const limpio = (responseText || "").trim();
-
-//       if (!limpio || limpio === "[]" || limpio === "{}") {
-//         // 👉 EMPTY STATE
-//         $("#hdractivas")
-//           .html(
-//             `
-//       <div class="empty-state text-center p-4">
-//         <div class="mb-3">
-//           <i class="mdi mdi-car-wrench mdi-48px text-muted"></i>
-//         </div>
-//         <h4 class="text-muted mb-2">Sin envíos por ahora</h4>
-//         <p class="text-muted">
-//           Todavía no tenés paquetes para retirar ni entregar.<br>
-//           Cuando se asignen, van a aparecer automáticamente acá.
-//         </p>
-//       </div>
-//     `,
-//           )
-//           .fadeIn();
-//         return;
-//       }
-
-//       // $("#hdractivas").html(responseText).fadeIn();
-//       $("#hdractivas").stop(true, true).show().html(responseText);
-//       console.log("hdractivas exists:", $("#hdractivas").length);
-//       console.log(
-//         "hdractivas html len:",
-//         ($("#hdractivas").html() || "").length,
-//       );
-//       console.log("hdractivas visible:", $("#hdractivas").is(":visible"));
-//     },
-//     error: function (xhr) {
-//       if (tryHandleForceLogout(xhr)) return;
-
-//       console.error("Error Paneles:", xhr.responseText || xhr);
-//       Swal.fire({
-//         icon: "error",
-//         title: "Error",
-//         text: "No se pudieron cargar los paneles.",
-//       });
-//     },
-//     complete: doneRequest,
-//   });
-// }
 
 // BOTONERA / DROPZONE
 
