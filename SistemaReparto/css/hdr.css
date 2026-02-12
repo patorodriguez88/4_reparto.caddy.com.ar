@@ -11,8 +11,23 @@ body {
 .app-main {
   min-height: calc(100vh - 74px);
 }
-
+:root {
+  --caddy-orange: #e24f30;
+}
 /* Bottom nav (mobile-app feel) */
+.botonera-icon:active {
+  transform: scale(0.95);
+}
+/* Estado activo de botón de la botonera */
+.botonera-icon {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.botonera-icon.active {
+  color: var(--caddy-orange) !important;
+  transform: scale(1.15);
+}
 .app-bottomnav {
   position: fixed;
   left: 0;
@@ -21,7 +36,7 @@ body {
   height: 59px;
   display: flex;
   justify-content: space-around;
-  background: rgba(78, 77, 77, 0.96);
+  background: rgba(161, 159, 159, 0.96);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   z-index: 1050;

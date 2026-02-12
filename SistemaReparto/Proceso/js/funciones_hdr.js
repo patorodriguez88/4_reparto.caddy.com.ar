@@ -1,3 +1,11 @@
+$(".botonera-icon").on("click", function () {
+  // sacamos activo de todos
+  $(".botonera-icon").removeClass("active");
+
+  // activamos el clickeado
+  $(this).addClass("active");
+});
+
 // puente simple: botón salir dentro de Cuenta
 $(document).on("click", "#btnCuentaSalir", function () {
   $("#salir").trigger("click");
@@ -51,7 +59,7 @@ function cargarCuentaHTML() {
   function showScreen(key) {
     // 1) Apago TODAS las screens
     $(".app-screen").removeClass("active").hide();
-
+    $(".botonera-icon").removeClass("active");
     // 2) Apago SIEMPRE los elementos que pueden quedar “colgados”
     $("#hdractivas").hide();
     $("#card-envio").hide();
