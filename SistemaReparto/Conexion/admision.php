@@ -179,6 +179,24 @@ try {
         $numeroOrden = '';
     }
 
+
+    // DEBUG: ver si existe la fila con un SELECT relajado
+    $test = $mysqli->prepare("
+  SELECT id, idUsuarioChofer, Estado, Eliminado, Recorrido, NumerodeOrden
+  FROM Logistica
+  WHERE idUsuarioChofer = ?
+  ORDER BY id DESC
+  LIMIT 5
+");
+    $test->bind_param("i", $idUsuario);
+    $test->execute();
+    $rtest = $test->get_result();
+    $rowsTest = [];
+    while ($x = $rtest->fetch_assoc()) $rowsTest[] = $x;
+    $test->close();
+    $debug['logistica_rows_para_ese_id'] = $rowsTest;
+
+
     // -----------------------
     // SESIÓN
     // -----------------------
@@ -225,7 +243,8 @@ try {
         'codigos'   => $rows,
         'recorrido' => $recorridoAsignado,
         'norden'    => $numeroOrden,
-        'usuario'   => $nombreCompleto
+        'usuario'   => $nombreCompleto,
+        'debug'     => $debug
     ]);
 } catch (Throwable $e) {
     // ✅ Si algo explota, devolvemos JSON y no HTML
