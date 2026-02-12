@@ -430,3 +430,33 @@ input.btn-caddy {
     max-height: calc(100vh - 160px);
   }
 }
+/* BottomNav: estado activo con naranja Caddy */
+.app-bottomnav .nav-item {
+  transition:
+    transform 0.12s ease,
+    color 0.12s ease;
+}
+
+.app-bottomnav .nav-item i {
+  transition:
+    transform 0.12s ease,
+    color 0.12s ease,
+    filter 0.12s ease;
+}
+
+/* Cuando está activo (persistente) */
+.app-bottomnav .nav-item.active i {
+  color: var(--caddy-orange) !important;
+  transform: translateY(-1px) scale(1.08);
+  filter: drop-shadow(0 2px 6px rgba(226, 79, 48, 0.35));
+}
+
+/* Si también querés el texto naranja (opcional) */
+.app-bottomnav .nav-item.active span {
+  color: var(--caddy-orange) !important;
+}
+
+/* Feedback táctil al presionar */
+.app-bottomnav .nav-item:active {
+  transform: scale(0.96);
+}
