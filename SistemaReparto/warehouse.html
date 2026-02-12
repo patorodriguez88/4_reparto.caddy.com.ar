@@ -18,7 +18,8 @@
         <link href="../hyper/dist/saas/assets/css/icons.min.css" rel="stylesheet" type="text/css" />
         <link href="../hyper/dist/saas/assets/css/app.min.css" rel="stylesheet" type="text/css" id="light-style" />
         <link href="../hyper/dist/saas/assets/css/app-dark.min.css" rel="stylesheet" type="text/css" id="dark-style" />
-    </head>     
+    <link href="css/hdr.css" rel="stylesheet" />
+      </head>     
     <body class="loading" data-layout="topnav" data-layout-config='{"navbar":false,"layoutBoxed":false,"darkMode":false}'>
         <!-- Begin page -->
         <div class="wrapper">
@@ -72,40 +73,40 @@
                             <!-- end Topbar -->
                 
                     <div class="topnav" id="topnav" style="display:none">
-  <div class="container-fluid">
-    <nav class="navbar navbar-dark navbar-expand-lg topnav-menu">
-      <div class="collapse navbar-collapse" id="topnav-menu-content">
-        <ul class="navbar-nav">
+                  <div class="container-fluid">
+                    <nav class="navbar navbar-dark navbar-expand-lg topnav-menu">
+                      <div class="collapse navbar-collapse" id="topnav-menu-content">
+                        <ul class="navbar-nav">
 
-          <li class="nav-item">
-            <a class="nav-link" href="#" id="mi_recorrido">
-              <i class="mdi mdi-map-marker-multiple-outline"></i> Ver Recorrido
-            </a>
-          </li>
+                          <li class="nav-item">
+                            <a class="nav-link" href="#" id="mi_recorrido">
+                              <i class="mdi mdi-map-marker-multiple-outline"></i> Ver Recorrido
+                            </a>
+                          </li>
 
-          <li class="nav-item">
-            <a class="nav-link" href="#" id="cerrar_recorrido">
-              <i class="mdi mdi-map-marker-off-outline"></i> Cerrar Recorrido
-            </a>
-          </li>
+                          <li class="nav-item">
+                            <a class="nav-link" href="#" id="cerrar_recorrido">
+                              <i class="mdi mdi-map-marker-off-outline"></i> Cerrar Recorrido
+                            </a>
+                          </li>
 
-          <li class="nav-item">
-            <a class="nav-link" href="#" id="mi_cuenta">
-              <i class="uil-calender"></i> Mi Cuenta
-            </a>
-          </li>
+                          <li class="nav-item">
+                            <a class="nav-link" href="#" id="mi_cuenta">
+                              <i class="uil-calender"></i> Mi Cuenta
+                            </a>
+                          </li>
 
-          <li class="nav-item">
-            <a class="nav-link text-warning" href="hdr.html" id="salir">
-              <i class="mdi mdi-reply-outline"></i> Salir
-            </a>
-          </li>
+                          <li class="nav-item">
+                            <a class="nav-link text-warning" href="hdr.html" id="salir">
+                              <i class="mdi mdi-reply-outline"></i> Salir
+                            </a>
+                          </li>
 
-        </ul>
-      </div>
-    </nav>
-  </div>
-</div>
+                        </ul>
+                      </div>
+                    </nav>
+                  </div>
+                </div>
                 
                   <div id="info-alert-modal" class="modal fade" data-controls-modal="info-alert-modal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
                     <div class="modal-dialog modal-sm modal-dialog-centered">
@@ -125,6 +126,10 @@
 
                 
               <!-- DESDE ACA -->
+                <div class="col-12 ml-2">
+                  <div class="card tilebox-one">
+                    <div class="card-body">
+
               <div class="row mt-3">
               <div class="col-md-4">
               <div class="card">
@@ -161,11 +166,11 @@
               </div>
               </div>
               </div>
+              </div>
         <div class="d-grid gap-2 mb-3">
           <button class="btn btn-primary btn-lg" onclick="irAScan()">
              <i class="mdi mdi-qrcode-scan"></i> Iniciar escaneo de bultos
           </button>
-        </div>
 
         <button id="btn-stop" class="btn btn-danger" style="display: none">
           Detener
@@ -197,9 +202,47 @@
           Confirmar carga
         </button>
       </div>
+              </div>
+        </div>
+        </div>
+
                <!-- HASTA ACA -->
+<footer class="footer">
+  <div class="container-fluid">
+    <div class="row w-auto">
+      <div class="col-md-12 fixed-bottom">
+        <script>document.write(new Date().getFullYear())</script> © Triangular S.A.
+      </div>
+    </div>
+  </div>
 
+  <nav class="app-bottomnav">
+    <a href="hdr.html#operacion" class="nav-item">
+      <i class="mdi mdi-map-marker-multiple-outline"></i>
+      <span>Recorrido</span>
+    </a>
 
+    <a href="warehouse.html" class="nav-item active">
+      <i class="mdi mdi-qrcode-scan"></i>
+      <span>Warehouse</span>
+    </a>
+
+    <!-- <a href="hdr.html#totales" class="nav-item">
+      <i class="mdi mdi-chart-donut"></i>
+      <span>Totales</span>
+    </a> -->
+
+    <a href="hdr.html#cuenta" class="nav-item">
+      <i class="mdi mdi-account-outline"></i>
+      <span>Cuenta</span>
+    </a>
+
+    <a href="#" class="nav-item" id="wh-salir">
+      <i class="mdi mdi-reply-outline"></i>
+      <span>Salir</span>
+    </a>
+  </nav>
+</footer>
 
               
               <div class="spinner-border avatar-md text-primary" role="status" style="display:none"></div>

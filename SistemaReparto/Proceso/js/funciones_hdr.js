@@ -1,3 +1,144 @@
+// puente simple: botón salir dentro de Cuenta
+$(document).on("click", "#btnCuentaSalir", function () {
+  $("#salir").trigger("click");
+});
+
+function cargarMisEnvios() {
+  $.ajax({
+    data: { MisEnvios: 1 },
+    type: "POST",
+    url: "Proceso/php/funciones_hdr.php",
+    dataType: "json",
+    success: function (jsonData) {
+      if (jsonData && jsonData.success == 1) {
+        $("#mis_envios_total").html(jsonData.Total);
+        $("#mis_noenvios_total").html(jsonData.Totalno);
+      } else {
+        console.warn("MisEnvios no OK:", jsonData);
+      }
+    },
+    error: function (xhr, status, error) {
+      console.error("Error MisEnvios:", status, error, xhr.responseText);
+    },
+  });
+}
+(function () {
+  const screenMap = {
+    recorridos: "#screen-operacion", // ✅ paneles
+    totales: "#screen-totales",
+    cuenta: "#screen-cuenta",
+    // si querés mantener un screen "recorrido" aparte, lo mapeás aquí
+    // recorrido: "#screen-recorrido",
+  };
+  function showScreen(key) {
+    $(".app-screen").removeClass("active").hide();
+
+    const sel = screenMap[key];
+    if (!sel || !$(sel).length) {
+      console.warn("Screen no existe:", key, sel);
+      return;
+    }
+
+    $(sel).addClass("active").show();
+
+    $(".app-bottomnav .nav-item").removeClass("active");
+    $(`.app-bottomnav .nav-item[data-screen="${key}"]`).addClass("active");
+
+    // Totales: clonar + cargar
+    if (key === "totales") {
+      const $tpl = $("#mis_envios"); // template oculto
+      const $dst = $("#mis_envios_clone"); // contenedor visible
+
+      if ($tpl.length && $dst.length) {
+        $dst.empty().append($tpl.clone(true, true).show().children());
+      }
+
+      // Cargar números
+      $.ajax({
+        data: { MisEnvios: 1 },
+        type: "POST",
+        url: "Proceso/php/funciones_hdr.php",
+        dataType: "json",
+        success: function (jsonData) {
+          if (jsonData && jsonData.success == 1) {
+            $("#mis_envios_total").html(jsonData.Total);
+            $("#mis_noenvios_total").html(jsonData.Totalno);
+          } else {
+            console.warn("MisEnvios no OK:", jsonData);
+          }
+        },
+        error: function (xhr, status, error) {
+          console.error("Error MisEnvios:", status, error, xhr.responseText);
+        },
+      });
+      cargarMisEnvios(); // ✅ trae números
+    }
+    // Cuenta
+    if (key === "cuenta") {
+      const $tpl = $("#mis_envios");
+      const $dst = $("#mis_envios_cuenta");
+      if ($tpl.length && $dst.length) {
+        $dst.empty().append($tpl.clone(true, true).show().children());
+      }
+      cargarMisEnvios(); // ✅ trae números
+    }
+  }
+  $(document).on(
+    "click",
+    ".app-bottomnav .nav-item[data-screen]",
+    function (e) {
+      e.preventDefault();
+      const key = $(this).data("screen");
+      location.hash = key;
+      showScreen(key);
+    },
+  );
+  $(document).on(
+    "click",
+    '.app-bottomnav .nav-item[data-action="warehouse"]',
+    function (e) {
+      // si querés que NO navegue por href y use tu función:
+      e.preventDefault();
+      irAWarehouse(); // ✅ tu función que hace window.location.href = "warehouse.html"
+    },
+  );
+  $(function () {
+    const h = (location.hash || "").replace("#", "");
+    showScreen(screenMap[h] ? h : "recorridos");
+  });
+  // navegación por screens
+  $(document).on(
+    "click",
+    ".app-bottomnav .nav-item[data-screen]",
+    function (e) {
+      e.preventDefault();
+      const key = $(this).data("screen");
+      location.hash = key;
+      showScreen(key);
+    },
+  );
+
+  // salir (usa tu función vieja si existe)
+  $(document).on(
+    "click",
+    '.app-bottomnav .nav-item[data-action="logout"]',
+    function (e) {
+      e.preventDefault();
+      if (typeof salir === "function") return salir();
+      // si no, cae en tu #salir click actual
+      $("#salir").trigger("click");
+    },
+  );
+
+  // inicial
+  $(function () {
+    const h = (location.hash || "").replace("#", "");
+    showScreen(screenMap[h] ? h : "operacion");
+  });
+
+  // export opcional si la querés usar desde otras funciones
+  window.showScreen = showScreen;
+})();
 function msgReason(reason) {
   const r = (reason || "").toString().trim().toUpperCase();
 
@@ -160,7 +301,11 @@ function cerrarSesionForzada(reason) {
 
   const texto = msgReason(reason);
 
-  $("#hdr, #navbar, #topnav, #mis_envios, #hdractivas, #card-envio").hide();
+  // $("#hdr, #navbar, #topnav, #mis_envios, #hdractivas, #card-envio").hide();
+  $(
+    "#screen-operacion, #screen-totales, #screen-recorrido, #screen-cuenta, #navbar",
+  ).hide();
+
   $("#login").show();
   $("body").addClass("login-lock");
   $("body").addClass("loading"); // si querés reaprovechar la clase
@@ -174,11 +319,6 @@ function cerrarSesionForzada(reason) {
     forcingLogout = false;
   });
 }
-// function esRetiro() {
-//   // vos ya usás: si dato.Retirado == 0 => RETIRO
-//   // acá lo determinamos por lo que muestra el card-servicio:
-//   return ($("#card-servicio").text() || "").toUpperCase().includes("RETIRO");
-// }
 
 function baseActual() {
   const raw = ($("#card-seguimiento").text() || "").trim();
@@ -273,52 +413,52 @@ function asegurarMenuWarehouse() {
 }
 
 // MI CUENTA
-$("#mi_cuenta").on("click", function () {
-  // Cierro el menú colapsable si está abierto
-  let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
-  if (closeMenu) closeMenu.click();
+// $("#mi_cuenta").on("click", function () {
+//   // Cierro el menú colapsable si está abierto
+//   let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
+//   if (closeMenu) closeMenu.click();
 
-  $("#mis_envios").show();
-  $("#hdractivas").hide();
+//   $("#mis_envios").show();
+//   $("#hdractivas").hide();
 
-  $.ajax({
-    data: { MisEnvios: 1 },
-    type: "POST",
-    url: "Proceso/php/funciones_hdr.php", // PHP que devuelve JSON
-    dataType: "json",
-    beforeSend: function () {
-      // $("#info-alert-modal-header").html("Cargando datos...");
-      // $("#info-alert-modal").modal("show");
-    },
-    success: function (jsonData) {
-      if (jsonData.success == 1) {
-        $("#mis_envios_total").html(jsonData.Total);
-        $("#mis_noenvios_total").html(jsonData.Totalno);
-      } else {
-        console.warn("MisEnvios no OK:", jsonData);
-        // Podés mostrar un aviso suave si querés
-        // alert(jsonData.error || "No se pudieron cargar tus envíos.");
-      }
-    },
-    error: function (xhr, status, error) {
-      console.error("Error MisEnvios:", status, error, xhr.responseText);
-      alert("No se pudieron cargar tus envíos. Probá de nuevo.");
-    },
-    complete: function () {
-      // 🔴 SE EJECUTA SIEMPRE, HAYA ÉXITO O ERROR (inclusive parsererror)
-      $("#info-alert-modal").modal("hide");
-    },
-  });
-});
+//   $.ajax({
+//     data: { MisEnvios: 1 },
+//     type: "POST",
+//     url: "Proceso/php/funciones_hdr.php", // PHP que devuelve JSON
+//     dataType: "json",
+//     beforeSend: function () {
+//       // $("#info-alert-modal-header").html("Cargando datos...");
+//       // $("#info-alert-modal").modal("show");
+//     },
+//     success: function (jsonData) {
+//       if (jsonData.success == 1) {
+//         $("#mis_envios_total").html(jsonData.Total);
+//         $("#mis_noenvios_total").html(jsonData.Totalno);
+//       } else {
+//         console.warn("MisEnvios no OK:", jsonData);
+//         // Podés mostrar un aviso suave si querés
+//         // alert(jsonData.error || "No se pudieron cargar tus envíos.");
+//       }
+//     },
+//     error: function (xhr, status, error) {
+//       console.error("Error MisEnvios:", status, error, xhr.responseText);
+//       alert("No se pudieron cargar tus envíos. Probá de nuevo.");
+//     },
+//     complete: function () {
+//       // 🔴 SE EJECUTA SIEMPRE, HAYA ÉXITO O ERROR (inclusive parsererror)
+//       $("#info-alert-modal").modal("hide");
+//     },
+//   });
+// });
 
 // MI RECORRIDO
-$("#mi_recorrido").click(function () {
-  let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
-  if (closeMenu) closeMenu.click();
+// $("#mi_recorrido").click(function () {
+//   let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
+//   if (closeMenu) closeMenu.click();
 
-  $("#mis_envios").hide();
-  $("#hdractivas").show();
-});
+//   $("#mis_envios").hide();
+//   $("#hdractivas").show();
+// });
 
 // NO DESPLEGAR EL MENU EN SELECT2 (ITEMS)
 $("#prueba").on("select2:unselecting", function () {
@@ -395,7 +535,8 @@ function initApp() {
       }
       // ✅ Hay sesión -> arrancamos
       if (jsonData && jsonData.success == 1) {
-        $("#hdr,#navbar,#topnav").show();
+        // $("#hdr,#navbar,#topnav").show();
+        $("#screen-operacion,#navbar,#topnav").show();
         $("#login").hide();
         $("body").removeClass("login-lock");
         // 🔓 habilitar scroll (mobile fix)
@@ -1142,7 +1283,8 @@ $(document).on("click", "#ingreso", function (e) {
 
       if (jsonData && jsonData.success == 1) {
         $("#login").hide();
-        $("#hdr,#navbar,#topnav").show();
+        // $("#hdr,#navbar,#topnav").show();
+        $("#screen-operacion,#navbar,#topnav").show();
         $("body").removeClass("login-lock");
         $("#hdractivas").show();
         $("#mis_envios").hide();
