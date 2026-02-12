@@ -16,8 +16,7 @@
 
   function isStandaloneMode() {
     return (
-      (window.matchMedia &&
-        window.matchMedia("(display-mode: standalone)").matches) ||
+      (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
       window.navigator.standalone === true
     );
   }
@@ -55,9 +54,7 @@
 
       // ⚠️ Si el server devolvió HTML (login/redirect/error), lo detectamos y no seguimos
       if (t.startsWith("<!DOCTYPE") || t.startsWith("<html")) {
-        console.warn(
-          "⚠️ app_status devolvió HTML (no JSON). Posible sesión caída/redirect.",
-        );
+        console.warn("⚠️ app_status devolvió HTML (no JSON). Posible sesión caída/redirect.");
         // Si querés: recargar o ignorar. Yo prefiero ignorar para no molestar.
         return;
       }

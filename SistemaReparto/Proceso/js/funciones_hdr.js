@@ -697,6 +697,11 @@ function paneles(a, refrescarTotales = false) {
   const tStart = performance.now();
   console.log("🟦 paneles() start", { search: a, refrescarTotales });
 
+  $("#hdractivas").html(`<div class="p-3 text-center text-muted">
+                          <div class="spinner-border" role="status"></div>
+                          <div class="mt-2">Cargando envíos...</div>
+                        </div>`);
+
   // PANELES HTML
   $.ajax({
     data: { Paneles: 1, search: a },
