@@ -178,7 +178,10 @@ try {
         $recorridoAsignado = '';
         $numeroOrden = '';
     }
+    $dbRow = $mysqli->query("SELECT DATABASE() AS db, @@hostname AS host, @@port AS port")->fetch_assoc();
 
+    $debug['db'] = $dbRow;
+    $debug['mysqli_host_info'] = $mysqli->host_info;
 
     // DEBUG: ver si existe la fila con un SELECT relajado
     $test = $mysqli->prepare("
