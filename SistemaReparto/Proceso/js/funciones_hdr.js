@@ -2,142 +2,204 @@
 $(document).on("click", "#btnCuentaSalir", function () {
   $("#salir").trigger("click");
 });
-
-function cargarMisEnvios() {
+function doLogout() {
   $.ajax({
-    data: { MisEnvios: 1 },
+    data: { Salir: 1 },
     type: "POST",
-    url: "Proceso/php/funciones_hdr.php",
-    dataType: "json",
-    success: function (jsonData) {
-      if (jsonData && jsonData.success == 1) {
-        $("#mis_envios_total").html(jsonData.Total);
-        $("#mis_noenvios_total").html(jsonData.Totalno);
-      } else {
-        console.warn("MisEnvios no OK:", jsonData);
-      }
+    url: "../../SistemaReparto/Conexion/admision.php",
+    beforeSend: function () {
+      $("#info-alert-modal-header").html("Cerrando Sesión...");
+    },
+    success: function () {
+      $("#hdr, #navbar, #topnav, #screen-operacion, #screen-totales, #screen-cuenta").hide();
+      $("#login").show();
+      $("#info-alert-modal").modal("hide");
     },
     error: function (xhr, status, error) {
-      console.error("Error MisEnvios:", status, error, xhr.responseText);
+      $("#info-alert-modal").modal("hide");
+      console.error("Error cerrar sesión:", status, error, xhr.responseText);
+    },
+  });
+}
+// function cargarMisEnvios() {
+//   $.ajax({
+//     data: { MisEnvios: 1 },
+//     type: "POST",
+//     url: "Proceso/php/funciones_hdr.php",
+//     dataType: "json",
+//     success: function (jsonData) {
+//       if (jsonData && jsonData.success == 1) {
+//         $("#mis_envios_total").html(jsonData.Total);
+//         $("#mis_noenvios_total").html(jsonData.Totalno);
+//       } else {
+//         console.warn("MisEnvios no OK:", jsonData);
+//       }
+//     },
+//     error: function (xhr, status, error) {
+//       console.error("Error MisEnvios:", status, error, xhr.responseText);
+//     },
+//   });
+// }
+function cargarCuentaHTML() {
+  return $.ajax({
+    data: { MisEnviosHTML: 1 },
+    type: "POST",
+    url: "Proceso/php/funciones_hdr.php",
+    dataType: "text",
+    success: function (html) {
+      $("#mis_envios_cuenta").html(html);
+    },
+    error: function (xhr) {
+      if (xhr.status === 401) {
+        cerrarSesionForzada("SESSION_EXPIRED");
+        return;
+      }
+      $("#mis_envios_cuenta").html(`<div class="alert alert-danger">No se pudo cargar Cuenta.</div>`);
+      console.error("CuentaHTML error:", xhr.status, xhr.responseText);
     },
   });
 }
 (function () {
   const screenMap = {
-    recorridos: "#screen-operacion", // ✅ paneles
+    operacion: "#screen-operacion",
     totales: "#screen-totales",
     cuenta: "#screen-cuenta",
-    // si querés mantener un screen "recorrido" aparte, lo mapeás aquí
-    // recorrido: "#screen-recorrido",
   };
+
+  // function showScreen(key) {
+  //   $(".app-screen").removeClass("active").hide();
+
+  //   const sel = screenMap[key] || screenMap.operacion;
+  //   if (!$(sel).length) {
+  //     console.warn("Screen no existe:", key, sel);
+  //     return;
+  //   }
+
+  //   $(sel).addClass("active").show();
+
+  //   $(".app-bottomnav .nav-item").removeClass("active");
+  //   $(`.app-bottomnav .nav-item[data-screen="${key}"]`).addClass("active");
+
+  //   if (key === "totales") {
+  //     const $tpl = $("#mis_envios");
+  //     const $dst = $("#mis_envios_clone");
+  //     if ($tpl.length && $dst.length) $dst.empty().append($tpl.clone(true, true).children());
+  //     cargarMisEnvios();
+  //   }
+
+  //   if (key === "cuenta") {
+  //     const $tpl = $("#mis_envios");
+  //     const $dst = $("#mis_envios_cuenta");
+  //     if ($tpl.length && $dst.length) $dst.empty().append($tpl.clone(true, true).children());
+  //     cargarMisEnvios();
+  //   }
+  // }
+
+  // function showScreen(key) {
+  //   $(".app-screen").removeClass("active").hide();
+
+  //   const realKey = screenMap[key] ? key : "operacion";
+  //   const sel = screenMap[realKey];
+
+  //   $(sel).addClass("active").show();
+
+  //   $(".app-bottomnav .nav-item").removeClass("active");
+  //   $(`.app-bottomnav .nav-item[data-screen="${realKey}"]`).addClass("active");
+
+  //   if (key === "totales") {
+  //     const $tpl = $("#mis_envios");
+  //     const $dst = $("#mis_envios_clone");
+  //     if ($tpl.length && $dst.length) $dst.empty().append($tpl.clone(true, true).children());
+  //     cargarMisEnvios();
+  //   }
+
+  //   if (key === "cuenta") {
+  //     const $tpl = $("#mis_envios");
+  //     const $dst = $("#mis_envios_cuenta");
+  //     if ($tpl.length && $dst.length) $dst.empty().append($tpl.clone(true, true).children());
+  //     cargarMisEnvios();
+  //   }
+  // }
   function showScreen(key) {
+    // 1) Apago TODAS las screens
     $(".app-screen").removeClass("active").hide();
 
-    const sel = screenMap[key];
-    if (!sel || !$(sel).length) {
-      console.warn("Screen no existe:", key, sel);
-      return;
-    }
+    // 2) Apago SIEMPRE los elementos que pueden quedar “colgados”
+    $("#hdractivas").hide();
+    $("#card-envio").hide();
+    // 3) Determino screen real
+    const realKey = screenMap[key] ? key : "operacion";
+    const sel = screenMap[realKey];
 
+    // 4) Muestro la screen pedida
     $(sel).addClass("active").show();
 
+    // 5) Activo nav
     $(".app-bottomnav .nav-item").removeClass("active");
-    $(`.app-bottomnav .nav-item[data-screen="${key}"]`).addClass("active");
+    $(`.app-bottomnav .nav-item[data-screen="${realKey}"]`).addClass("active");
 
-    // Totales: clonar + cargar
-    if (key === "totales") {
-      const $tpl = $("#mis_envios"); // template oculto
-      const $dst = $("#mis_envios_clone"); // contenedor visible
-
-      if ($tpl.length && $dst.length) {
-        $dst.empty().append($tpl.clone(true, true).show().children());
-      }
-
-      // Cargar números
-      $.ajax({
-        data: { MisEnvios: 1 },
-        type: "POST",
-        url: "Proceso/php/funciones_hdr.php",
-        dataType: "json",
-        success: function (jsonData) {
-          if (jsonData && jsonData.success == 1) {
-            $("#mis_envios_total").html(jsonData.Total);
-            $("#mis_noenvios_total").html(jsonData.Totalno);
-          } else {
-            console.warn("MisEnvios no OK:", jsonData);
-          }
-        },
-        error: function (xhr, status, error) {
-          console.error("Error MisEnvios:", status, error, xhr.responseText);
-        },
-      });
-      cargarMisEnvios(); // ✅ trae números
+    // 6) Acciones por screen
+    if (realKey === "operacion") {
+      $("#hdractivas").show(); // ✅ solo acá se ven paneles
     }
-    // Cuenta
-    if (key === "cuenta") {
+
+    if (realKey === "totales") {
       const $tpl = $("#mis_envios");
-      const $dst = $("#mis_envios_cuenta");
-      if ($tpl.length && $dst.length) {
-        $dst.empty().append($tpl.clone(true, true).show().children());
-      }
-      cargarMisEnvios(); // ✅ trae números
+      const $dst = $("#mis_envios_clone");
+      if ($tpl.length && $dst.length) $dst.empty().append($tpl.children().clone(true, true));
+      // cargarMisEnvios();
     }
+
+    // if (realKey === "cuenta") {
+    //   const $tpl = $("#mis_envios");
+    //   const $dst = $("#mis_envios_cuenta");
+    //   if ($tpl.length && $dst.length) $dst.empty().append($tpl.children().clone(true, true));
+    //   cargarMisEnvios();
+    // }
+    if (realKey === "cuenta") {
+      cargarCuentaHTML();
+    }
+    // DEBUG útil
+    console.log("showScreen:", realKey, {
+      operacionVisible: $("#screen-operacion").is(":visible"),
+      cuentaVisible: $("#screen-cuenta").is(":visible"),
+      hdractivasVisible: $("#hdractivas").is(":visible"),
+    });
   }
-  $(document).on(
-    "click",
-    ".app-bottomnav .nav-item[data-screen]",
-    function (e) {
-      e.preventDefault();
-      const key = $(this).data("screen");
-      location.hash = key;
-      showScreen(key);
-    },
-  );
-  $(document).on(
-    "click",
-    '.app-bottomnav .nav-item[data-action="warehouse"]',
-    function (e) {
-      // si querés que NO navegue por href y use tu función:
-      e.preventDefault();
-      irAWarehouse(); // ✅ tu función que hace window.location.href = "warehouse.html"
-    },
-  );
-  $(function () {
-    const h = (location.hash || "").replace("#", "");
-    showScreen(screenMap[h] ? h : "recorridos");
+
+  // click bottom nav
+  $(document).on("click", ".app-bottomnav .nav-item[data-screen]", function (e) {
+    e.preventDefault();
+    const key = $(this).data("screen");
+    location.hash = key;
+    showScreen(key);
   });
-  // navegación por screens
-  $(document).on(
-    "click",
-    ".app-bottomnav .nav-item[data-screen]",
-    function (e) {
-      e.preventDefault();
-      const key = $(this).data("screen");
-      location.hash = key;
-      showScreen(key);
-    },
-  );
 
-  // salir (usa tu función vieja si existe)
-  $(document).on(
-    "click",
-    '.app-bottomnav .nav-item[data-action="logout"]',
-    function (e) {
-      e.preventDefault();
-      if (typeof salir === "function") return salir();
-      // si no, cae en tu #salir click actual
-      $("#salir").trigger("click");
-    },
-  );
+  // warehouse por acción
+  $(document).on("click", '.app-bottomnav .nav-item[data-action="warehouse"]', function (e) {
+    e.preventDefault();
+    irAWarehouse();
+  });
 
-  // inicial
-  $(function () {
+  // logout por acción
+  // Salir desde bottomnav
+  $(document).on("click", '.app-bottomnav .nav-item[data-action="logout"]', function (e) {
+    e.preventDefault();
+    doLogout();
+  });
+
+  // hash change (si entrás directo con #cuenta)
+  window.addEventListener("hashchange", () => {
     const h = (location.hash || "").replace("#", "");
     showScreen(screenMap[h] ? h : "operacion");
   });
 
-  // export opcional si la querés usar desde otras funciones
-  window.showScreen = showScreen;
+  // init
+  $(function () {
+    const h = (location.hash || "").replace("#", "");
+    showScreen(screenMap[h] ? h : "operacion");
+    window.showScreen = showScreen;
+  });
 })();
 function msgReason(reason) {
   const r = (reason || "").toString().trim().toUpperCase();
@@ -204,9 +266,7 @@ function actualizarColorHeaderCard(tipo) {
   if (!$card.length) return;
 
   // limpiamos bordes previos
-  $card.removeClass(
-    "border-success border-danger border-warning border-dark border-primary",
-  );
+  $card.removeClass("border-success border-danger border-warning border-dark border-primary");
 
   switch ((tipo || "").toUpperCase()) {
     case "ENTREGA":
@@ -302,9 +362,7 @@ function cerrarSesionForzada(reason) {
   const texto = msgReason(reason);
 
   // $("#hdr, #navbar, #topnav, #mis_envios, #hdractivas, #card-envio").hide();
-  $(
-    "#screen-operacion, #screen-totales, #screen-recorrido, #screen-cuenta, #navbar",
-  ).hide();
+  $("#screen-operacion, #screen-totales, #screen-recorrido, #screen-cuenta, #navbar").hide();
 
   $("#login").show();
   $("body").addClass("login-lock");
@@ -335,13 +393,11 @@ function validarCodigosPickup() {
   const seleccion = ($("#prueba").val() || []).map(normalizarCode);
 
   // si no hay base o no hay esperado, no validamos todavía
-  if (!base || esperado <= 0)
-    return { ok: false, msg: "Sin envío seleccionado" };
+  if (!base || esperado <= 0) return { ok: false, msg: "Sin envío seleccionado" };
 
   // sin duplicados
   const uniq = new Set(seleccion);
-  if (uniq.size !== seleccion.length)
-    return { ok: false, msg: "Hay códigos repetidos" };
+  if (uniq.size !== seleccion.length) return { ok: false, msg: "Hay códigos repetidos" };
 
   // cantidad exacta
   if (seleccion.length !== esperado) {
@@ -355,8 +411,7 @@ function validarCodigosPickup() {
   if (esperado === 1) {
     // acepto BASE o BASE_1
     const c = seleccion[0];
-    if (c !== base && c !== `${base}_1`)
-      return { ok: false, msg: "Código no corresponde al envío" };
+    if (c !== base && c !== `${base}_1`) return { ok: false, msg: "Código no corresponde al envío" };
     return { ok: true };
   }
 
@@ -631,8 +686,9 @@ $("#btn-search").click(function () {
 // FUNCION PARA MOSTRAR LOS PANELES
 // ==================================================
 function paneles(a, refrescarTotales = false) {
+  // if (!$("#screen-operacion").is(":visible")) return;
+  if (!$("#screen-operacion").hasClass("active")) return;
   let pendientes = refrescarTotales ? 2 : 1;
-
   function doneRequest() {
     pendientes--;
     if (pendientes <= 0) $("#info-alert-modal").modal("hide");
@@ -654,10 +710,7 @@ function paneles(a, refrescarTotales = false) {
 
     success: function (responseText) {
       const tResponse = performance.now();
-      console.log(
-        "🟩 Paneles response received (ms):",
-        (tResponse - tStart).toFixed(0),
-      );
+      console.log("🟩 Paneles response received (ms):", (tResponse - tStart).toFixed(0));
 
       // ✅ Limpio espacios
       const limpio = (responseText || "").trim();
@@ -683,10 +736,7 @@ function paneles(a, refrescarTotales = false) {
           )
           .fadeIn();
 
-        console.log(
-          "🟧 Paneles render empty (ms):",
-          (performance.now() - tRender0).toFixed(0),
-        );
+        console.log("🟧 Paneles render empty (ms):", (performance.now() - tRender0).toFixed(0));
         return;
       }
 
@@ -694,20 +744,11 @@ function paneles(a, refrescarTotales = false) {
       const tRender1 = performance.now();
       $("#hdractivas").stop(true, true).show().html(responseText);
 
-      console.log(
-        "🟧 Paneles render html (ms):",
-        (performance.now() - tRender1).toFixed(0),
-      );
-      console.log(
-        "🟦 Paneles total (ms):",
-        (performance.now() - tStart).toFixed(0),
-      );
+      console.log("🟧 Paneles render html (ms):", (performance.now() - tRender1).toFixed(0));
+      console.log("🟦 Paneles total (ms):", (performance.now() - tStart).toFixed(0));
 
       console.log("hdractivas exists:", $("#hdractivas").length);
-      console.log(
-        "hdractivas html len:",
-        ($("#hdractivas").html() || "").length,
-      );
+      console.log("hdractivas html len:", ($("#hdractivas").html() || "").length);
       console.log("hdractivas visible:", $("#hdractivas").is(":visible"));
     },
 
@@ -722,10 +763,7 @@ function paneles(a, refrescarTotales = false) {
     },
 
     complete: function () {
-      console.log(
-        "✅ Paneles complete total (ms):",
-        (performance.now() - tStart).toFixed(0),
-      );
+      console.log("✅ Paneles complete total (ms):", (performance.now() - tStart).toFixed(0));
       doneRequest();
     },
   });
@@ -885,18 +923,10 @@ function verwrong(i) {
       $("#card-seguimiento").html(dato.CodigoSeguimiento || "");
 
       // data-expected (no molesta aunque esté oculto)
-      $("#btnEscanear").attr(
-        "data-expected",
-        (dato.CodigoSeguimiento || "").split("_")[0],
-      );
+      $("#btnEscanear").attr("data-expected", (dato.CodigoSeguimiento || "").split("_")[0]);
     },
     error: function (xhr, status, error) {
-      console.error(
-        "Error BuscoDatos (verwrong):",
-        status,
-        error,
-        xhr.responseText,
-      );
+      console.error("Error BuscoDatos (verwrong):", status, error, xhr.responseText);
       alert("No se pudo cargar la información del envío.");
     },
   });
@@ -974,26 +1004,17 @@ function verok(i) {
       $("#card-seguimiento").html(dato.CodigoSeguimiento || "");
       $("#card-receptor-cantidad").html(dato.Cantidad || 0);
 
-      $("#btnEscanear").attr(
-        "data-expected",
-        (dato.CodigoSeguimiento || "").split("_")[0],
-      );
+      $("#btnEscanear").attr("data-expected", (dato.CodigoSeguimiento || "").split("_")[0]);
 
       // Limpia select2 items del envío anterior
       $("#prueba").val(null).trigger("change");
 
       // ===== Reset de clases (evita acumulación) =====
-      $("#card-servicio").removeClass(
-        "text-warning text-success text-dark text-black",
-      );
-      $("#icon-direccion").removeClass(
-        "text-warning text-success text-dark text-black",
-      );
+      $("#card-servicio").removeClass("text-warning text-success text-dark text-black");
+      $("#icon-direccion").removeClass("text-warning text-success text-dark text-black");
 
       // ojo: icon-servicio tiene clases tipo "mdi mdi-xxx"
-      $("#icon-servicio")
-        .removeClass("mdi-calendar mdi-arrow-down-bold mdi-arrow-up-bold")
-        .addClass("mdi"); // aseguramos base mdi
+      $("#icon-servicio").removeClass("mdi-calendar mdi-arrow-down-bold mdi-arrow-up-bold").addClass("mdi"); // aseguramos base mdi
 
       // ===== Lógica servicio =====
       const idDestino = parseInt(dato.idClienteDestino, 10) || 0;
@@ -1031,9 +1052,7 @@ function verok(i) {
           if (colectaId > 0) {
             initColectaExpected(colectaId, padreId);
           } else {
-            console.warn(
-              "⚠️ El padre no tiene idColecta cargado en TransClientes",
-            );
+            console.warn("⚠️ El padre no tiene idColecta cargado en TransClientes");
           }
         }
       } else {
@@ -1053,12 +1072,7 @@ function verok(i) {
       onCargarNuevoEnvioEnCard();
     },
     error: function (xhr, status, error) {
-      console.error(
-        "Error BuscoDatos (verok):",
-        status,
-        error,
-        xhr.responseText,
-      );
+      console.error("Error BuscoDatos (verok):", status, error, xhr.responseText);
       Swal.fire({
         icon: "error",
         title: "No se pudo cargar el envío",
@@ -1201,43 +1215,39 @@ function onCargarNuevoEnvioEnCard() {
   actualizarEstadoCantidadPickup();
 }
 
-$(document).on(
-  "click",
-  "#boton-entrega-success, .guardarProducto",
-  function (e) {
-    if (!esRetiro()) return;
+$(document).on("click", "#boton-entrega-success, .guardarProducto", function (e) {
+  if (!esRetiro()) return;
 
-    // ✅ NUEVO: bypass validación clásica si es flujo ML
-    if (window.colectaML?.isML) {
-      const esperado = getCantidadEsperada();
-      const conf = parseInt(window.colectaML.confirmedQty || 0, 10);
+  // ✅ NUEVO: bypass validación clásica si es flujo ML
+  if (window.colectaML?.isML) {
+    const esperado = getCantidadEsperada();
+    const conf = parseInt(window.colectaML.confirmedQty || 0, 10);
 
-      if (conf >= esperado) {
-        return; // 👉 permitimos confirmar
-      }
-
-      e.preventDefault();
-      Swal.fire({
-        icon: "error",
-        title: "Cantidad incorrecta",
-        text: `Confirmaste ${conf}/${esperado}`,
-      });
-      return false;
+    if (conf >= esperado) {
+      return; // 👉 permitimos confirmar
     }
 
-    // 🔽 flujo tradicional (QR con _1 _2 _3)
-    const v = validarCodigosPickup();
-    if (!v.ok) {
-      e.preventDefault();
-      Swal.fire({
-        icon: "error",
-        title: "No se puede confirmar",
-        text: v.msg || "Códigos inválidos",
-      });
-      return false;
-    }
-  },
-);
+    e.preventDefault();
+    Swal.fire({
+      icon: "error",
+      title: "Cantidad incorrecta",
+      text: `Confirmaste ${conf}/${esperado}`,
+    });
+    return false;
+  }
+
+  // 🔽 flujo tradicional (QR con _1 _2 _3)
+  const v = validarCodigosPickup();
+  if (!v.ok) {
+    e.preventDefault();
+    Swal.fire({
+      icon: "error",
+      title: "No se puede confirmar",
+      text: v.msg || "Códigos inválidos",
+    });
+    return false;
+  }
+});
 $(document).on("submit", "#loginForm", function (e) {
   e.preventDefault();
   e.stopPropagation();
@@ -1302,9 +1312,7 @@ $(document).on("click", "#ingreso", function (e) {
         Swal.fire({
           icon: "error",
           title: "Login inválido",
-          text:
-            (jsonData && (jsonData.msg || jsonData.error)) ||
-            "Usuario o contraseña incorrectos.",
+          text: (jsonData && (jsonData.msg || jsonData.error)) || "Usuario o contraseña incorrectos.",
           customClass: {
             container: "caddy-login-swal",
           },
@@ -1332,9 +1340,7 @@ $(document).on("click", "#ingreso", function (e) {
       Swal.fire({
         icon: "error",
         title: "Error",
-        text:
-          (obj && (obj.error || obj.msg)) ||
-          "El servidor devolvió HTML/Warning y no JSON.",
+        text: (obj && (obj.error || obj.msg)) || "El servidor devolvió HTML/Warning y no JSON.",
         customClass: {
           container: "caddy-login-swal",
         },
