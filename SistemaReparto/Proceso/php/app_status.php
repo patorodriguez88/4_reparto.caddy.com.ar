@@ -28,7 +28,7 @@ if (!is_array($data)) {
 // ✅ Si querés permitir app_status SIN sesión, comentá este bloque.
 // Yo lo dejaría con sesión, así te sirve para auditar y detectar caídas.
 $usuario = $_SESSION['Usuario'] ?? '';
-$userId  = (int)($_SESSION['idUsuario'] ?? 0);
+$userId  = (int)($_SESSION['idusuario'] ?? 0);
 
 if ($usuario === '' && $userId <= 0) {
     responder(['success' => 0, 'forceLogout' => 1, 'reason' => 'NO_SESSION'], 401);
