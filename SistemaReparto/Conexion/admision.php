@@ -153,15 +153,19 @@ try {
     // -----------------------
     $recorridoAsignado = '';
     $numeroOrden = '';
+    // DEBUG: confirmar el id que se usa para buscar Logistica
+    $debug = [
+        'login_idUsuario' => $idUsuario,
+        'login_usuario'   => $row['Usuario'] ?? '',
+    ];
     try {
-        $stmtLog = $mysqli->prepare("
-            SELECT Recorrido, NumerodeOrden
+        $stmtLog = $mysqli->prepare("SELECT Recorrido, NumerodeOrden
             FROM Logistica
             WHERE idUsuarioChofer = ?
               AND Estado = 'Cargada'
               AND Eliminado = '0'
-            LIMIT 1
-        ");
+            LIMIT 1");
+
         $stmtLog->bind_param("i", $idUsuario);
         $stmtLog->execute();
         $resLog = $stmtLog->get_result();

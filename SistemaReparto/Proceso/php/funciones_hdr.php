@@ -87,11 +87,6 @@ if (isset($_POST['MisEnviosHTML'])) {
           </div>
         </div>
 
-        <!-- <hr class="my-3"> -->
-
-        <!-- <button type="button" class="btn btn-outline-danger w-100" id="btnCuentaSalir">
-          <i class="mdi mdi-logout"></i> Cerrar sesión
-        </button> -->
       </div>
     </div>
   </div>

@@ -163,11 +163,6 @@ function determinarTipoServicio(dato) {
 
   return "DESCONOCIDO";
 }
-/*************  ✨ Windsurf Command ⭐  *************/
-/**
- * Limpia la UI de escaneo: Select2, total visual, estado de ML y oculta el botón de escaneo y el bloque de items (campo de escanear).
- */
-/*******  6fb114c4-dfe4-47f3-bdf6-2d3cebc37fc4  *******/
 function resetEscaneoUI() {
   // Limpia items seleccionados (Select2)
   try {
@@ -594,11 +589,6 @@ function paneles(a, refrescarTotales = false) {
 
   const tStart = performance.now();
   console.log("🟦 paneles() start", { search: a, refrescarTotales });
-
-  // $("#hdractivas").html(`<div class="p-3 text-center text-muted">
-  //                         <div class="spinner-border" role="status"></div>
-  //                         <div class="mt-2">Cargando envíos...</div>
-  //                       </div>`);
 
   // PANELES HTML
   $.ajax({
