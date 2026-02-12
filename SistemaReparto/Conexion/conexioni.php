@@ -1,5 +1,4 @@
 <?php
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -85,7 +84,8 @@ class Conexion
         if ($serverName === 'localhost') {
             $archivo = "config_local";
             define('ENTORNO', 'local');
-        } elseif ($host === 'sandbox.reparto.caddy.com.ar') {
+            // } elseif ($host === 'sandbox.reparto.caddy.com.ar') {
+        } elseif (stripos($host, 'sandbox.') === 0) {
             $archivo = "config_sandbox";
             define('ENTORNO', 'sandbox');
         } else {
