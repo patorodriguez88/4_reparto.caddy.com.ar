@@ -681,7 +681,24 @@ $("#btn-search").click(function () {
     document.getElementById("btn-dark").style.display = "none";
   }
 });
-
+function renderPanelesSkeleton() {
+  return `
+    <div class="col-12">
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="skeleton sk-title" style="width:60%"></div>
+          <div class="skeleton sk-line" style="width:85%"></div>
+          <div class="skeleton sk-line" style="width:70%"></div>
+          <div class="d-flex gap-2 mt-3">
+            <div class="skeleton sk-btn" style="width:33%"></div>
+            <div class="skeleton sk-btn" style="width:33%"></div>
+            <div class="skeleton sk-btn" style="width:33%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 // ==================================================
 // FUNCION PARA MOSTRAR LOS PANELES
 // ==================================================
@@ -697,10 +714,10 @@ function paneles(a, refrescarTotales = false) {
   const tStart = performance.now();
   console.log("🟦 paneles() start", { search: a, refrescarTotales });
 
-  $("#hdractivas").html(`<div class="p-3 text-center text-muted">
-                          <div class="spinner-border" role="status"></div>
-                          <div class="mt-2">Cargando envíos...</div>
-                        </div>`);
+  // $("#hdractivas").html(`<div class="p-3 text-center text-muted">
+  //                         <div class="spinner-border" role="status"></div>
+  //                         <div class="mt-2">Cargando envíos...</div>
+  //                       </div>`);
 
   // PANELES HTML
   $.ajax({
@@ -710,7 +727,12 @@ function paneles(a, refrescarTotales = false) {
     dataType: "text",
 
     beforeSend: function () {
-      console.log("🟨 Paneles request -> send");
+      // Mostrar skeleton SOLO si estás en Operación
+      if ($("#screen-operacion").is(":visible")) {
+        $("#hdractivas")
+          .show()
+          .html(renderPanelesSkeleton() + renderPanelesSkeleton());
+      }
     },
 
     success: function (responseText) {
@@ -723,7 +745,7 @@ function paneles(a, refrescarTotales = false) {
       // ✅ Empty state (y OJO: acá también deberías cerrar loader)
       if (!limpio || limpio === "[]" || limpio === "{}") {
         const tRender0 = performance.now();
-
+        $("#hdractivas").stop(true, true).show().html(responseText);
         $("#hdractivas")
           .html(
             `
