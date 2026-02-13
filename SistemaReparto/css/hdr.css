@@ -33,7 +33,8 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 59px;
+  min-height: 60px;
+  padding-bottom: env(safe-area-inset-bottom);
   display: flex;
   justify-content: space-around;
   background: rgba(161, 159, 159, 0.96);
@@ -51,6 +52,7 @@ body {
   color: rgba(255, 255, 255, 0.75);
   font-size: 12px;
   line-height: 1.1;
+  padding-bottom: 4px;
 }
 .app-bottomnav .nav-item i {
   font-size: 22px;
