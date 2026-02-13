@@ -38,7 +38,10 @@ class Conexion
     public function __construct()
     {
         $datos = $this->cargarDatosConexion();
-
+        // 🔥 DEBUG REAL: qué config y db estoy usando
+        if (!headers_sent()) {
+            header('X-Caddy-Config: ' . ($archivo ?? 'NO_ARCHIVO')); // ojo: $archivo está dentro de cargarDatosConexion, abajo te doy alternativa
+        }
         $server   = $datos['server']   ?? 'localhost';
         $user     = $datos['user']     ?? 'root';
         $password = $datos['password'] ?? '';
@@ -63,6 +66,12 @@ class Conexion
                 $database,
                 $port
             );
+        }
+        // 🔎 DEBUG FUERTE
+        if (!headers_sent()) {
+            header('X-Caddy-DB-Real: ' . $database);
+            header('X-Caddy-Server-Real: ' . $server);
+            header('X-Caddy-Host-Detectado: ' . ($_SERVER['HTTP_HOST'] ?? ''));
         }
 
         // ❌ Error de conexión

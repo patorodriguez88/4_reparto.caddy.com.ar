@@ -4,7 +4,6 @@
     "user": "dinter6_prodrig",
     "password": "pato@4986",
     "database": "dinter6_triangularcopia",
-    "port": "",
-    "socket": "/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock"
+    "port": 3306
   }
 ]
