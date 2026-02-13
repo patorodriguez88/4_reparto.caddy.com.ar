@@ -1,3 +1,36 @@
+// Warehouse: ir a warehouse.html
+$(document).on(
+  "click",
+  '.app-bottomnav .nav-item[data-action="warehouse"]',
+  function (e) {
+    e.preventDefault();
+    window.location.href = "warehouse.html";
+  },
+);
+// puente simple: botón salir dentro de Cuenta
+$(document).on("click", "#btnCuentaSalir", function () {
+  $("#salir").trigger("click");
+});
+$(document).on("click", "#wh-salir", function (e) {
+  e.preventDefault();
+
+  $.ajax({
+    data: { Salir: 1 },
+    type: "POST",
+    url: "../../SistemaReparto/Conexion/admision.php",
+    success: function () {
+      window.location.href = "hdr.html";
+    },
+    error: function (xhr) {
+      console.error("Error cerrar sesión:", xhr.responseText);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo cerrar sesión.",
+      });
+    },
+  });
+});
 let renderRunning = false;
 let renderQueued = false;
 let __allScannedToastShown = false;

@@ -11,17 +11,33 @@ body {
 .app-main {
   min-height: calc(100vh - 74px);
 }
-
+:root {
+  --caddy-orange: #e24f30;
+}
 /* Bottom nav (mobile-app feel) */
+.botonera-icon:active {
+  transform: scale(0.95);
+}
+/* Estado activo de botón de la botonera */
+.botonera-icon {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.botonera-icon.active {
+  color: var(--caddy-orange) !important;
+  transform: scale(1.15);
+}
 .app-bottomnav {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 74px;
+  min-height: 60px;
+  padding-bottom: env(safe-area-inset-bottom);
   display: flex;
   justify-content: space-around;
-  background: rgba(226, 79, 48, 0.96);
+  background: rgba(161, 159, 159, 0.96);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   z-index: 1050;
@@ -36,6 +52,7 @@ body {
   color: rgba(255, 255, 255, 0.75);
   font-size: 12px;
   line-height: 1.1;
+  padding-bottom: 4px;
 }
 .app-bottomnav .nav-item i {
   font-size: 22px;
@@ -414,4 +431,34 @@ input.btn-caddy {
   #colectaScanModal .modal-body {
     max-height: calc(100vh - 160px);
   }
+}
+/* BottomNav: estado activo con naranja Caddy */
+.app-bottomnav .nav-item {
+  transition:
+    transform 0.12s ease,
+    color 0.12s ease;
+}
+
+.app-bottomnav .nav-item i {
+  transition:
+    transform 0.12s ease,
+    color 0.12s ease,
+    filter 0.12s ease;
+}
+
+/* Cuando está activo (persistente) */
+.app-bottomnav .nav-item.active i {
+  color: var(--caddy-orange) !important;
+  transform: translateY(-1px) scale(1.08);
+  filter: drop-shadow(0 2px 6px rgba(226, 79, 48, 0.35));
+}
+
+/* Si también querés el texto naranja (opcional) */
+.app-bottomnav .nav-item.active span {
+  color: var(--caddy-orange) !important;
+}
+
+/* Feedback táctil al presionar */
+.app-bottomnav .nav-item:active {
+  transform: scale(0.96);
 }

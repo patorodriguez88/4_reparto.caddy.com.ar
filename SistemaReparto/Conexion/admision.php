@@ -153,15 +153,19 @@ try {
     // -----------------------
     $recorridoAsignado = '';
     $numeroOrden = '';
+    // DEBUG: confirmar el id que se usa para buscar Logistica
+    $debug = [
+        'login_idUsuario' => $idUsuario,
+        'login_usuario'   => $row['Usuario'] ?? '',
+    ];
     try {
-        $stmtLog = $mysqli->prepare("
-            SELECT Recorrido, NumerodeOrden
+        $stmtLog = $mysqli->prepare("SELECT Recorrido, NumerodeOrden
             FROM Logistica
             WHERE idUsuarioChofer = ?
               AND Estado = 'Cargada'
               AND Eliminado = '0'
-            LIMIT 1
-        ");
+            LIMIT 1");
+
         $stmtLog->bind_param("i", $idUsuario);
         $stmtLog->execute();
         $resLog = $stmtLog->get_result();
@@ -174,6 +178,27 @@ try {
         $recorridoAsignado = '';
         $numeroOrden = '';
     }
+    $dbRow = $mysqli->query("SELECT DATABASE() AS db, @@hostname AS host, @@port AS port")->fetch_assoc();
+
+    $debug['db'] = $dbRow;
+    $debug['mysqli_host_info'] = $mysqli->host_info;
+
+    // DEBUG: ver si existe la fila con un SELECT relajado
+    $test = $mysqli->prepare("
+  SELECT id, idUsuarioChofer, Estado, Eliminado, Recorrido, NumerodeOrden
+  FROM Logistica
+  WHERE idUsuarioChofer = ?
+  ORDER BY id DESC
+  LIMIT 5
+");
+    $test->bind_param("i", $idUsuario);
+    $test->execute();
+    $rtest = $test->get_result();
+    $rowsTest = [];
+    while ($x = $rtest->fetch_assoc()) $rowsTest[] = $x;
+    $test->close();
+    $debug['logistica_rows_para_ese_id'] = $rowsTest;
+
 
     // -----------------------
     // SESIÓN
@@ -221,7 +246,8 @@ try {
         'codigos'   => $rows,
         'recorrido' => $recorridoAsignado,
         'norden'    => $numeroOrden,
-        'usuario'   => $nombreCompleto
+        'usuario'   => $nombreCompleto,
+        'debug'     => $debug
     ]);
 } catch (Throwable $e) {
     // ✅ Si algo explota, devolvemos JSON y no HTML

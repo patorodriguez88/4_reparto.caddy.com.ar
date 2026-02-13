@@ -1,3 +1,136 @@
+$(".botonera-icon").on("click", function () {
+  // sacamos activo de todos
+  $(".botonera-icon").removeClass("active");
+
+  // activamos el clickeado
+  $(this).addClass("active");
+});
+
+// puente simple: botón salir dentro de Cuenta
+$(document).on("click", "#btnCuentaSalir", function () {
+  $("#salir").trigger("click");
+});
+function doLogout() {
+  $.ajax({
+    data: { Salir: 1 },
+    type: "POST",
+    url: "../../SistemaReparto/Conexion/admision.php",
+    beforeSend: function () {
+      $("#info-alert-modal-header").html("Cerrando Sesión...");
+    },
+    success: function () {
+      $("#hdr, #navbar, #topnav, #screen-operacion, #screen-totales, #screen-cuenta").hide();
+      $("#login").show();
+      $("#info-alert-modal").modal("hide");
+    },
+    error: function (xhr, status, error) {
+      $("#info-alert-modal").modal("hide");
+      console.error("Error cerrar sesión:", status, error, xhr.responseText);
+    },
+  });
+}
+
+function cargarCuentaHTML() {
+  return $.ajax({
+    data: { MisEnviosHTML: 1 },
+    type: "POST",
+    url: "Proceso/php/funciones_hdr.php",
+    dataType: "text",
+    success: function (html) {
+      $("#mis_envios_cuenta").html(html);
+    },
+    error: function (xhr) {
+      if (xhr.status === 401) {
+        cerrarSesionForzada("SESSION_EXPIRED");
+        return;
+      }
+      $("#mis_envios_cuenta").html(`<div class="alert alert-danger">No se pudo cargar Cuenta.</div>`);
+      console.error("CuentaHTML error:", xhr.status, xhr.responseText);
+    },
+  });
+}
+(function () {
+  const screenMap = {
+    operacion: "#screen-operacion",
+    totales: "#screen-totales",
+    cuenta: "#screen-cuenta",
+  };
+
+  function showScreen(key) {
+    // 1) Apago TODAS las screens
+    $(".app-screen").removeClass("active").hide();
+    $(".botonera-icon").removeClass("active");
+    // 2) Apago SIEMPRE los elementos que pueden quedar “colgados”
+    $("#hdractivas").hide();
+    $("#card-envio").hide();
+    // 3) Determino screen real
+    const realKey = screenMap[key] ? key : "operacion";
+    const sel = screenMap[realKey];
+
+    // 4) Muestro la screen pedida
+    $(sel).addClass("active").show();
+
+    // 5) Activo nav
+    $(".app-bottomnav .nav-item").removeClass("active");
+    $(`.app-bottomnav .nav-item[data-screen="${realKey}"]`).addClass("active");
+
+    // 6) Acciones por screen
+    if (realKey === "operacion") {
+      $("#hdractivas").show(); // ✅ solo acá se ven paneles
+    }
+
+    if (realKey === "totales") {
+      const $tpl = $("#mis_envios");
+      const $dst = $("#mis_envios_clone");
+      if ($tpl.length && $dst.length) $dst.empty().append($tpl.children().clone(true, true));
+      // cargarMisEnvios();
+    }
+
+    if (realKey === "cuenta") {
+      cargarCuentaHTML();
+    }
+    // DEBUG útil
+    console.log("showScreen:", realKey, {
+      operacionVisible: $("#screen-operacion").is(":visible"),
+      cuentaVisible: $("#screen-cuenta").is(":visible"),
+      hdractivasVisible: $("#hdractivas").is(":visible"),
+    });
+  }
+
+  // click bottom nav
+  $(document).on("click", ".app-bottomnav .nav-item[data-screen]", function (e) {
+    e.preventDefault();
+    const key = $(this).data("screen");
+    location.hash = key;
+    showScreen(key);
+  });
+
+  // warehouse por acción
+  $(document).on("click", '.app-bottomnav .nav-item[data-action="warehouse"]', function (e) {
+    e.preventDefault();
+    irAWarehouse();
+  });
+
+  // logout por acción
+  // Salir desde bottomnav
+  $(document).on("click", '.app-bottomnav .nav-item[data-action="logout"]', function (e) {
+    e.preventDefault();
+    doLogout();
+  });
+
+  // hash change (si entrás directo con #cuenta)
+  window.addEventListener("hashchange", () => {
+    const h = (location.hash || "").replace("#", "");
+    showScreen(screenMap[h] ? h : "operacion");
+  });
+
+  // init
+  $(function () {
+    const h = (location.hash || "").replace("#", "");
+    showScreen(screenMap[h] ? h : "operacion");
+    window.showScreen = showScreen;
+  });
+})();
 function msgReason(reason) {
   const r = (reason || "").toString().trim().toUpperCase();
 
@@ -30,11 +163,6 @@ function determinarTipoServicio(dato) {
 
   return "DESCONOCIDO";
 }
-/*************  ✨ Windsurf Command ⭐  *************/
-/**
- * Limpia la UI de escaneo: Select2, total visual, estado de ML y oculta el botón de escaneo y el bloque de items (campo de escanear).
- */
-/*******  6fb114c4-dfe4-47f3-bdf6-2d3cebc37fc4  *******/
 function resetEscaneoUI() {
   // Limpia items seleccionados (Select2)
   try {
@@ -63,9 +191,7 @@ function actualizarColorHeaderCard(tipo) {
   if (!$card.length) return;
 
   // limpiamos bordes previos
-  $card.removeClass(
-    "border-success border-danger border-warning border-dark border-primary",
-  );
+  $card.removeClass("border-success border-danger border-warning border-dark border-primary");
 
   switch ((tipo || "").toUpperCase()) {
     case "ENTREGA":
@@ -160,7 +286,9 @@ function cerrarSesionForzada(reason) {
 
   const texto = msgReason(reason);
 
-  $("#hdr, #navbar, #topnav, #mis_envios, #hdractivas, #card-envio").hide();
+  // $("#hdr, #navbar, #topnav, #mis_envios, #hdractivas, #card-envio").hide();
+  $("#screen-operacion, #screen-totales, #screen-recorrido, #screen-cuenta, #navbar").hide();
+
   $("#login").show();
   $("body").addClass("login-lock");
   $("body").addClass("loading"); // si querés reaprovechar la clase
@@ -174,11 +302,6 @@ function cerrarSesionForzada(reason) {
     forcingLogout = false;
   });
 }
-// function esRetiro() {
-//   // vos ya usás: si dato.Retirado == 0 => RETIRO
-//   // acá lo determinamos por lo que muestra el card-servicio:
-//   return ($("#card-servicio").text() || "").toUpperCase().includes("RETIRO");
-// }
 
 function baseActual() {
   const raw = ($("#card-seguimiento").text() || "").trim();
@@ -195,13 +318,11 @@ function validarCodigosPickup() {
   const seleccion = ($("#prueba").val() || []).map(normalizarCode);
 
   // si no hay base o no hay esperado, no validamos todavía
-  if (!base || esperado <= 0)
-    return { ok: false, msg: "Sin envío seleccionado" };
+  if (!base || esperado <= 0) return { ok: false, msg: "Sin envío seleccionado" };
 
   // sin duplicados
   const uniq = new Set(seleccion);
-  if (uniq.size !== seleccion.length)
-    return { ok: false, msg: "Hay códigos repetidos" };
+  if (uniq.size !== seleccion.length) return { ok: false, msg: "Hay códigos repetidos" };
 
   // cantidad exacta
   if (seleccion.length !== esperado) {
@@ -215,8 +336,7 @@ function validarCodigosPickup() {
   if (esperado === 1) {
     // acepto BASE o BASE_1
     const c = seleccion[0];
-    if (c !== base && c !== `${base}_1`)
-      return { ok: false, msg: "Código no corresponde al envío" };
+    if (c !== base && c !== `${base}_1`) return { ok: false, msg: "Código no corresponde al envío" };
     return { ok: true };
   }
 
@@ -271,54 +391,6 @@ function asegurarMenuWarehouse() {
   });
   // });
 }
-
-// MI CUENTA
-$("#mi_cuenta").on("click", function () {
-  // Cierro el menú colapsable si está abierto
-  let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
-  if (closeMenu) closeMenu.click();
-
-  $("#mis_envios").show();
-  $("#hdractivas").hide();
-
-  $.ajax({
-    data: { MisEnvios: 1 },
-    type: "POST",
-    url: "Proceso/php/funciones_hdr.php", // PHP que devuelve JSON
-    dataType: "json",
-    beforeSend: function () {
-      // $("#info-alert-modal-header").html("Cargando datos...");
-      // $("#info-alert-modal").modal("show");
-    },
-    success: function (jsonData) {
-      if (jsonData.success == 1) {
-        $("#mis_envios_total").html(jsonData.Total);
-        $("#mis_noenvios_total").html(jsonData.Totalno);
-      } else {
-        console.warn("MisEnvios no OK:", jsonData);
-        // Podés mostrar un aviso suave si querés
-        // alert(jsonData.error || "No se pudieron cargar tus envíos.");
-      }
-    },
-    error: function (xhr, status, error) {
-      console.error("Error MisEnvios:", status, error, xhr.responseText);
-      alert("No se pudieron cargar tus envíos. Probá de nuevo.");
-    },
-    complete: function () {
-      // 🔴 SE EJECUTA SIEMPRE, HAYA ÉXITO O ERROR (inclusive parsererror)
-      $("#info-alert-modal").modal("hide");
-    },
-  });
-});
-
-// MI RECORRIDO
-$("#mi_recorrido").click(function () {
-  let closeMenu = document.querySelector('[data-bs-toggle="collapse"]');
-  if (closeMenu) closeMenu.click();
-
-  $("#mis_envios").hide();
-  $("#hdractivas").show();
-});
 
 // NO DESPLEGAR EL MENU EN SELECT2 (ITEMS)
 $("#prueba").on("select2:unselecting", function () {
@@ -395,7 +467,8 @@ function initApp() {
       }
       // ✅ Hay sesión -> arrancamos
       if (jsonData && jsonData.success == 1) {
-        $("#hdr,#navbar,#topnav").show();
+        // $("#hdr,#navbar,#topnav").show();
+        $("#screen-operacion,#navbar,#topnav").show();
         $("#login").hide();
         $("body").removeClass("login-lock");
         // 🔓 habilitar scroll (mobile fix)
@@ -448,7 +521,6 @@ $("#salir").click(function () {
     url: "../../SistemaReparto/Conexion/admision.php",
     beforeSend: function () {
       $("#info-alert-modal-header").html("Cerrando Sesión...");
-      // $("#info-alert-modal").modal("show");
     },
     success: function () {
       $("#hdr").hide();
@@ -485,17 +557,38 @@ $("#btn-search").click(function () {
     document.getElementById("btn-dark").style.display = "none";
   }
 });
-
+function renderPanelesSkeleton() {
+  return `
+    <div class="col-12">
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="skeleton sk-title" style="width:60%"></div>
+          <div class="skeleton sk-line" style="width:85%"></div>
+          <div class="skeleton sk-line" style="width:70%"></div>
+          <div class="d-flex gap-2 mt-3">
+            <div class="skeleton sk-btn" style="width:33%"></div>
+            <div class="skeleton sk-btn" style="width:33%"></div>
+            <div class="skeleton sk-btn" style="width:33%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 // ==================================================
 // FUNCION PARA MOSTRAR LOS PANELES
 // ==================================================
 function paneles(a, refrescarTotales = false) {
+  // if (!$("#screen-operacion").is(":visible")) return;
+  if (!$("#screen-operacion").hasClass("active")) return;
   let pendientes = refrescarTotales ? 2 : 1;
-
   function doneRequest() {
     pendientes--;
     if (pendientes <= 0) $("#info-alert-modal").modal("hide");
   }
+
+  const tStart = performance.now();
+  console.log("🟦 paneles() start", { search: a, refrescarTotales });
 
   // PANELES HTML
   $.ajax({
@@ -503,99 +596,75 @@ function paneles(a, refrescarTotales = false) {
     type: "POST",
     url: "Proceso/php/funciones_hdr.php",
     dataType: "text",
-    success: function (responseText) {
-      let obj = null;
-      try {
-        obj = JSON.parse(responseText);
-      } catch (e) {}
 
-      if (obj && obj.forceLogout) {
-        cerrarSesionForzada(obj.reason);
-        return;
+    beforeSend: function () {
+      // Mostrar skeleton SOLO si estás en Operación
+      if ($("#screen-operacion").is(":visible")) {
+        $("#hdractivas")
+          .show()
+          .html(renderPanelesSkeleton() + renderPanelesSkeleton());
       }
-      // Limpio espacios
+    },
+
+    success: function (responseText) {
+      const tResponse = performance.now();
+      console.log("🟩 Paneles response received (ms):", (tResponse - tStart).toFixed(0));
+
+      // ✅ Limpio espacios
       const limpio = (responseText || "").trim();
 
+      // ✅ Empty state (y OJO: acá también deberías cerrar loader)
       if (!limpio || limpio === "[]" || limpio === "{}") {
-        // 👉 EMPTY STATE
+        const tRender0 = performance.now();
+        $("#hdractivas").stop(true, true).show().html(responseText);
         $("#hdractivas")
           .html(
             `
-      <div class="empty-state text-center p-4">
-        <div class="mb-3">
-          <i class="mdi mdi-car-wrench mdi-48px text-muted"></i>
-        </div>
-        <h4 class="text-muted mb-2">Sin envíos por ahora</h4>
-        <p class="text-muted">
-          Todavía no tenés paquetes para retirar ni entregar.<br>
-          Cuando se asignen, van a aparecer automáticamente acá.
-        </p>
-      </div>
-    `,
+            <div class="empty-state text-center p-4">
+              <div class="mb-3">
+                <i class="mdi mdi-car-wrench mdi-48px text-muted"></i>
+              </div>
+              <h4 class="text-muted mb-2">Sin envíos por ahora</h4>
+              <p class="text-muted">
+                Todavía no tenés paquetes para retirar ni entregar.<br>
+                Cuando se asignen, van a aparecer automáticamente acá.
+              </p>
+            </div>
+          `,
           )
           .fadeIn();
+
+        console.log("🟧 Paneles render empty (ms):", (performance.now() - tRender0).toFixed(0));
         return;
       }
 
-      // $("#hdractivas").html(responseText).fadeIn();
+      // ✅ Render normal
+      const tRender1 = performance.now();
       $("#hdractivas").stop(true, true).show().html(responseText);
+
+      console.log("🟧 Paneles render html (ms):", (performance.now() - tRender1).toFixed(0));
+      console.log("🟦 Paneles total (ms):", (performance.now() - tStart).toFixed(0));
+
       console.log("hdractivas exists:", $("#hdractivas").length);
-      console.log(
-        "hdractivas html len:",
-        ($("#hdractivas").html() || "").length,
-      );
+      console.log("hdractivas html len:", ($("#hdractivas").html() || "").length);
       console.log("hdractivas visible:", $("#hdractivas").is(":visible"));
     },
+
     error: function (xhr) {
       if (tryHandleForceLogout(xhr)) return;
-
-      console.error("Error Paneles:", xhr.responseText || xhr);
+      console.error("Error Paneles:", xhr.status, xhr.responseText || xhr);
       Swal.fire({
         icon: "error",
         title: "Error",
         text: "No se pudieron cargar los paneles.",
       });
     },
-    complete: doneRequest,
+
+    complete: function () {
+      console.log("✅ Paneles complete total (ms):", (performance.now() - tStart).toFixed(0));
+      doneRequest();
+    },
   });
-
-  // TOTALES
-  // $.ajax({
-  //   data: { Datos: 1 },
-  //   type: "POST",
-  //   url: "Proceso/php/funciones.php",
-  //   dataType: "json",
-  //   success: function (jsonData) {
-  //     if (jsonData && jsonData.forceLogout) {
-  //       cerrarSesionForzada(jsonData.reason);
-  //       return;
-  //     }
-
-  //     if (jsonData.success == 1) {
-  //       $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
-  //       $("#badge-total").html(jsonData.Total);
-  //       $("#badge-sinentregar").html(jsonData.Abiertos);
-  //       $("#badge-entregados").html(jsonData.Cerrados);
-  //       $("#hdr,#navbar,#topnav").show();
-  //       asegurarMenuWarehouse();
-  //       $("#login").hide();
-  //     } else {
-  //       console.warn("Datos no OK:", jsonData);
-  //       $("#login").show();
-  //     }
-  //   },
-  //   error: function (xhr) {
-  //     if (tryHandleForceLogout(xhr)) return;
-
-  //     console.error("Error Datos:", xhr.status, xhr.responseText);
-  //     Swal.fire({
-  //       icon: "error",
-  //       title: "Error",
-  //       text: "No se pudieron cargar los datos.",
-  //     });
-  //   },
-  //   complete: doneRequest,
-  // });
 }
 
 // BOTONERA / DROPZONE
@@ -682,18 +751,10 @@ function verwrong(i) {
       $("#card-seguimiento").html(dato.CodigoSeguimiento || "");
 
       // data-expected (no molesta aunque esté oculto)
-      $("#btnEscanear").attr(
-        "data-expected",
-        (dato.CodigoSeguimiento || "").split("_")[0],
-      );
+      $("#btnEscanear").attr("data-expected", (dato.CodigoSeguimiento || "").split("_")[0]);
     },
     error: function (xhr, status, error) {
-      console.error(
-        "Error BuscoDatos (verwrong):",
-        status,
-        error,
-        xhr.responseText,
-      );
+      console.error("Error BuscoDatos (verwrong):", status, error, xhr.responseText);
       alert("No se pudo cargar la información del envío.");
     },
   });
@@ -771,26 +832,17 @@ function verok(i) {
       $("#card-seguimiento").html(dato.CodigoSeguimiento || "");
       $("#card-receptor-cantidad").html(dato.Cantidad || 0);
 
-      $("#btnEscanear").attr(
-        "data-expected",
-        (dato.CodigoSeguimiento || "").split("_")[0],
-      );
+      $("#btnEscanear").attr("data-expected", (dato.CodigoSeguimiento || "").split("_")[0]);
 
       // Limpia select2 items del envío anterior
       $("#prueba").val(null).trigger("change");
 
       // ===== Reset de clases (evita acumulación) =====
-      $("#card-servicio").removeClass(
-        "text-warning text-success text-dark text-black",
-      );
-      $("#icon-direccion").removeClass(
-        "text-warning text-success text-dark text-black",
-      );
+      $("#card-servicio").removeClass("text-warning text-success text-dark text-black");
+      $("#icon-direccion").removeClass("text-warning text-success text-dark text-black");
 
       // ojo: icon-servicio tiene clases tipo "mdi mdi-xxx"
-      $("#icon-servicio")
-        .removeClass("mdi-calendar mdi-arrow-down-bold mdi-arrow-up-bold")
-        .addClass("mdi"); // aseguramos base mdi
+      $("#icon-servicio").removeClass("mdi-calendar mdi-arrow-down-bold mdi-arrow-up-bold").addClass("mdi"); // aseguramos base mdi
 
       // ===== Lógica servicio =====
       const idDestino = parseInt(dato.idClienteDestino, 10) || 0;
@@ -828,9 +880,7 @@ function verok(i) {
           if (colectaId > 0) {
             initColectaExpected(colectaId, padreId);
           } else {
-            console.warn(
-              "⚠️ El padre no tiene idColecta cargado en TransClientes",
-            );
+            console.warn("⚠️ El padre no tiene idColecta cargado en TransClientes");
           }
         }
       } else {
@@ -850,12 +900,7 @@ function verok(i) {
       onCargarNuevoEnvioEnCard();
     },
     error: function (xhr, status, error) {
-      console.error(
-        "Error BuscoDatos (verok):",
-        status,
-        error,
-        xhr.responseText,
-      );
+      console.error("Error BuscoDatos (verok):", status, error, xhr.responseText);
       Swal.fire({
         icon: "error",
         title: "No se pudo cargar el envío",
@@ -998,43 +1043,39 @@ function onCargarNuevoEnvioEnCard() {
   actualizarEstadoCantidadPickup();
 }
 
-$(document).on(
-  "click",
-  "#boton-entrega-success, .guardarProducto",
-  function (e) {
-    if (!esRetiro()) return;
+$(document).on("click", "#boton-entrega-success, .guardarProducto", function (e) {
+  if (!esRetiro()) return;
 
-    // ✅ NUEVO: bypass validación clásica si es flujo ML
-    if (window.colectaML?.isML) {
-      const esperado = getCantidadEsperada();
-      const conf = parseInt(window.colectaML.confirmedQty || 0, 10);
+  // ✅ NUEVO: bypass validación clásica si es flujo ML
+  if (window.colectaML?.isML) {
+    const esperado = getCantidadEsperada();
+    const conf = parseInt(window.colectaML.confirmedQty || 0, 10);
 
-      if (conf >= esperado) {
-        return; // 👉 permitimos confirmar
-      }
-
-      e.preventDefault();
-      Swal.fire({
-        icon: "error",
-        title: "Cantidad incorrecta",
-        text: `Confirmaste ${conf}/${esperado}`,
-      });
-      return false;
+    if (conf >= esperado) {
+      return; // 👉 permitimos confirmar
     }
 
-    // 🔽 flujo tradicional (QR con _1 _2 _3)
-    const v = validarCodigosPickup();
-    if (!v.ok) {
-      e.preventDefault();
-      Swal.fire({
-        icon: "error",
-        title: "No se puede confirmar",
-        text: v.msg || "Códigos inválidos",
-      });
-      return false;
-    }
-  },
-);
+    e.preventDefault();
+    Swal.fire({
+      icon: "error",
+      title: "Cantidad incorrecta",
+      text: `Confirmaste ${conf}/${esperado}`,
+    });
+    return false;
+  }
+
+  // 🔽 flujo tradicional (QR con _1 _2 _3)
+  const v = validarCodigosPickup();
+  if (!v.ok) {
+    e.preventDefault();
+    Swal.fire({
+      icon: "error",
+      title: "No se puede confirmar",
+      text: v.msg || "Códigos inválidos",
+    });
+    return false;
+  }
+});
 $(document).on("submit", "#loginForm", function (e) {
   e.preventDefault();
   e.stopPropagation();
@@ -1080,7 +1121,8 @@ $(document).on("click", "#ingreso", function (e) {
 
       if (jsonData && jsonData.success == 1) {
         $("#login").hide();
-        $("#hdr,#navbar,#topnav").show();
+        // $("#hdr,#navbar,#topnav").show();
+        $("#screen-operacion,#navbar,#topnav").show();
         $("body").removeClass("login-lock");
         $("#hdractivas").show();
         $("#mis_envios").hide();
@@ -1098,9 +1140,7 @@ $(document).on("click", "#ingreso", function (e) {
         Swal.fire({
           icon: "error",
           title: "Login inválido",
-          text:
-            (jsonData && (jsonData.msg || jsonData.error)) ||
-            "Usuario o contraseña incorrectos.",
+          text: (jsonData && (jsonData.msg || jsonData.error)) || "Usuario o contraseña incorrectos.",
           customClass: {
             container: "caddy-login-swal",
           },
@@ -1128,9 +1168,7 @@ $(document).on("click", "#ingreso", function (e) {
       Swal.fire({
         icon: "error",
         title: "Error",
-        text:
-          (obj && (obj.error || obj.msg)) ||
-          "El servidor devolvió HTML/Warning y no JSON.",
+        text: (obj && (obj.error || obj.msg)) || "El servidor devolvió HTML/Warning y no JSON.",
         customClass: {
           container: "caddy-login-swal",
         },

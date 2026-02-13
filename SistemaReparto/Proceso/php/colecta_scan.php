@@ -85,103 +85,6 @@ function calcularResume($payload)
     ];
 }
 
-/**
- * ============================================================
- * ROUTER 1: InitColecta
- * ============================================================
- */
-// if (isset($_POST['InitColecta']) && isset($_POST['idColecta'])) {
-
-//     $idColecta = (int)$_POST['idColecta'];
-
-//     try {
-//         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-
-//         // 1) Traer datos del padre
-//         $stmt = $mysqli->prepare("SELECT id, IngBrutosOrigen, RazonSocial, CodigoSeguimiento
-//                               FROM TransClientes
-//                               WHERE id = ? LIMIT 1");
-//         $stmt->bind_param("i", $idColecta);
-//         $stmt->execute();
-//         $padre = $stmt->get_result()->fetch_assoc();
-
-//         if (!$padre) responder(['success' => 0, 'error' => 'COLECTA_PADRE_NO_ENCONTRADA']);
-
-//         $origenKey = trim((string)$padre['IngBrutosOrigen']);
-//         if ($origenKey === '') responder(['success' => 0, 'error' => 'COLECTA_SIN_ORIGENKEY']);
-
-//         // 2) Buscar servicios pendientes del mismo origen (excluyendo el padre)
-//         $sql = "SELECT id, CodigoSeguimiento, Cantidad
-//             FROM TransClientes
-//             WHERE IngBrutosOrigen = ?
-//               AND Eliminado = 0
-//               AND Entregado = 0
-//               AND Devuelto = 0
-//               AND id <> ?";
-
-//         $stmt2 = $mysqli->prepare($sql);
-//         $stmt2->bind_param("si", $origenKey, $idColecta);
-//         $stmt2->execute();
-//         $res = $stmt2->get_result();
-
-//         $serviciosDetalle = [];
-//         $totalPaquetes = 0;
-
-//         while ($row = $res->fetch_assoc()) {
-//             $cs = trim((string)$row['CodigoSeguimiento']);
-//             if ($cs === '') continue;
-
-//             $base  = trim(explode('_', $cs)[0]);
-//             $cant  = (int)($row['Cantidad'] ?? 0);
-//             if ($base === '' || $cant <= 0) continue;
-
-//             $serviciosDetalle[] = [
-//                 'idTransCliente' => (int)$row['id'],
-//                 'cs_base'        => $base,
-//                 'paquetes'       => $cant,
-//             ];
-//             $totalPaquetes += $cant;
-//         }
-
-//         $expected = [
-//             'servicios' => count($serviciosDetalle),
-//             'paquetes_total' => $totalPaquetes,
-//             'servicios_detalle' => $serviciosDetalle,
-//         ];
-
-//         $payload = [
-//             'colecta_padre_id' => $idColecta,
-//             'origen_key' => $origenKey,
-//             'expected' => $expected,
-//             'scans' => [],
-//             'resume' => [
-//                 'servicios_ok' => 0,
-//                 'servicios_total' => count($serviciosDetalle),
-//                 'paquetes_ok' => 0,
-//                 'paquetes_total' => $totalPaquetes,
-//             ],
-//         ];
-
-//         $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
-//         $now = date('Y-m-d H:i:s');
-
-//         $stmt3 = $mysqli->prepare("UPDATE TransClientes
-//                                SET ColectaScans = ?, ColectaScansUpdatedAt = ?
-//                                WHERE id = ?");
-//         $stmt3->bind_param("ssi", $json, $now, $idColecta);
-//         $stmt3->execute();
-
-//         responder([
-//             'success' => 1,
-//             'expected' => $expected,
-//             'resume' => $payload['resume'],
-//             'origen_key' => $origenKey,
-//             'idColecta' => $idColecta,
-//         ]);
-//     } catch (Throwable $e) {
-//         responder(['success' => 0, 'error' => 'INIT_COLECTA_ERROR', 'detail' => $e->getMessage()]);
-//     }
-// }
 if (isset($_POST['InitColecta'])) {
 
     $colectaId = (int)($_POST['colectaId'] ?? 0); // Colecta.id
@@ -212,7 +115,7 @@ if (isset($_POST['InitColecta'])) {
 
         // 2) Servicios asignados a esa colecta (excluyo padre)
         $stT = $mysqli->prepare("
-          SELECT id, CodigoSeguimiento, Cantidad
+          SELECT id, CodigoSeguimiento, Cantidad,CodigoProveedor
           FROM TransClientes
           WHERE idColecta = ?
             AND Eliminado=0 AND Entregado=0 AND Devuelto=0
@@ -235,6 +138,7 @@ if (isset($_POST['InitColecta'])) {
 
             $serviciosDetalle[] = [
                 'idTransCliente' => (int)$row['id'],
+                'codigoProveedor' => (string)($row['CodigoProveedor'] ?? ''),
                 'cs_base'        => $base,
                 'paquetes'       => $cant,
             ];
@@ -272,11 +176,11 @@ if (isset($_POST['InitColecta'])) {
         $now = date('Y-m-d H:i:s');
 
         $up = $mysqli->prepare("
-          UPDATE TransClientes
+          UPDATE Colecta
           SET ColectaScans=?, ColectaScansUpdatedAt=?
           WHERE id=?
         ");
-        $up->bind_param("ssi", $json, $now, $padreId);
+        $up->bind_param("ssi", $json, $now, $colectaId);
         $up->execute();
 
         responder([
@@ -391,8 +295,8 @@ $padreId   = (int)($_POST['padreId'] ?? 0);
 if ($colectaId > 0 && $padreId > 0) {
 
     // 2.a) traer JSON del padre
-    $stp = $mysqli->prepare("SELECT ColectaScans FROM TransClientes WHERE id=? LIMIT 1");
-    $stp->bind_param("i", $padreId);
+    $stp = $mysqli->prepare("SELECT ColectaScans FROM Colecta WHERE id=? LIMIT 1");
+    $stp->bind_param("i", $colectaId);
     $stp->execute();
     $rowP = $stp->get_result()->fetch_assoc();
 
@@ -474,8 +378,8 @@ if ($colectaId > 0 && $padreId > 0) {
     }
 
     // 2.e) anti-duplicado por code exacto si es QR con sufijo, o por token si es ML
-    $codeStore = $esQR ? $codigoEscaneado : $lookupShip;
-
+    // $codeStore = $esQR ? $codigoEscaneado : $lookupShip;
+    $codeStore = $esQR ? $codigoEscaneado : $bultoPost;
     foreach ($scans as $s) {
         if (trim((string)($s['code'] ?? '')) === trim((string)$codeStore)) {
             // ya estaba
@@ -502,10 +406,8 @@ if ($colectaId > 0 && $padreId > 0) {
     $jsonNew = json_encode($payload, JSON_UNESCAPED_UNICODE);
     $now = date('Y-m-d H:i:s');
 
-    // $up = $mysqli->prepare("UPDATE TransClientes SET ColectaScans=?, ColectaScansUpdatedAt=? WHERE id=?");
-    // $up->bind_param("ssi", $jsonNew, $now, $idColecta);
-    $up = $mysqli->prepare("UPDATE TransClientes SET ColectaScans=?, ColectaScansUpdatedAt=? WHERE id=?");
-    $up->bind_param("ssi", $jsonNew, $now, $padreId);
+    $up = $mysqli->prepare("UPDATE Colecta SET ColectaScans=?, ColectaScansUpdatedAt=? WHERE id=?");
+    $up->bind_param("ssi", $jsonNew, $now, $colectaId);
     $up->execute();
 
     $scanSavedToColecta = 1;

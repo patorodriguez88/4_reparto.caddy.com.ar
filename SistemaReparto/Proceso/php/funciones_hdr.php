@@ -20,70 +20,78 @@ function responder($data)
 // ==================================================
 // ===============  BLOQUE MIS ENVIOS  ===============
 // ==================================================
-if (isset($_POST['MisEnvios'])) {
+if (isset($_POST['MisEnviosHTML'])) {
 
   if (!isset($_SESSION['idusuario'])) {
-    responder([
-      'success' => 0,
-      'error'   => 'No existe idusuario en la sesión'
-    ]);
+    http_response_code(401);
+    echo '<div class="alert alert-warning mb-0">Sesión perdida. Volvé a ingresar.</div>';
+    exit;
   }
 
-  $Usuario   = $_SESSION['idusuario'];
+  $Usuario   = (int)$_SESSION['idusuario'];
   $inicioMes = date('Y-m-01');
   $finMes    = date('Y-m-t');
 
-  // ==================================================
   // ENTREGADOS
-  // ==================================================
-  $sql = $mysqli->query("
-        SELECT COUNT(id) AS Total 
-        FROM TransClientes 
-        WHERE Entregado = 1 
-          AND Eliminado = 0 
-          AND Devuelto = 0 
-          AND idABM = '$Usuario' 
-          AND FechaEntrega BETWEEN '$inicioMes' AND '$finMes'
-    ");
-
-  if (!$sql) {
-    responder([
-      'success' => 0,
-      'error'   => 'Error SQL ENVIOS ENTREGADOS: ' . $mysqli->error
-    ]);
+  $sql1 = $mysqli->query("
+    SELECT COUNT(id) AS Total
+    FROM TransClientes
+    WHERE Entregado = 1
+      AND Eliminado = 0
+      AND Devuelto = 0
+      AND idABM = {$Usuario}
+      AND FechaEntrega BETWEEN '{$inicioMes}' AND '{$finMes}'
+  ");
+  if (!$sql1) {
+    echo '<div class="alert alert-danger mb-0">Error SQL ENTREGADOS: ' . htmlspecialchars($mysqli->error) . '</div>';
+    exit;
   }
+  $TotalMisEnvios = (int)($sql1->fetch_assoc()['Total'] ?? 0);
 
-  $MisEnvios      = $sql->fetch_array(MYSQLI_ASSOC);
-  $TotalMisEnvios = (int)$MisEnvios['Total'];
-
-  // ==================================================
   // NO ENTREGADOS
-  // ==================================================
-  $sql = $mysqli->query("SELECT COUNT(id) AS Total 
-        FROM TransClientes 
-        WHERE Entregado = 0 
-          AND Eliminado = 0 
-          AND Devuelto = 0 
-          AND idABM = '$Usuario' 
-          AND FechaEntrega BETWEEN '$inicioMes' AND '$finMes'
-    ");
-
-  if (!$sql) {
-    responder([
-      'success' => 0,
-      'error'   => 'Error SQL ENVIOS NO ENTREGADOS: ' . $mysqli->error
-    ]);
+  $sql2 = $mysqli->query("
+    SELECT COUNT(id) AS Total
+    FROM TransClientes
+    WHERE Entregado = 0
+      AND Eliminado = 0
+      AND Devuelto = 0
+      AND idABM = {$Usuario}
+      AND FechaEntrega BETWEEN '{$inicioMes}' AND '{$finMes}'
+  ");
+  if (!$sql2) {
+    echo '<div class="alert alert-danger mb-0">Error SQL NO ENTREGADOS: ' . htmlspecialchars($mysqli->error) . '</div>';
+    exit;
   }
+  $TotalMisNoEnvios = (int)($sql2->fetch_assoc()['Total'] ?? 0);
 
-  $MisNoEnvios      = $sql->fetch_array(MYSQLI_ASSOC);
-  $TotalMisNoEnvios = (int)$MisNoEnvios['Total'];
+  // ✅ HTML (Cuenta)
+?>
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="mb-3">Mi cuenta</h4>
 
-  responder([
-    'success' => 1,
-    'Total'   => $TotalMisEnvios,
-    'Totalno' => $TotalMisNoEnvios,
-    'Usuario' => $Usuario
-  ]);
+        <div class="row g-2 text-center">
+          <div class="col-6">
+            <div class="badge bg-success w-100 py-3 fs-3">
+              <div class="small">Entregados (mes)</div>
+              <b id="mis_envios_total"><?= $TotalMisEnvios ?></b>
+            </div>
+          </div>
+
+          <div class="col-6">
+            <div class="badge bg-danger w-100 py-3 fs-3">
+              <div class="small">No entregados (mes)</div>
+              <b id="mis_noenvios_total"><?= $TotalMisNoEnvios ?></b>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <?php
+  exit;
 }
 
 // ==================================================
@@ -346,7 +354,7 @@ if (isset($_POST['Paneles'])) {
     $codSeguimiento = $row['CodigoSeguimiento'] ?? $row['Seguimiento'] ?? '';
     $idProv        = $idP ?? '';
     $usuario       = $_SESSION['Transportista'] ?? '';
-?>
+  ?>
 
     <!-- === TARJETA === -->
     <div class="col-xl-7">

@@ -1,5 +1,4 @@
 <?php
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -39,7 +38,10 @@ class Conexion
     public function __construct()
     {
         $datos = $this->cargarDatosConexion();
-
+        // 🔥 DEBUG REAL: qué config y db estoy usando
+        if (!headers_sent()) {
+            header('X-Caddy-Config: ' . ($archivo ?? 'NO_ARCHIVO')); // ojo: $archivo está dentro de cargarDatosConexion, abajo te doy alternativa
+        }
         $server   = $datos['server']   ?? 'localhost';
         $user     = $datos['user']     ?? 'root';
         $password = $datos['password'] ?? '';
@@ -65,6 +67,12 @@ class Conexion
                 $port
             );
         }
+        // 🔎 DEBUG FUERTE
+        if (!headers_sent()) {
+            header('X-Caddy-DB-Real: ' . $database);
+            header('X-Caddy-Server-Real: ' . $server);
+            header('X-Caddy-Host-Detectado: ' . ($_SERVER['HTTP_HOST'] ?? ''));
+        }
 
         // ❌ Error de conexión
         if ($this->conexion->connect_error) {
@@ -81,11 +89,13 @@ class Conexion
         $serverName = $_SERVER['SERVER_NAME'] ?? '';
         $host       = strtolower($_SERVER['HTTP_HOST'] ?? '');
         $host       = preg_replace('/:\d+$/', '', $host);
+        $host       = preg_replace('/^www\./', '', $host);
 
         if ($serverName === 'localhost') {
             $archivo = "config_local";
             define('ENTORNO', 'local');
-        } elseif ($host === 'sandbox.reparto.caddy.com.ar') {
+            // } elseif ($host === 'sandbox.reparto.caddy.com.ar') {
+        } elseif (stripos($host, 'sandbox.') === 0) {
             $archivo = "config_sandbox";
             define('ENTORNO', 'sandbox');
         } else {
