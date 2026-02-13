@@ -7,6 +7,20 @@ let coolingDown = false; // 👈 ESTA LÍNEA FALTABA
 let feedbackTimeout = null;
 let scannerStarting = false;
 let scannerRunning = false;
+
+function existeAlgunoConBase(base, cb) {
+  const t = db.transaction("expected", "readonly");
+  const s = t.objectStore("expected");
+  let found = false;
+
+  s.openCursor().onsuccess = function (e) {
+    const c = e.target.result;
+    if (!c) return cb(found);
+    const v = c.value;
+    if (v && v.base === base) return cb(true);
+    c.continue();
+  };
+}
 function tieneSufijoBulto(code) {
   return /_\d+$/.test(code); // termina en _numero
 }
@@ -20,11 +34,7 @@ function getNextPendingCodeForBase(base, retiradoObjetivo, callback) {
       const v = cursor.value;
 
       // 👇 SOLO los de esta base + este tipo (0 retiro / 1 entrega) + pendientes
-      if (
-        v.base === base &&
-        (v.retirado ?? 1) === retiradoObjetivo &&
-        v.estado !== "ok"
-      ) {
+      if (v.base === base && (v.retirado ?? 1) === retiradoObjetivo && v.estado !== "ok") {
         return callback(v.code);
       }
       cursor.continue();
@@ -202,12 +212,21 @@ function actualizarEstado(retiradoObjetivo = 1) {
 // Validación
 // --------------------
 function normalizarCodigo(raw) {
-  // if (!raw) return "";
-  // return raw.includes("_") ? raw : raw + "_1";
-  // return raw;
-  return (raw || "").trim();
-}
+  raw = (raw || "").trim();
+  if (!raw) return "";
 
+  // QR MercadoLibre: viene como JSON {"id":"...","sender_id":...}
+  if (raw.startsWith("{") && raw.endsWith("}")) {
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && obj.id) return String(obj.id).trim(); // <- "46460390729"
+    } catch (e) {
+      // si no parsea, seguimos con raw
+    }
+  }
+
+  return raw;
+}
 function beepOk() {
   try {
     const audio = new Audio("ok.mp3");
@@ -244,10 +263,7 @@ function validarExacto(code, retiradoObjetivo, resolve) {
     expected.put(item);
 
     scanned.put({
-      id:
-        crypto && crypto.randomUUID
-          ? crypto.randomUUID()
-          : Date.now() + "_" + Math.random(),
+      id: crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random(),
       code: code,
       base: item.base,
       retirado: item.retirado ?? 1,
@@ -310,12 +326,16 @@ function validarBulto(rawCode) {
           return validarExacto(alias1, retiradoObjetivo, resolve);
         }
 
-        // c) Si no existe ni BASE ni _1 => NO permitir “autonumerar”
-        mostrarFeedback(
-          "⚠️ Envío con múltiples bultos: escaneá el QR con _2, _3, etc.",
-          "warn",
-        );
-        return resolve("requiere_sufijo");
+        // c) Si no existe ni BASE ni _1 => decidir si realmente hay múltiples bultos o no pertenece
+        existeAlgunoConBase(base, function (existe) {
+          if (existe) {
+            mostrarFeedback(`⚠️ Envío con múltiples bultos: escaneá ${base}_1, ${base}_2, etc.`, "warn");
+            return resolve("requiere_sufijo");
+          } else {
+            mostrarFeedback("❌ No pertenece al recorrido", "error");
+            return resolve("no_pertenece");
+          }
+        });
       };
     };
   });
