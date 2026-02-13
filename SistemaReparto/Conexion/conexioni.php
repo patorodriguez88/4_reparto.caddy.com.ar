@@ -89,6 +89,7 @@ class Conexion
         $serverName = $_SERVER['SERVER_NAME'] ?? '';
         $host       = strtolower($_SERVER['HTTP_HOST'] ?? '');
         $host       = preg_replace('/:\d+$/', '', $host);
+        $host       = preg_replace('/^www\./', '', $host);
 
         if ($serverName === 'localhost') {
             $archivo = "config_local";
