@@ -1,12 +1,8 @@
 // Warehouse: ir a warehouse.html
-$(document).on(
-  "click",
-  '.app-bottomnav .nav-item[data-action="warehouse"]',
-  function (e) {
-    e.preventDefault();
-    window.location.href = "warehouse.html";
-  },
-);
+$(document).on("click", '.app-bottomnav .nav-item[data-action="warehouse"]', function (e) {
+  e.preventDefault();
+  window.location.href = "warehouse.html";
+});
 // puente simple: botón salir dentro de Cuenta
 $(document).on("click", "#btnCuentaSalir", function () {
   $("#salir").trigger("click");
@@ -253,11 +249,7 @@ function puedeSalir() {
     }
 
     if (pendientesEntrega > 0) {
-      saModal(
-        "warning",
-        "Faltan entregas",
-        "Hay ENTREGAS sin validar. No se puede salir.",
-      );
+      saModal("warning", "Faltan entregas", "Hay ENTREGAS sin validar. No se puede salir.");
       return;
     }
 
@@ -266,11 +258,7 @@ function puedeSalir() {
 
     marcarEnTransitoBackend(function (ok, res) {
       if (!ok) {
-        saModal(
-          "error",
-          "No se pudo registrar En Tránsito",
-          res.error || "Error",
-        );
+        saModal("error", "No se pudo registrar En Tránsito", res.error || "Error");
         return;
       }
 
@@ -299,82 +287,145 @@ function guardarBulto(code, base, retirado) {
     retirado: retirado, // 👈 0=RETIRO, 1=ENTREGA
   });
 }
+res.items.forEach((item) => {
+  const bultos = parseInt(item.bultos, 10) || 1;
+  const retirado = Number(item.retirado); // 0 o 1
 
-function cargarLista() {
-  $.ajax({
-    url: "Proceso/php/warehouse.php",
-    type: "POST",
-    dataType: "json",
-    data: { GetLista: 1 },
-    success: function (res) {
-      if (res.success !== 1) {
-        saModal("error", "Error", res.error || "Error cargando lista");
-        return;
-      }
+  const codigoSeguimiento = (item.base || "").trim(); // hoy viene acá
+  const meliId = (item.meli_id || "").trim(); // nuevo: shipment_id (si backend lo envía)
 
-      $("#wh-recorrido").text(res.recorrido);
+  if (!codigoSeguimiento) return;
 
-      limpiarDB(() => {
-        // ✅ UNA sola transacción para todo
-        const t = db.transaction(["expected", "meta"], "readwrite");
-        const expected = t.objectStore("expected");
-        const meta = t.objectStore("meta");
-
-        let totalEntregas = 0;
-
-        res.items.forEach((item) => {
-          const bultos = parseInt(item.bultos, 10) || 1;
-          const retirado = Number(item.retirado); // 0 o 1
-          const base = (item.base || "").trim();
-
-          if (!base) return;
-
-          if (bultos === 1) {
-            expected.put({
-              code: base,
-              base: base,
-              estado: "pendiente",
-              retirado: retirado,
-            });
-          } else {
-            for (let i = 1; i <= bultos; i++) {
-              expected.put({
-                code: `${base}_${i}`,
-                base: base,
-                estado: "pendiente",
-                retirado: retirado,
-              });
-            }
-          }
-
-          if (retirado === 1) totalEntregas += bultos;
-        });
-
-        meta.put({ key: "recorrido", value: res.recorrido });
-        meta.put({ key: "total", value: totalEntregas });
-        meta.put({ key: "hash", value: res.hash });
-        meta.put({ key: "recorrido", value: res.recorrido });
-        // ✅ recién acá, cuando terminó de grabar TODO
-        t.oncomplete = function () {
-          cargarRecorridoLocal();
-          actualizarHUD(1);
-          safeRenderScanned();
-          saToast("success", `Lista cargada: ${totalEntregas} entregas`, 1200);
-        };
-
-        t.onerror = function () {
-          console.error("Error guardando expected/meta", t.error);
-          saToast("error", "Error guardando en IndexedDB", 1600);
-        };
+  // -----------------------
+  // 1) REGISTRO NORMAL: por CodigoSeguimiento (no lo tocamos)
+  // -----------------------
+  if (bultos === 1) {
+    expected.put({
+      code: codigoSeguimiento,
+      base: codigoSeguimiento,
+      estado: "pendiente",
+      retirado: retirado,
+      codigoSeguimiento: codigoSeguimiento, // 👈 extra
+      meli_id: meliId, // 👈 extra
+    });
+  } else {
+    for (let i = 1; i <= bultos; i++) {
+      expected.put({
+        code: `${codigoSeguimiento}_${i}`,
+        base: codigoSeguimiento,
+        estado: "pendiente",
+        retirado: retirado,
+        codigoSeguimiento: codigoSeguimiento,
+        meli_id: meliId,
       });
-    },
-    error: function (xhr) {
-      if (manejar401(xhr)) return;
-      console.error(xhr.responseText);
-      saToast("error", "Error de conexión cargando lista", 1600);
-    },
-  });
-}
+    }
+  }
+
+  // -----------------------
+  // 2) ALIAS ML: por meli_id (para que el QR JSON -> id funcione)
+  // -----------------------
+  if (meliId) {
+    if (bultos === 1) {
+      expected.put({
+        code: meliId, // 👈 escaneo ML sin sufijo
+        base: codigoSeguimiento, // 👈 agrupo por tu interno
+        estado: "pendiente",
+        retirado: retirado,
+        codigoSeguimiento: codigoSeguimiento,
+        meli_id: meliId,
+      });
+    } else {
+      for (let i = 1; i <= bultos; i++) {
+        expected.put({
+          code: `${meliId}_${i}`, // 👈 escaneo ML con sufijo
+          base: codigoSeguimiento,
+          estado: "pendiente",
+          retirado: retirado,
+          codigoSeguimiento: codigoSeguimiento,
+          meli_id: meliId,
+        });
+      }
+    }
+  }
+
+  if (retirado === 1) totalEntregas += bultos;
+});
+// function cargarLista() {
+//   $.ajax({
+//     url: "Proceso/php/warehouse.php",
+//     type: "POST",
+//     dataType: "json",
+//     data: { GetLista: 1 },
+//     success: function (res) {
+//       if (res.success !== 1) {
+//         saModal("error", "Error", res.error || "Error cargando lista");
+//         return;
+//       }
+
+//       $("#wh-recorrido").text(res.recorrido);
+
+//       limpiarDB(() => {
+//         // ✅ UNA sola transacción para todo
+//         const t = db.transaction(["expected", "meta"], "readwrite");
+//         const expected = t.objectStore("expected");
+//         const meta = t.objectStore("meta");
+
+//         let totalEntregas = 0;
+
+//         res.items.forEach((item) => {
+//           const bultos = parseInt(item.bultos, 10) || 1;
+//           const retirado = Number(item.retirado); // 0 o 1
+//           const base = (item.base || "").trim();
+//           const meliId = (item.meli_id || "").trim(); // shipment_id si lo tenés
+
+//           if (!base) return;
+
+//           if (bultos === 1) {
+//             expected.put({
+//               code: base,
+//               base: base,
+//               estado: "pendiente",
+//               retirado: retirado,
+//             });
+//           } else {
+//             for (let i = 1; i <= bultos; i++) {
+//               expected.put({
+//                 code: `${base}_${i}`,
+//                 base: base,
+//                 estado: "pendiente",
+//                 retirado: retirado,
+//               });
+//             }
+//           }
+
+//           if (retirado === 1) totalEntregas += bultos;
+//         });
+
+//         meta.put({ key: "recorrido", value: res.recorrido });
+//         meta.put({ key: "total", value: totalEntregas });
+//         meta.put({ key: "hash", value: res.hash });
+//         meta.put({ key: "recorrido", value: res.recorrido });
+//         // ✅ recién acá, cuando terminó de grabar TODO
+//         t.oncomplete = function () {
+//           cargarRecorridoLocal();
+//           actualizarHUD(1);
+//           safeRenderScanned();
+//           saToast("success", `Lista cargada: ${totalEntregas} entregas`, 1200);
+//         };
+
+//         t.onerror = function () {
+//           console.error("Error guardando expected/meta", t.error);
+//           saToast("error", "Error guardando en IndexedDB", 1600);
+//         };
+//       });
+//     },
+//     error: function (xhr) {
+//       if (manejar401(xhr)) return;
+//       console.error(xhr.responseText);
+//       saToast("error", "Error de conexión cargando lista", 1600);
+//     },
+//   });
+// }
 function renderDesdeDB(totalEsperados) {
   $("#wh-lista").html("");
 
@@ -521,8 +572,7 @@ function renderScanned(done) {
         const okE = scannedCount[base]?.entrega || 0;
         const totE = expectedCount[base]?.entrega || 0;
 
-        const cls =
-          totE > 0 && okE === totE ? "bg-success" : "bg-warning text-dark";
+        const cls = totE > 0 && okE === totE ? "bg-success" : "bg-warning text-dark";
         const badge =
           totE > 0
             ? `<span class="badge ${cls} ms-2">${okE}/${totE}</span>`
@@ -577,11 +627,7 @@ $("#mi_recorrido").on("click", function (e) {
     }
 
     if (pendientesEntrega > 0) {
-      saModal(
-        "warning",
-        "Todavía faltan",
-        `Todavía hay ${pendientesEntrega} ENTREGAS sin escanear.`,
-      );
+      saModal("warning", "Todavía faltan", `Todavía hay ${pendientesEntrega} ENTREGAS sin escanear.`);
       return;
     }
 

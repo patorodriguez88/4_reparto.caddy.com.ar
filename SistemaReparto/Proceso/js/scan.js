@@ -274,7 +274,8 @@ function validarExacto(code, retiradoObjetivo, resolve) {
         actualizarEstado(1);
       } catch (e) {}
 
-      const base = item.base;
+      // const base = item.base;
+      const base = item.codigoSeguimiento || item.base;
       baseYaRegistrada(base, (ya) => {
         if (ya) return resolve("ok");
         baseCompleto(base, retiradoObjetivo, (completo) => {

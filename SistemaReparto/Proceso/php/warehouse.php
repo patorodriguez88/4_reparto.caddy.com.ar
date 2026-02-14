@@ -9,7 +9,7 @@ if (isset($_POST['GetLista'])) {
         exit;
     }
 
-    $sql = $mysqli->query("SELECT TransClientes.Retirado,TransClientes.CodigoSeguimiento, TransClientes.Cantidad
+    $sql = $mysqli->query("SELECT TransClientes.Retirado,TransClientes.CodigoSeguimiento, TransClientes.Cantidad,TransClientes.shipments_id
     FROM HojaDeRuta
     INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
     WHERE HojaDeRuta.Recorrido = '$recorrido'
@@ -23,8 +23,8 @@ if (isset($_POST['GetLista'])) {
         $items[] = [
             'base' => $r['CodigoSeguimiento'],
             'bultos' => (int)$r['Cantidad'],
-            'retirado' => (int)$r['Retirado'] // 👈 CLAVE
-
+            'retirado' => (int)$r['Retirado'],
+            'meli_id' => trim((string)($r['shipments_id'] ?? '')),
         ];
     }
 
