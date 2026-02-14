@@ -155,16 +155,18 @@ function validarCacheConBackend(done) {
       data: { GetLista: 1, solo_hash: 1 },
       success: function (res) {
         if (!res || res.success !== 1) {
-          // si falla backend, por seguridad podés usar cache
+          if (res && (res.logged === 0 || res.reason === "NO_IDUSUARIO")) {
+            window.location.href = "hdr.html";
+            return;
+          }
           done(true);
           return;
         }
-
         const remoteHash = res.hash || "";
         done(localHash !== "" && localHash === remoteHash);
       },
-      error: function () {
-        // sin conexión: usá cache
+      error: function (xhr) {
+        if (manejar401(xhr)) return;
         done(true);
       },
     });
@@ -287,69 +289,113 @@ function guardarBulto(code, base, retirado) {
     retirado: retirado, // 👈 0=RETIRO, 1=ENTREGA
   });
 }
-res.items.forEach((item) => {
-  const bultos = parseInt(item.bultos, 10) || 1;
-  const retirado = Number(item.retirado); // 0 o 1
-
-  const codigoSeguimiento = (item.base || "").trim(); // hoy viene acá
-  const meliId = (item.meli_id || "").trim(); // nuevo: shipment_id (si backend lo envía)
-
-  if (!codigoSeguimiento) return;
-
-  // -----------------------
-  // 1) REGISTRO NORMAL: por CodigoSeguimiento (no lo tocamos)
-  // -----------------------
-  if (bultos === 1) {
-    expected.put({
-      code: codigoSeguimiento,
-      base: codigoSeguimiento,
-      estado: "pendiente",
-      retirado: retirado,
-      codigoSeguimiento: codigoSeguimiento, // 👈 extra
-      meli_id: meliId, // 👈 extra
-    });
-  } else {
-    for (let i = 1; i <= bultos; i++) {
-      expected.put({
-        code: `${codigoSeguimiento}_${i}`,
-        base: codigoSeguimiento,
-        estado: "pendiente",
-        retirado: retirado,
-        codigoSeguimiento: codigoSeguimiento,
-        meli_id: meliId,
-      });
-    }
-  }
-
-  // -----------------------
-  // 2) ALIAS ML: por meli_id (para que el QR JSON -> id funcione)
-  // -----------------------
-  if (meliId) {
-    if (bultos === 1) {
-      expected.put({
-        code: meliId, // 👈 escaneo ML sin sufijo
-        base: codigoSeguimiento, // 👈 agrupo por tu interno
-        estado: "pendiente",
-        retirado: retirado,
-        codigoSeguimiento: codigoSeguimiento,
-        meli_id: meliId,
-      });
-    } else {
-      for (let i = 1; i <= bultos; i++) {
-        expected.put({
-          code: `${meliId}_${i}`, // 👈 escaneo ML con sufijo
-          base: codigoSeguimiento,
-          estado: "pendiente",
-          retirado: retirado,
-          codigoSeguimiento: codigoSeguimiento,
-          meli_id: meliId,
-        });
+function cargarLista() {
+  $.ajax({
+    url: "Proceso/php/warehouse.php",
+    type: "POST",
+    dataType: "json",
+    data: { GetLista: 1 },
+    success: function (res) {
+      if (res.success !== 1) {
+        saModal("error", "Error", res.error || "Error cargando lista");
+        return;
       }
-    }
-  }
 
-  if (retirado === 1) totalEntregas += bultos;
-});
+      $("#wh-recorrido").text(res.recorrido);
+
+      limpiarDB(() => {
+        // ✅ UNA sola transacción para todo
+        const t = db.transaction(["expected", "meta"], "readwrite");
+        const expected = t.objectStore("expected");
+        const meta = t.objectStore("meta");
+
+        let totalEntregas = 0;
+
+        // ✅ ACÁ adentro va el forEach (NO afuera)
+        res.items.forEach((item) => {
+          const bultos = parseInt(item.bultos, 10) || 1;
+          const retirado = Number(item.retirado); // 0 o 1
+
+          const codigoSeguimiento = (item.base || "").trim(); // tu código interno
+          const meliId = (item.meli_id || "").trim(); // shipment_id (si backend lo manda)
+
+          if (!codigoSeguimiento) return;
+
+          // 1) Normal (por CodigoSeguimiento)
+          if (bultos === 1) {
+            expected.put({
+              code: codigoSeguimiento,
+              base: codigoSeguimiento,
+              estado: "pendiente",
+              retirado: retirado,
+              codigoSeguimiento: codigoSeguimiento,
+              meli_id: meliId,
+            });
+          } else {
+            for (let i = 1; i <= bultos; i++) {
+              expected.put({
+                code: `${codigoSeguimiento}_${i}`,
+                base: codigoSeguimiento,
+                estado: "pendiente",
+                retirado: retirado,
+                codigoSeguimiento: codigoSeguimiento,
+                meli_id: meliId,
+              });
+            }
+          }
+
+          // 2) Alias ML (por meli_id)
+          if (meliId) {
+            if (bultos === 1) {
+              expected.put({
+                code: meliId,
+                base: codigoSeguimiento,
+                estado: "pendiente",
+                retirado: retirado,
+                codigoSeguimiento: codigoSeguimiento,
+                meli_id: meliId,
+              });
+            } else {
+              for (let i = 1; i <= bultos; i++) {
+                expected.put({
+                  code: `${meliId}_${i}`,
+                  base: codigoSeguimiento,
+                  estado: "pendiente",
+                  retirado: retirado,
+                  codigoSeguimiento: codigoSeguimiento,
+                  meli_id: meliId,
+                });
+              }
+            }
+          }
+
+          if (retirado === 1) totalEntregas += bultos;
+        });
+
+        meta.put({ key: "recorrido", value: res.recorrido });
+        meta.put({ key: "total", value: totalEntregas });
+        meta.put({ key: "hash", value: res.hash });
+
+        t.oncomplete = function () {
+          cargarRecorridoLocal();
+          actualizarHUD(1);
+          safeRenderScanned();
+          saToast("success", `Lista cargada: ${totalEntregas} entregas`, 1200);
+        };
+
+        t.onerror = function () {
+          console.error("Error guardando expected/meta", t.error);
+          saToast("error", "Error guardando en IndexedDB", 1600);
+        };
+      });
+    },
+    error: function (xhr) {
+      if (manejar401(xhr)) return;
+      console.error(xhr.responseText);
+      saToast("error", "Error de conexión cargando lista", 1600);
+    },
+  });
+}
 // function cargarLista() {
 //   $.ajax({
 //     url: "Proceso/php/warehouse.php",
