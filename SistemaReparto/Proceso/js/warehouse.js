@@ -316,8 +316,10 @@ function cargarLista() {
           const bultos = parseInt(item.bultos, 10) || 1;
           const retirado = Number(item.retirado); // 0 o 1
 
-          const codigoSeguimiento = (item.base || "").trim(); // tu código interno
-          const meliId = (item.meli_id || "").trim(); // shipment_id (si backend lo manda)
+          // const codigoSeguimiento = (item.base || "").trim(); // tu código interno
+          // const meliId = (item.meli_id || "").trim(); // shipment_id (si backend lo manda)
+          const codigoSeguimiento = String(item.base ?? "").trim();
+          const meliId = String(item.meli_id ?? "").trim();
 
           if (!codigoSeguimiento) return;
 
