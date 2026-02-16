@@ -19,6 +19,27 @@ function responder($arr)
 /**
  * Helpers colecta JSON
  */
+// --- helper: obtener resume aunque no insertemos Seguimiento ---
+function leerResumeColecta($mysqli, $colectaId)
+{
+    if ($colectaId <= 0) return null;
+
+    $st = $mysqli->prepare("SELECT ColectaScans FROM Colecta WHERE id=? LIMIT 1");
+    $st->bind_param("i", $colectaId);
+    $st->execute();
+    $row = $st->get_result()->fetch_assoc();
+    $json = $row ? ($row['ColectaScans'] ?? '') : '';
+    if (trim((string)$json) === '') return null;
+
+    $payload = json_decode($json, true);
+    if (!is_array($payload)) return null;
+
+    // si no hay resume, lo calculamos
+    if (empty($payload['resume']) && function_exists('calcularResume')) {
+        $payload['resume'] = calcularResume($payload);
+    }
+    return $payload['resume'] ?? null;
+}
 function parseBaseAndSuffix($code)
 {
     $code = trim((string)$code);
@@ -84,7 +105,17 @@ function calcularResume($payload)
         'paquetes_total' => (int)($exp['paquetes_total'] ?? 0),
     ];
 }
+function normalizarMeliJsonAId($raw)
+{
+    $raw = trim((string)$raw);
+    if ($raw === '') return '';
 
+    if ($raw !== '' && $raw[0] === '{') {
+        $j = json_decode($raw, true);
+        if (is_array($j) && !empty($j['id'])) return trim((string)$j['id']);
+    }
+    return $raw;
+}
 if (isset($_POST['InitColecta'])) {
 
     $colectaId = (int)($_POST['colectaId'] ?? 0); // Colecta.id
@@ -188,7 +219,8 @@ if (isset($_POST['InitColecta'])) {
             'expected' => $expected,
             'resume' => $payload['resume'],
             'colectaId' => $colectaId,
-            'padreId' => $padreId
+            'padreId' => $padreId,
+            'cs_base' => $base
         ]);
     } catch (Throwable $e) {
         responder(['success' => 0, 'error' => 'INIT_COLECTA_ERROR', 'detail' => $e->getMessage()]);
@@ -203,10 +235,8 @@ if (isset($_POST['InitColecta'])) {
 if (!isset($_POST['ColectaBulto'])) {
     responder(['success' => 0, 'error' => 'Acción inválida']);
 }
-
-$basePost  = trim($_POST['base'] ?? '');   // puede venir CodigoSeguimiento o shipments_id
-$bultoPost = trim($_POST['bulto'] ?? '');  // token escaneado (auditoría)
-// $idColecta = (int)($_POST['idColecta'] ?? 0);
+$basePost  = normalizarMeliJsonAId($_POST['base'] ?? '');
+$bultoPost = normalizarMeliJsonAId($_POST['bulto'] ?? '');
 
 if ($basePost === '' || $bultoPost === '') {
     responder(['success' => 0, 'error' => 'Faltan base o bulto']);
@@ -231,51 +261,56 @@ $idCliente       = 0;
 $destino         = '';
 $nroOrden        = '';
 
-$baseCandidate = trim(explode('_', $basePost)[0]);  // siempre primero
-$lookupShip    = $baseCandidate;                    // si basePost es shipments_id, esto sirve
-$base          = $baseCandidate;                    // base default SIEMPRE
-// 1.a) Buscar por CodigoSeguimiento
-$sqlT = $mysqli->prepare("
-  SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
-  FROM TransClientes
-  WHERE SUBSTRING_INDEX(CodigoSeguimiento,'_',1)=? AND Eliminado=0
-    ORDER BY id DESC
-    LIMIT 1
-");
 
-$sqlT->bind_param("s", $baseCandidate);
-$sqlT->execute();
-$tr = $sqlT->get_result()->fetch_assoc();
+$baseCandidate = trim(explode('_', $basePost)[0]);
+$base = $baseCandidate;
 
-if ($tr && !empty($tr['id'])) {
-    $idTransClientes = (int)$tr['id'];
-    $base = explode('_', (string)($tr['CodigoSeguimiento'] ?? $baseCandidate))[0];
-    $idCliente = (int)($tr['idClienteDestino'] ?? 0);
-    $destino   = (string)($tr['DomicilioDestino'] ?? '');
-    $nroOrden  = (string)($tr['NumerodeOrden'] ?? '');
-} else {
-    // 1.b) Fallback por shipments_id
+// ✅ Si el bulto es numérico => ES shipments_id. Vamos directo por ahí.
+if (ctype_digit($bultoPost)) {
+
+    $shipIdInt = (int)$bultoPost;
+
     $sqlS = $mysqli->prepare("
-    SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
-    FROM TransClientes
-    WHERE shipments_id=? AND Eliminado=0
-    ORDER BY id DESC
-    LIMIT 1
-  ");
-    $sqlS->bind_param("s", $lookupShip);
+      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden, shipments_id
+      FROM TransClientes
+      WHERE shipments_id=? AND Eliminado=0
+      ORDER BY id DESC
+      LIMIT 1
+    ");
+    $sqlS->bind_param("i", $shipIdInt);
     $sqlS->execute();
     $trS = $sqlS->get_result()->fetch_assoc();
 
-    if ($trS && !empty($trS['CodigoSeguimiento'])) {
-        $idTransClientes = (int)($trS['id'] ?? 0);
+    if ($trS && !empty($trS['id'])) {
+        $idTransClientes = (int)$trS['id'];
         $base = explode('_', (string)$trS['CodigoSeguimiento'])[0];
         $idCliente = (int)($trS['idClienteDestino'] ?? 0);
         $destino   = (string)($trS['DomicilioDestino'] ?? '');
         $nroOrden  = (string)($trS['NumerodeOrden'] ?? '');
     }
+} else {
+
+    // 1.a) Buscar por CodigoSeguimiento (solo si NO es ML)
+    $sqlT = $mysqli->prepare("
+      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
+      FROM TransClientes
+      WHERE SUBSTRING_INDEX(CodigoSeguimiento,'_',1)=? AND Eliminado=0
+      ORDER BY id DESC
+      LIMIT 1
+    ");
+    $sqlT->bind_param("s", $baseCandidate);
+    $sqlT->execute();
+    $tr = $sqlT->get_result()->fetch_assoc();
+
+    if ($tr && !empty($tr['id'])) {
+        $idTransClientes = (int)$tr['id'];
+        $base = explode('_', (string)($tr['CodigoSeguimiento'] ?? $baseCandidate))[0];
+        $idCliente = (int)($tr['idClienteDestino'] ?? 0);
+        $destino   = (string)($tr['DomicilioDestino'] ?? '');
+        $nroOrden  = (string)($tr['NumerodeOrden'] ?? '');
+    }
 }
 
-// if ($idTransClientes === 0 || strlen($base ?? '') > 30) {
 if ($idTransClientes === 0 || !preg_match('/^[A-Za-z0-9\-]+$/', $base)) {
     responder([
         'success' => 0,
@@ -327,7 +362,8 @@ if ($colectaId > 0 && $padreId > 0) {
 
     // Si el token es numérico (ML) no aplica sufijo. Usamos heurística: si contiene "_" y empieza por la base, tratamos QR
     // $esQR = (strpos($codigoEscaneado, $base . '_') === 0) || ($codigoEscaneado === $base);
-    $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
+    // $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
+    $esQR = (strpos($codigoEscaneado, '_') !== false);
     if ($esQR) {
         [$bScan, $suf] = parseBaseAndSuffix($codigoEscaneado);
 
@@ -377,40 +413,124 @@ if ($colectaId > 0 && $padreId > 0) {
         ]);
     }
 
-    // 2.e) anti-duplicado por code exacto si es QR con sufijo, o por token si es ML
-    // $codeStore = $esQR ? $codigoEscaneado : $lookupShip;
+    // 2.e) anti-duplicado / merge
+    // - QR: duplicado real por code exacto (BASE_n)
+    // - ML: si vuelve el mismo shipments_id, SUMAMOS qty (hasta el tope)
+
+    $nowTs = date('Y-m-d H:i:s');
+
+    // ✅ QR verdadero SOLO si matchea BASE_N (no por “tiene _”)
+    $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
+
+    // ✅ ML si el bulto es numérico (shipments_id)
+    $esML = ctype_digit((string)$bultoPost);
+
     $codeStore = $esQR ? $codigoEscaneado : $bultoPost;
-    foreach ($scans as $s) {
-        if (trim((string)($s['code'] ?? '')) === trim((string)$codeStore)) {
-            // ya estaba
-            $colectaResume = $payload['resume'] ?? calcularResume($payload);
-            responder(['success' => 1, 'duplicate' => 1, 'resume' => $colectaResume, 'scan_saved' => 0]);
+
+    // buscar si ya existe ese codeStore en scans
+    $foundIdx = -1;
+    for ($i = 0; $i < count($scans); $i++) {
+        if (trim((string)($scans[$i]['code'] ?? '')) === trim((string)$codeStore)) {
+            $foundIdx = $i;
+            break;
         }
     }
 
-    // 2.f) append
+    if ($foundIdx >= 0) {
+
+        // QR: duplicado real
+        if ($esQR) {
+            $payload['resume'] = calcularResume($payload);
+            responder([
+                'success' => 1,
+                'duplicate' => 1,
+                'resume' => $payload['resume'],
+                'scan_saved' => 0,
+                'cs_base' => $base,
+                'paquetes_servicio' => $paquetesSvc
+            ]);
+        }
+
+        // ML: sumar qty (1 por scan) hasta tope
+        $currentQty = (int)($scans[$foundIdx]['qty'] ?? 1);
+        $addQty = 1;
+
+        if (($currentQty + $addQty) > $paquetesSvc) {
+            $addQty = max($paquetesSvc - $currentQty, 0);
+        }
+
+        if ($addQty <= 0) {
+            $payload['resume'] = calcularResume($payload);
+            responder([
+                'success' => 0,
+                'error' => 'EXCEDE_PAQUETES_SERVICIO',
+                'detail' => "{$base}: {$currentQty}/{$paquetesSvc} ya escaneados",
+                'base' => $base,
+                'resume' => $payload['resume'],
+                'scan_saved' => 0,
+                'cs_base' => $base,
+                'paquetes_servicio' => $paquetesSvc
+            ]);
+        }
+
+        $scans[$foundIdx]['qty'] = $currentQty + $addQty;
+        $scans[$foundIdx]['ts']  = $nowTs;
+        $payload['scans'] = $scans;
+
+        $payload['resume'] = calcularResume($payload);
+
+        $jsonNew = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        $up = $mysqli->prepare("UPDATE Colecta SET ColectaScans=?, ColectaScansUpdatedAt=? WHERE id=?");
+        $up->bind_param("ssi", $jsonNew, $nowTs, $colectaId);
+        $up->execute();
+
+        $scanSavedToColecta = 1;
+        $colectaResume = $payload['resume'];
+
+        responder([
+            'success' => 1,
+            'inserted' => 0,
+            'merged' => 1,
+            'added_qty' => $addQty,
+            'resume' => $colectaResume,
+            'scan_saved' => 1,
+            'cs_base' => $base,
+            'paquetes_servicio' => $paquetesSvc
+        ]);
+    }
+
+    // 2.f) NUEVO scan (primera vez que vemos este codeStore)
+    $newQty = 1; // ✅ ML y QR cuentan 1 por escaneo
+
     $scans[] = [
-        'base' => $base,
-        'code' => $codeStore,
-        'tipo' => $esQR ? 'QR' : 'ML',
-        'qty'  => $newQty,
-        'ts'   => date('Y-m-d H:i:s'),
+        'code' => $codeStore,     // QR: BASE_n, ML: shipments_id
+        'base' => $base,          // base Caddy real
+        'qty'  => $newQty,        // 1 por scan
+        'ts'   => $nowTs,
+        'kind' => $esQR ? 'QR' : ($esML ? 'ML' : 'OTHER'),
     ];
+
     $payload['scans'] = $scans;
-
-    // 2.g) resume
     $payload['resume'] = calcularResume($payload);
-    $colectaResume = $payload['resume'];
 
-    // 2.h) guardar
     $jsonNew = json_encode($payload, JSON_UNESCAPED_UNICODE);
-    $now = date('Y-m-d H:i:s');
-
     $up = $mysqli->prepare("UPDATE Colecta SET ColectaScans=?, ColectaScansUpdatedAt=? WHERE id=?");
-    $up->bind_param("ssi", $jsonNew, $now, $colectaId);
+    $up->bind_param("ssi", $jsonNew, $nowTs, $colectaId);
     $up->execute();
 
     $scanSavedToColecta = 1;
+    $colectaResume = $payload['resume'];
+
+    // seguimos flujo normal, PERO devolvemos ya el resume actualizado:
+    responder([
+        'success' => 1,
+        'inserted' => 1,
+        'codigo' => $base,
+        'resume' => $colectaResume,
+        'scan_saved' => 1,
+        'cs_base' => $base,
+        'paquetes_servicio' => $paquetesSvc
+    ]);
 }
 
 
@@ -431,6 +551,10 @@ $sqlChk->bind_param("ss", $base, $status);
 $sqlChk->execute();
 $chk = $sqlChk->get_result();
 if ($chk && $chk->num_rows > 0) {
+    // 👇 si no se guardó a colecta, igual devolvemos resume leyendo JSON
+    if ($colectaResume === null) {
+        $colectaResume = leerResumeColecta($mysqli, $colectaId);
+    }
     responder([
         'success'  => 1,
         'inserted' => 0,
@@ -502,5 +626,7 @@ responder([
     'status'     => $status,
     'estado'     => $Estado,
     'scan_saved' => $scanSavedToColecta,
-    'resume'     => $colectaResume
+    'resume'     => $colectaResume,
+    'paquetes_servicio' => $paquetesSvc
+
 ]);

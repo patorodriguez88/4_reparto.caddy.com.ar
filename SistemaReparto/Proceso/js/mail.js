@@ -1,6 +1,5 @@
 //SistemaReparto/Proceso/js/mail.js
 //cs= Codigo de Seguimiento
-//st= Status
 
 function textoEstado(slug, capitalizar = false) {
   const estados = {
@@ -55,14 +54,14 @@ function mail_status_notice(cs, slug) {
 
       console.log("NOTICES ORIGEN:", jsonData);
       if (jsonData.code === "SKIPPED") {
-        console.log("SKIPPED (Estados):", { cs, st, avisos: 1 });
+        console.log("SKIPPED (Estados):", { cs, slug, avisos: 1 });
         return;
       }
 
       if (!user) {
         console.warn("NO MAIL ORIGEN -> no envío delivered.php", {
           cs,
-          st,
+          slug,
           avisos: 1,
           jsonData,
         });
@@ -114,14 +113,14 @@ function mail_status_notice(cs, slug) {
 
       console.log("NOTICES DESTINO:", jsonData);
       if (jsonData.code === "SKIPPED") {
-        console.log("SKIPPED (Estados):", { cs, st, avisos: 1 });
+        console.log("SKIPPED (Estados):", { cs, slug, avisos: 1 });
         return;
       }
 
       if (!user) {
         console.warn("NO MAIL DESTINO -> no envío delivered.php", {
           cs,
-          st,
+          slug,
           avisos: 2,
           jsonData,
         });

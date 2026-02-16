@@ -20,9 +20,7 @@
   }
 
   function esModoColecta() {
-    return (
-      ($("#card-servicio").text() || "").trim().toUpperCase() === "COLECTA"
-    );
+    return ($("#card-servicio").text() || "").trim().toUpperCase() === "COLECTA";
   }
   // Si borran desde la X en el Select2, sincronizamos el Set
   $(document).on("select2:unselect", "#prueba", function (e) {
@@ -61,11 +59,7 @@
   function getServicioEsperadoPorBase(base) {
     const exp = getColectaExpected();
     if (!exp || !Array.isArray(exp.servicios_detalle)) return null;
-    return (
-      exp.servicios_detalle.find(
-        (s) => String(s.cs_base).trim() === String(base).trim(),
-      ) || null
-    );
+    return exp.servicios_detalle.find((s) => String(s.cs_base).trim() === String(base).trim()) || null;
   }
 
   function buildExpectedCodesForColecta() {
@@ -109,7 +103,18 @@
 
     return expected.filter((c) => !scanned.has(c));
   }
+  function getNextSuffixForBase(baseReal, maxPaquetes) {
+    const scanned = new Set();
 
+    codigosEscaneados.forEach((v) => scanned.add(String(v)));
+    (getSelectedValues() || []).forEach((v) => scanned.add(String(v)));
+
+    for (let i = 1; i <= maxPaquetes; i++) {
+      const candidate = `${baseReal}_${i}`;
+      if (!scanned.has(candidate)) return candidate;
+    }
+    return null; // ya están todos
+  }
   function getExpectedBase() {
     const raw = ($("#card-seguimiento").text() || "").trim();
     return raw ? raw.split("_")[0].trim() : "";
@@ -123,12 +128,8 @@
 
   // ===== Backend =====
   function postColectaBulto(base, token, cantidad = 1) {
-    const colectaId = esModoColecta()
-      ? parseInt(window.idColectaActual, 10) || 0
-      : 0;
-    const padreId = esModoColecta()
-      ? parseInt(window.colectaPadreId, 10) || 0
-      : 0;
+    const colectaId = esModoColecta() ? parseInt(window.idColectaActual, 10) || 0 : 0;
+    const padreId = esModoColecta() ? parseInt(window.colectaPadreId, 10) || 0 : 0;
 
     return $.ajax({
       url: "Proceso/php/colecta_scan.php",
@@ -190,14 +191,10 @@
     }
 
     $(document).off("keydown.colectaLock", ".select2-search__field");
-    $(document).on(
-      "keydown.colectaLock",
-      ".select2-search__field",
-      function (e) {
-        e.preventDefault();
-        return false;
-      },
-    );
+    $(document).on("keydown.colectaLock", ".select2-search__field", function (e) {
+      e.preventDefault();
+      return false;
+    });
 
     $(document).off("input.colectaLock", ".select2-search__field");
     $(document).on("input.colectaLock", ".select2-search__field", function () {
@@ -245,9 +242,15 @@
       $("#colecta-expected-qty").text(qtyExpected || 1);
 
       const onSuccess = async (decodedText) => {
+        // ===== SIEMPRE definidos (evita ReferenceError y sombras) =====
+        let codeToStoreFinal = "";
+        let baseReal = "";
+        let paquetesSvcBack = 0;
+
         if (coolingDown) return;
         coolingDown = true;
         setTimeout(() => (coolingDown = false), cooldownMs);
+
         const raw = (decodedText || "").trim();
         if (!raw) return;
 
@@ -258,46 +261,36 @@
         colectaLastT = now;
 
         const expectedBase = getExpectedBase();
-        const qtyExpectedLocal = getCantidadEsperada();
 
+        // 1) Detectar JSON ML / token / base para backend
         const jsonId = extraerIdDesdeJson(raw);
         const scannedToken = jsonId ? jsonId : raw;
 
-        // base "visual" para QR normal (para validar sufijo y UX)
-        const base = raw.split("_")[0].trim();
+        // base para backend:
+        // - si es JSON ML -> shipment_id (jsonId)
+        // - si es QR normal -> base de CS
+        const base = jsonId ? jsonId : raw.split("_")[0].trim();
         const hasN = raw.includes("_");
 
-        // Validación de contexto: hay colecta / hay envío
+        // 2) Contexto válido
         if (esModoColecta()) {
           const exp = getColectaExpected();
-          if (
-            !exp ||
-            !Array.isArray(exp.servicios_detalle) ||
-            !exp.servicios_detalle.length
-          ) {
-            swalFire({
-              icon: "warning",
-              title: "Sin colecta",
-              text: "Abrí una colecta antes de escanear.",
-            });
+          if (!exp || !Array.isArray(exp.servicios_detalle) || !exp.servicios_detalle.length) {
+            swalFire({ icon: "warning", title: "Sin colecta", text: "Abrí una colecta antes de escanear." });
             feedbackScan(false);
             return;
           }
         } else {
           if (!expectedBase) {
-            swalFire({
-              icon: "warning",
-              title: "Sin envío",
-              text: "Abrí un envío antes de escanear.",
-            });
+            swalFire({ icon: "warning", title: "Sin envío", text: "Abrí un envío antes de escanear." });
             feedbackScan(false);
             return;
           }
         }
 
-        // ===== Validaciones rápidas SOLO para QR normal (no JSON) =====
-        // JSON/Proveedor: lo decide el backend (para evitar el bug original)
+        // 3) Validaciones rápidas SOLO para QR normal (no JSON)
         let paquetesSvc = 1;
+        let qtyExpectedLocal = getCantidadEsperada(); // modo normal
 
         if (!jsonId) {
           if (esModoColecta()) {
@@ -314,9 +307,9 @@
               return;
             }
 
-            paquetesSvc = parseInt(svc?.paquetes || 1, 10) || 1;
+            paquetesSvc = parseInt(svc.paquetes || 1, 10) || 1;
+            qtyExpectedLocal = paquetesSvc;
 
-            // si requiere sufijo y no hay, freno
             if (paquetesSvc > 1 && !hasN) {
               swalFire({
                 icon: "info",
@@ -329,7 +322,6 @@
               return;
             }
 
-            // rango sufijo
             if (hasN) {
               const parts = raw.split("_");
               const suf = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
@@ -370,6 +362,7 @@
               feedbackScan(false);
               return;
             }
+
             if (qtyExpectedLocal > 1 && !hasN) {
               swalFire({
                 icon: "info",
@@ -384,58 +377,71 @@
           }
         }
 
-        // ===== codeToStore (solo para UI/duplicados locales) =====
-        // - JSON: guardamos el token (id) (pero el backend es la autoridad final)
-        // - QR normal: base o raw según paquetes
-        let codeToStore;
-        if (jsonId) {
-          codeToStore = scannedToken;
-        } else if (esModoColecta()) {
-          codeToStore = paquetesSvc <= 1 ? base : raw;
+        // 4) Backend (autoridad) + duplicado local preliminar
+        // Armamos un "candidate" inicial sólo para anti-duplicado rápido
+        let candidateLocal = "";
+        if (!esModoColecta()) {
+          candidateLocal = qtyExpectedLocal <= 1 ? expectedBase : raw;
         } else {
-          codeToStore = qtyExpectedLocal <= 1 ? expectedBase : raw;
+          // candidateLocal = jsonId ? scannedToken : paquetesSvc <= 1 ? base : raw;
+          candidateLocal = jsonId ? "__ML__" : paquetesSvc <= 1 ? base : raw;
         }
+        const allowRepeatForQty = esModoColecta() && !jsonId && !hasN && paquetesSvc > 1; // paquetesSvc viene del servicio esperado (si no, dejalo en 1)
 
-        // anti-duplicado local
-        if (codigosEscaneados.has(codeToStore)) {
+        if (!allowRepeatForQty && codigosEscaneados.has(candidateLocal)) {
           swalFire({
             icon: "info",
             title: "Ya escaneado",
-            text: codeToStore,
+            text: candidateLocal,
             timer: 900,
             showConfirmButton: false,
           });
           feedbackScan(false);
           return;
         }
+        // if (!jsonId && codigosEscaneados.has(candidateLocal)) {
+        //   swalFire({
+        //     icon: "info",
+        //     title: "Ya escaneado",
+        //     text: candidateLocal,
+        //     timer: 900,
+        //     showConfirmButton: false,
+        //   });
+        //   feedbackScan(false);
+        //   return;
+        // }
 
-        // ===== Backend primero (autoridad) =====
-        let res;
+        let res = null;
         try {
           res = await postColectaBulto(base, scannedToken);
 
-          // 🔹 Si el backend dice que ya estaba registrado
           if (res && res.success == 1 && res.duplicate == 1) {
-            feedbackScan(false); // sonido diferente
+            feedbackScan(false);
             swalFire({
               icon: "info",
               title: "Ya registrado",
-              text: codeToStore,
+              text: candidateLocal,
               timer: 700,
               showConfirmButton: false,
             });
             return;
           }
 
-          // 🔹 Si falla realmente
-          if (!res || res.success != 1) {
-            throw new Error("backend rejected");
-          }
+          if (!res || res.success != 1) throw new Error("backend rejected");
 
-          // 🔹 OK real
+          // si backend devuelve estos campos (recomendado), los usamos
+          baseReal = (res.cs_base || "").trim();
+          paquetesSvcBack = parseInt(res.paquetes_servicio || 0, 10) || 0;
+
           feedbackScan(true);
         } catch (e) {
-          console.error("ColectaBulto error:", e);
+          console.error("ColectaBulto error:", {
+            e,
+            res,
+            status: e?.status,
+            responseText: e?.responseText,
+          });
+
           feedbackScan(false);
           swalFire({
             icon: "error",
@@ -444,28 +450,105 @@
           });
           return;
         }
+        // 5) Definir codeToStore FINAL (lo que va al select2 y al set)
+        if (!esModoColecta()) {
+          // envío normal
+          codeToStoreFinal = qtyExpectedLocal <= 1 ? expectedBase : raw;
+        } else {
+          // colecta
+          if (jsonId) {
+            // ML: el QR no trae _1.._n. Los generamos para UI según paquetes del servicio.
+            const b = baseReal ? baseReal : scannedToken;
+            const paquetes = paquetesSvcBack || 1;
 
-        // UI: recién acá lo damos por válido
-        codigosEscaneados.add(codeToStore);
-        addToSelect2(codeToStore);
-
-        if (esModoColecta()) {
-          $("#colecta-faltan").text(getFaltantesColecta().length);
+            if (!baseReal) {
+              // si no vino cs_base, fallback feo pero funcional
+              codeToStoreFinal = scannedToken;
+            } else if (paquetes <= 1) {
+              codeToStoreFinal = baseReal;
+            } else {
+              const next = getNextSuffixForBase(baseReal, paquetes);
+              if (!next) {
+                // ya completaste todos los bultos
+                swalFire({
+                  icon: "info",
+                  title: "Completo",
+                  text: `Ya están los ${paquetes} bultos de ${baseReal}`,
+                  timer: 900,
+                  showConfirmButton: false,
+                });
+                feedbackScan(false);
+                return;
+              }
+              codeToStoreFinal = next; // ej: BASE_2, BASE_3...
+            }
+          } else {
+            // QR normal colecta
+            // codeToStoreFinal = paquetesSvc <= 1 ? base : raw;
+            // ✅ caso ML texto plano SIN sufijo pero con paquetesSvc > 1
+            if (esModoColecta() && !hasN && paquetesSvc > 1) {
+              const next = getNextSuffixForBase(base, paquetesSvc);
+              if (!next) {
+                swalFire({
+                  icon: "info",
+                  title: "Completo",
+                  text: `Ya están los ${paquetesSvc} bultos de ${base}`,
+                  timer: 900,
+                  showConfirmButton: false,
+                });
+                feedbackScan(false);
+                return;
+              }
+              codeToStoreFinal = next; // BASE_1, BASE_2, ...
+            } else {
+              // QR normal colecta (con sufijo o paquete único)
+              codeToStoreFinal = paquetesSvc <= 1 ? base : raw;
+            }
+          }
         }
 
-        // feedback texto
-        const cargados = $("#prueba").val()?.length || 0;
-        let totalEsperado = qtyExpectedLocal;
+        // anti-duplicado final (por si el backend resolvió distinto)
+        if (codigosEscaneados.has(codeToStoreFinal)) {
+          swalFire({
+            icon: "info",
+            title: "Ya escaneado",
+            text: codeToStoreFinal,
+            timer: 900,
+            showConfirmButton: false,
+          });
+          feedbackScan(false);
+          return;
+        }
 
-        if (esModoColecta()) {
-          const n = buildExpectedCodesForColecta().length;
-          totalEsperado = n > 0 ? n : Math.max(cargados, 1);
+        // 6) Persistir UI
+        codigosEscaneados.add(codeToStoreFinal);
+        addToSelect2(codeToStoreFinal);
+
+        // 7) Progreso: SIEMPRE desde resume si viene (autoridad)
+        let ok = 0;
+        let tot = 0;
+
+        if (res && res.resume) {
+          ok = parseInt(res.resume.paquetes_ok || 0, 10);
+          tot = parseInt(res.resume.paquetes_total || 0, 10);
+
+          if (esModoColecta()) {
+            $("#colecta-faltan").text(Math.max(tot - ok, 0));
+          }
+        } else {
+          // fallback: el select2 cuenta "items", no "paquetes"
+          ok = $("#prueba").val()?.length || 0;
+          tot = esModoColecta() ? buildExpectedCodesForColecta().length || 1 : qtyExpectedLocal || 1;
+
+          if (esModoColecta()) {
+            $("#colecta-faltan").text(Math.max(tot - ok, 0));
+          }
         }
 
         swalFire({
           icon: "success",
           title: "OK",
-          text: `Cargado ${cargados}/${totalEsperado}`,
+          text: `Cargado ${ok}/${tot}`,
           timer: 650,
           showConfirmButton: false,
         });
@@ -495,20 +578,10 @@
       };
 
       try {
-        await colectaQr.start(
-          { facingMode: "environment" },
-          isIOS ? configIOS : configHiRes,
-          onSuccess,
-          () => {},
-        );
+        await colectaQr.start({ facingMode: "environment" }, isIOS ? configIOS : configHiRes, onSuccess, () => {});
       } catch (e1) {
         console.warn("Start failed, fallback...", e1);
-        await colectaQr.start(
-          { facingMode: "environment" },
-          configIOS,
-          onSuccess,
-          () => {},
-        );
+        await colectaQr.start({ facingMode: "environment" }, configIOS, onSuccess, () => {});
       }
 
       setTimeout(() => {
@@ -550,8 +623,7 @@
 
     const maxShow = 15;
     const listado = faltan.slice(0, maxShow).join("<br>");
-    const extra =
-      faltan.length > maxShow ? `<br>… y ${faltan.length - maxShow} más` : "";
+    const extra = faltan.length > maxShow ? `<br>… y ${faltan.length - maxShow} más` : "";
 
     Swal.fire({
       icon: "warning",
