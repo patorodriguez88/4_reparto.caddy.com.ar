@@ -273,16 +273,18 @@ function validarExacto(code, retiradoObjetivo, resolve) {
       mostrarFeedback("⚠️ Ya escaneado", "warn");
       return resolve("ya_ok");
     }
-    // ✅ Si escaneé un ALIAS (meli_id), el bulto real es la BASE
+    // Determinar primero si es alias
     const eraAlias = item.estado === "alias";
+
+    // Si escaneé un alias, el código real es la base
     const realCode = eraAlias ? item.codigoSeguimiento || item.base : code;
 
-    // (opcional) marco OK el alias solo para trazabilidad
+    // Si era alias, NO cambiar estado
     if (eraAlias) {
-      item.estado = "ok";
+      item.alias_ok = 1;
+      item.alias_ts = Date.now();
       expected.put(item);
     }
-
     // Ahora marco ok el bulto real (base)
     const reqReal = expected.get(realCode);
 
@@ -317,8 +319,6 @@ function validarExacto(code, retiradoObjetivo, resolve) {
         actualizarEstado(1);
       } catch (e) {}
 
-      // const base = item.base;
-      // const base = item.codigoSeguimiento || item.base;
       // buscamos el real para obtener base consistente
       const tx2 = db.transaction("expected", "readonly");
       tx2.objectStore("expected").get(realCode).onsuccess = function (e3) {
