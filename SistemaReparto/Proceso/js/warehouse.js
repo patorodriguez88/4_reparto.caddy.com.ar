@@ -347,30 +347,42 @@ function cargarLista() {
           }
 
           // 2) Alias ML (por meli_id)
+          // if (meliId) {
+          //   if (bultos === 1) {
+          //     expected.put({
+          //       code: meliId,
+          //       base: codigoSeguimiento,
+          //       estado: "pendiente",
+          //       retirado: retirado,
+          //       codigoSeguimiento: codigoSeguimiento,
+          //       meli_id: meliId,
+          //     });
+          //   } else {
+          //     for (let i = 1; i <= bultos; i++) {
+          //       expected.put({
+          //         code: `${meliId}_${i}`,
+          //         base: codigoSeguimiento,
+          //         estado: "pendiente",
+          //         retirado: retirado,
+          //         codigoSeguimiento: codigoSeguimiento,
+          //         meli_id: meliId,
+          //       });
+          //     }
+          //   }
+          // }
+          // 2) Alias ML (por meli_id) -> NO cuenta como bulto esperado
+          // Lo guardamos solo como "alias" para poder matchear el escaneo.
           if (meliId) {
-            if (bultos === 1) {
-              expected.put({
-                code: meliId,
-                base: codigoSeguimiento,
-                estado: "pendiente",
-                retirado: retirado,
-                codigoSeguimiento: codigoSeguimiento,
-                meli_id: meliId,
-              });
-            } else {
-              for (let i = 1; i <= bultos; i++) {
-                expected.put({
-                  code: `${meliId}_${i}`,
-                  base: codigoSeguimiento,
-                  estado: "pendiente",
-                  retirado: retirado,
-                  codigoSeguimiento: codigoSeguimiento,
-                  meli_id: meliId,
-                });
-              }
-            }
+            // si hay bultos > 1 y ML trae un solo meliId, igual lo dejamos como alias base
+            expected.put({
+              code: meliId,
+              base: codigoSeguimiento,
+              estado: "alias", // 👈 clave: NO es pendiente
+              retirado: retirado,
+              codigoSeguimiento: codigoSeguimiento,
+              meli_id: meliId,
+            });
           }
-
           if (retirado === 1) totalEntregas += bultos;
         });
 
@@ -471,7 +483,11 @@ function actualizarHUD(retiradoObjetivo = 1) {
       // const ret = v.retirado ?? 1;
       const ret = Number(v.retirado);
 
-      if (ret === retiradoObjetivo) {
+      // if (ret === retiradoObjetivo) {
+      //   total++;
+      //   if (v.estado === "ok") ok++;
+      // }
+      if (ret === retiradoObjetivo && v.estado !== "alias") {
         total++;
         if (v.estado === "ok") ok++;
       }
@@ -529,11 +545,14 @@ function renderScanned(done) {
         const base = v.base || (v.code ? v.code.split("_")[0] : "");
         const ret = v.retirado ?? 1;
 
-        if (base && ret === 1) {
+        // if (base && ret === 1) {
+        //   if (!expectedCount[base]) expectedCount[base] = { entrega: 0 };
+        //   expectedCount[base].entrega++;
+        // }
+        if (base && ret === 1 && v.estado !== "alias") {
           if (!expectedCount[base]) expectedCount[base] = { entrega: 0 };
           expectedCount[base].entrega++;
         }
-
         c2.continue();
         return;
       }
