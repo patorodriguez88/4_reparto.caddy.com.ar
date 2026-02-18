@@ -85,30 +85,30 @@ function marcarBaseRegistrada(base) {
   t.objectStore("bases_done").put({ base: base, ts: Date.now() });
 }
 
-function registrarWarehouse(base) {
-  $.ajax({
-    url: "Proceso/php/warehouse.php",
-    type: "POST",
-    dataType: "json",
-    data: {
-      RegistrarWarehouse: 1,
-      codigo: base, // 👈 base SIN _n
-      state_id: 13, // opcional cuando lo tengas definido
-    },
-    success: function (res) {
-      if (res.success === 1) {
-        // Mensaje “OK” lindo (sin alert)
-        mostrarToast(`✅ ${base} validado en warehouse`);
-      } else {
-        console.warn(res);
-      }
-    },
-    error: function (xhr) {
-      if (manejar401(xhr)) return;
-      console.error(xhr.responseText);
-    },
-  });
-}
+// function registrarWarehouse(base) {
+//   $.ajax({
+//     url: "Proceso/php/warehouse.php",
+//     type: "POST",
+//     dataType: "json",
+//     data: {
+//       RegistrarWarehouse: 1,
+//       codigo: base, // 👈 base SIN _n
+//       state_id: 13, // opcional cuando lo tengas definido
+//     },
+//     success: function (res) {
+//       if (res.success === 1) {
+//         // Mensaje “OK” lindo (sin alert)
+//         mostrarToast(`✅ ${base} validado en warehouse`);
+//       } else {
+//         console.warn(res);
+//       }
+//     },
+//     error: function (xhr) {
+//       if (manejar401(xhr)) return;
+//       console.error(xhr.responseText);
+//     },
+//   });
+// }
 
 // Toast simple arriba
 function mostrarToast(txt) {
@@ -335,7 +335,7 @@ function validarExacto(code, retiradoObjetivo, resolve) {
 
           baseCompleto(base, retiradoObjetivo, (completo) => {
             if (completo) {
-              registrarWarehouse(base);
+              // registrarWarehouse(base);
               marcarBaseRegistrada(base);
             }
             resolve("ok");

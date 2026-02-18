@@ -232,7 +232,21 @@ function manejar401(xhr) {
 
 let lastCode = "";
 let lastTime = 0;
+// ------------------------------------
+// Obtener bases completadas (IndexedDB)
+// ------------------------------------
+function obtenerBasesDone(callback) {
+  const t = db.transaction("bases_done", "readonly");
+  const s = t.objectStore("bases_done");
+  const bases = [];
 
+  s.openCursor().onsuccess = function (e) {
+    const c = e.target.result;
+    if (!c) return callback(bases);
+    bases.push(c.value.base);
+    c.continue();
+  };
+}
 function puedeSalir() {
   const t = db.transaction("expected", "readonly");
   const store = t.objectStore("expected");
@@ -260,16 +274,48 @@ function puedeSalir() {
     // ✅ Todo OK local → ahora persistimos “En Tránsito” en backend
     saToast("info", "Validando salida…", 900);
 
-    marcarEnTransitoBackend(function (ok, res) {
-      if (!ok) {
-        saModal("error", "No se pudo registrar En Tránsito", res.error || "Error");
-        return;
-      }
+    obtenerBasesDone(function (bases) {
+      $.ajax({
+        url: "Proceso/php/warehouse.php",
+        type: "POST",
+        dataType: "json",
+        data: {
+          RegistrarWarehouseBatch: 1,
+          bases: JSON.stringify(bases),
+          state_id: 13,
+        },
+        success: function (res) {
+          if (!res || res.success !== 1) {
+            saModal("error", "Error", res?.error || "No se pudo registrar");
+            return;
+          }
 
-      saModal("success", "Listo", "Entregas validadas. Envíos en tránsito.");
-      // si querés redirigir automáticamente:
-      // setTimeout(() => (window.location.href = "hdr.html"), 900);
+          // 🔥 Ahora sí marcamos En Tránsito
+          marcarEnTransitoBackend(function (ok2, r2) {
+            if (!ok2) {
+              saModal("error", "Error", r2.error || "No se pudo registrar En Tránsito");
+              return;
+            }
+
+            saModal("success", "Listo", "Carga confirmada correctamente");
+          });
+        },
+        error: function (xhr) {
+          if (manejar401(xhr)) return;
+          saModal("error", "Error", "No se pudo conectar con el servidor");
+        },
+      });
     });
+    // marcarEnTransitoBackend(function (ok, res) {
+    //   if (!ok) {
+    //     saModal("error", "No se pudo registrar En Tránsito", res.error || "Error");
+    //     return;
+    //   }
+
+    //   saModal("success", "Listo", "Entregas validadas. Envíos en tránsito.");
+    //   // si querés redirigir automáticamente:
+    //   // setTimeout(() => (window.location.href = "hdr.html"), 900);
+    // });
   };
 }
 function limpiarDB(callback) {
