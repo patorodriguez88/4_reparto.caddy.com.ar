@@ -34,7 +34,7 @@ function getNextPendingCodeForBase(base, retiradoObjetivo, callback) {
       const v = cursor.value;
 
       // 👇 SOLO los de esta base + este tipo (0 retiro / 1 entrega) + pendientes
-      if (v.base === base && (v.retirado ?? 1) === retiradoObjetivo && v.estado !== "ok") {
+      if (v.base === base && (v.retirado ?? 1) === retiradoObjetivo && v.estado !== "ok" && v.estado !== "alias") {
         return callback(v.code);
       }
       cursor.continue();
@@ -63,7 +63,7 @@ function baseCompleto(base, retiradoObjetivo, callback) {
     if (cursor) {
       const v = cursor.value;
 
-      if (v.base === base && (v.retirado ?? 1) === retiradoObjetivo) {
+      if (v.base === base && (v.retirado ?? 1) === retiradoObjetivo && v.estado !== "alias") {
         total++;
         if (v.estado === "ok") ok++;
       }
@@ -138,11 +138,11 @@ function mostrarFeedback(texto, tipo = "ok") {
   const el = document.getElementById("scan-feedback");
   if (!el) return;
 
+  el.classList.remove("hidden"); // ✅ asegurar visible
   el.className = `scan-feedback ${tipo}`;
   el.innerText = texto;
 
   clearTimeout(feedbackTimeout);
-
   feedbackTimeout = setTimeout(() => {
     el.classList.add("hidden");
   }, 1000);
@@ -194,7 +194,7 @@ function actualizarEstado(retiradoObjetivo = 1) {
     if (cursor) {
       const v = cursor.value;
 
-      if ((v.retirado ?? 1) === retiradoObjetivo) {
+      if ((v.retirado ?? 1) === retiradoObjetivo && v.estado !== "alias") {
         total++;
         if (v.estado === "ok") ok++;
       }
@@ -254,38 +254,104 @@ function validarExacto(code, retiradoObjetivo, resolve) {
       return resolve("no_corresponde");
     }
 
+    // if (item.estado === "ok") {
+    //   mostrarFeedback("⚠️ Ya escaneado", "warn");
+    //   return resolve("ya_ok");
+    // }
+
+    // item.estado = "ok";
+    // expected.put(item);
+
+    // scanned.put({
+    //   id: crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random(),
+    //   code: code,
+    //   base: item.base,
+    //   retirado: item.retirado ?? 1,
+    //   ts: Date.now(),
+    // });
     if (item.estado === "ok") {
       mostrarFeedback("⚠️ Ya escaneado", "warn");
       return resolve("ya_ok");
     }
+    // ✅ Si escaneé un ALIAS (meli_id), el bulto real es la BASE
+    const eraAlias = item.estado === "alias";
+    const realCode = eraAlias ? item.codigoSeguimiento || item.base : code;
 
-    item.estado = "ok";
-    expected.put(item);
+    // (opcional) marco OK el alias solo para trazabilidad
+    if (eraAlias) {
+      item.estado = "ok";
+      expected.put(item);
+    }
 
-    scanned.put({
-      id: crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random(),
-      code: code,
-      base: item.base,
-      retirado: item.retirado ?? 1,
-      ts: Date.now(),
-    });
+    // Ahora marco ok el bulto real (base)
+    const reqReal = expected.get(realCode);
+
+    reqReal.onsuccess = function () {
+      const realItem = reqReal.result;
+
+      if (!realItem) {
+        // raro: alias sin base, pero no rompemos
+        mostrarFeedback("⚠️ Alias sin base", "warn");
+        return resolve("no_pertenece");
+      }
+
+      if (realItem.estado === "ok") {
+        mostrarFeedback("⚠️ Ya escaneado", "warn");
+        return resolve("ya_ok");
+      }
+
+      realItem.estado = "ok";
+      expected.put(realItem);
+
+      scanned.put({
+        id: crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random(),
+        code: realCode, // 👈 guardo el real
+        base: realItem.base,
+        retirado: realItem.retirado ?? 1,
+        ts: Date.now(),
+        origen: eraAlias ? "alias" : "directo",
+      });
+    };
     t.oncomplete = function () {
       try {
         actualizarEstado(1);
       } catch (e) {}
 
       // const base = item.base;
-      const base = item.codigoSeguimiento || item.base;
-      baseYaRegistrada(base, (ya) => {
-        if (ya) return resolve("ok");
-        baseCompleto(base, retiradoObjetivo, (completo) => {
-          if (completo) {
-            registrarWarehouse(base);
-            marcarBaseRegistrada(base);
-          }
-          resolve("ok");
+      // const base = item.codigoSeguimiento || item.base;
+      // buscamos el real para obtener base consistente
+      const tx2 = db.transaction("expected", "readonly");
+      tx2.objectStore("expected").get(realCode).onsuccess = function (e3) {
+        const it = e3.target.result || item;
+        const base = it.codigoSeguimiento || it.base;
+
+        baseYaRegistrada(base, (ya) => {
+          // ✅ feedback OK inmediato
+          // mostrarFeedback(`✅ OK: ${base}`, "ok");
+          mostrarFeedback(eraAlias ? `✅ OK (ML): ${base}` : `✅ OK: ${base}`, "ok");
+          beepOk();
+
+          if (ya) return resolve("ok");
+
+          baseCompleto(base, retiradoObjetivo, (completo) => {
+            if (completo) {
+              registrarWarehouse(base);
+              marcarBaseRegistrada(base);
+            }
+            resolve("ok");
+          });
         });
-      });
+      };
+      // baseYaRegistrada(base, (ya) => {
+      //   if (ya) return resolve("ok");
+      //   baseCompleto(base, retiradoObjetivo, (completo) => {
+      //     if (completo) {
+      //       registrarWarehouse(base);
+      //       marcarBaseRegistrada(base);
+      //     }
+      //     resolve("ok");
+      //   });
+      // });
     };
   };
 }
@@ -488,7 +554,11 @@ $(document).ready(function () {
           const ret = v.retirado ?? 1;
 
           // ✅ SOLO ENTREGAS
-          if (ret === 1) {
+          // if (ret === 1) {
+          //   total++;
+          //   if (v.estado === "ok") ok++;
+          // }
+          if (ret === 1 && v.estado !== "alias") {
             total++;
             if (v.estado === "ok") ok++;
           }

@@ -245,7 +245,9 @@ function puedeSalir() {
       const v = cursor.value;
       const ret = Number(v.retirado ?? 1);
 
-      if (ret === 1 && v.estado === "pendiente") pendientesEntrega++;
+      // if (ret === 1 && v.estado === "pendiente") pendientesEntrega++;
+      // if (ret === 1 && v.estado === "pendiente" && v.estado !== "alias") pendientesEntrega++;
+      if (ret === 1 && v.estado !== "ok" && v.estado !== "alias") pendientesEntrega++;
       cursor.continue();
       return;
     }
