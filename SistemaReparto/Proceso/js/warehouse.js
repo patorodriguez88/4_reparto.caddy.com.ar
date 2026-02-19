@@ -259,8 +259,6 @@ function puedeSalir() {
       const v = cursor.value;
       const ret = Number(v.retirado ?? 1);
 
-      // if (ret === 1 && v.estado === "pendiente") pendientesEntrega++;
-      // if (ret === 1 && v.estado === "pendiente" && v.estado !== "alias") pendientesEntrega++;
       if (ret === 1 && v.estado !== "ok" && v.estado !== "alias") pendientesEntrega++;
       cursor.continue();
       return;
@@ -394,30 +392,6 @@ function cargarLista() {
             }
           }
 
-          // 2) Alias ML (por meli_id)
-          // if (meliId) {
-          //   if (bultos === 1) {
-          //     expected.put({
-          //       code: meliId,
-          //       base: codigoSeguimiento,
-          //       estado: "pendiente",
-          //       retirado: retirado,
-          //       codigoSeguimiento: codigoSeguimiento,
-          //       meli_id: meliId,
-          //     });
-          //   } else {
-          //     for (let i = 1; i <= bultos; i++) {
-          //       expected.put({
-          //         code: `${meliId}_${i}`,
-          //         base: codigoSeguimiento,
-          //         estado: "pendiente",
-          //         retirado: retirado,
-          //         codigoSeguimiento: codigoSeguimiento,
-          //         meli_id: meliId,
-          //       });
-          //     }
-          //   }
-          // }
           // 2) Alias ML (por meli_id) -> NO cuenta como bulto esperado
           // Lo guardamos solo como "alias" para poder matchear el escaneo.
           if (meliId) {
@@ -593,10 +567,6 @@ function renderScanned(done) {
         const base = v.base || (v.code ? v.code.split("_")[0] : "");
         const ret = v.retirado ?? 1;
 
-        // if (base && ret === 1) {
-        //   if (!expectedCount[base]) expectedCount[base] = { entrega: 0 };
-        //   expectedCount[base].entrega++;
-        // }
         if (base && ret === 1 && v.estado !== "alias") {
           if (!expectedCount[base]) expectedCount[base] = { entrega: 0 };
           expectedCount[base].entrega++;

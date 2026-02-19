@@ -240,6 +240,9 @@ function validarExacto(code, retiradoObjetivo, resolve) {
   const scanned = t.objectStore("scanned");
 
   const req = expected.get(code);
+  let marcadoNuevo = false;
+  let baseOk = "";
+  let eraAlias = false;
 
   req.onsuccess = function () {
     const item = req.result;
@@ -274,8 +277,8 @@ function validarExacto(code, retiradoObjetivo, resolve) {
       return resolve("ya_ok");
     }
     // Determinar primero si es alias
-    const eraAlias = item.estado === "alias";
-
+    // const eraAlias = item.estado === "alias";
+    eraAlias = item.estado === "alias";
     // Si escaneé un alias, el código real es la base
     const realCode = eraAlias ? item.codigoSeguimiento || item.base : code;
 
@@ -304,6 +307,7 @@ function validarExacto(code, retiradoObjetivo, resolve) {
 
       realItem.estado = "ok";
       expected.put(realItem);
+      marcadoNuevo = true;
 
       scanned.put({
         id: crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random(),
@@ -324,23 +328,38 @@ function validarExacto(code, retiradoObjetivo, resolve) {
       tx2.objectStore("expected").get(realCode).onsuccess = function (e3) {
         const it = e3.target.result || item;
         const base = it.codigoSeguimiento || it.base;
-
         baseYaRegistrada(base, (ya) => {
-          // ✅ feedback OK inmediato
-          // mostrarFeedback(`✅ OK: ${base}`, "ok");
-          mostrarFeedback(eraAlias ? `✅ OK (ML): ${base}` : `✅ OK: ${base}`, "ok");
-          beepOk();
+          // ✅ SOLO si fue un OK nuevo
+          if (marcadoNuevo) {
+            mostrarFeedback(eraAlias ? `✅ OK (ML): ${base}` : `✅ OK: ${base}`, "ok");
+            beepOk();
+          }
 
           if (ya) return resolve("ok");
 
           baseCompleto(base, retiradoObjetivo, (completo) => {
             if (completo) {
-              // registrarWarehouse(base);
               marcarBaseRegistrada(base);
             }
             resolve("ok");
           });
         });
+        // baseYaRegistrada(base, (ya) => {
+        //   // ✅ feedback OK inmediato
+        //   // mostrarFeedback(`✅ OK: ${base}`, "ok");
+        //   mostrarFeedback(eraAlias ? `✅ OK (ML): ${base}` : `✅ OK: ${base}`, "ok");
+        //   beepOk();
+
+        //   if (ya) return resolve("ok");
+
+        //   baseCompleto(base, retiradoObjetivo, (completo) => {
+        //     if (completo) {
+        //       // registrarWarehouse(base);
+        //       marcarBaseRegistrada(base);
+        //     }
+        //     resolve("ok");
+        //   });
+        // });
       };
       // baseYaRegistrada(base, (ya) => {
       //   if (ya) return resolve("ok");
@@ -417,12 +436,20 @@ const onSuccess = async (decodedText) => {
 
   const now = Date.now();
   if (coolingDown) return;
-  if (raw === lastCode && now - lastTime < 1500) return;
 
-  lastCode = raw;
+  // if (raw === lastCode && now - lastTime < 1500) return;
+
+  // lastCode = raw;
+  // lastTime = now;
+
+  // const normalized = normalizarCodigo(raw);
+  // const r = await validarBulto(normalized);
+  const normalized = normalizarCodigo(raw);
+  if (normalized === lastCode && now - lastTime < 1500) return;
+
+  lastCode = normalized;
   lastTime = now;
 
-  const normalized = normalizarCodigo(raw);
   const r = await validarBulto(normalized);
 
   if (r === "ok") {
