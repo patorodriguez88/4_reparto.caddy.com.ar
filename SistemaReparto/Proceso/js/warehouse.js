@@ -310,7 +310,7 @@ function puedeSalir() {
     if (cursor) {
       const v = cursor.value;
       const ret = Number(v.retirado ?? 1);
-
+      console.log("pendientesEntrega:", pendientesEntrega);
       if (ret === 1 && v.estado !== "ok" && v.estado !== "alias") pendientesEntrega++;
       cursor.continue();
       return;
@@ -323,7 +323,7 @@ function puedeSalir() {
 
     // ✅ Todo OK local → ahora persistimos “En Tránsito” en backend
     saToast("info", "Validando salida…", 900);
-
+    console.log("Bases enviadas:", bases);
     obtenerBasesDone(function (bases) {
       $.ajax({
         url: "Proceso/php/warehouse.php",
@@ -528,6 +528,8 @@ function agregarBulto(codigo) {
 }
 //BOTON CONFIRMAR
 $("#btn-confirmar").click(function () {
+  console.log("CLICK confirmar");
+
   puedeSalir();
 });
 
