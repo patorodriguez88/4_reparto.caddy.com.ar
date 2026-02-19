@@ -640,12 +640,6 @@ function renderScanned(done) {
             ? `<span class="badge ${cls} ms-2">${okE}/${totE}</span>`
             : `<span class="badge bg-secondary ms-2">${okE}</span>`;
 
-        // $("#wh-lista").append(`
-        //   <li class="list-group-item d-flex justify-content-between align-items-center">
-        //     <div>🟢 ${base}</div>
-        //     <div>${badge}</div>
-        //   </li>
-        // `);
         $whLista.append(`
         <li class="list-group-item d-flex justify-content-between align-items-center">
           <div class="d-flex align-items-center gap-2">
