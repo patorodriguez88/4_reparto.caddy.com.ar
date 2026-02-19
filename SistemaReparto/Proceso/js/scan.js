@@ -1,5 +1,5 @@
 //scan.js
-let scanLocked = false;   // cuando está completo, no procesa más
+let scanLocked = false; // cuando está completo, no procesa más
 let html5QrCode = null;
 let lastCode = "";
 let lastTime = 0;
@@ -187,7 +187,7 @@ function setEstadoParcial(ok, total) {
 async function setEstadoCompleto(total) {
   $("#estado").removeClass("bg-warning").addClass("bg-success");
   $("#wh-msg").text("✅ Todo OK. Volvé a Warehouse y presioná Confirmar carga.");
-  
+
   // Bloqueo lógico
   scanLocked = true;
 
@@ -197,7 +197,9 @@ async function setEstadoCompleto(total) {
   } catch (e) {}
 
   // Feedback
-  try { beepOk(); } catch (e) {}
+  try {
+    beepOk();
+  } catch (e) {}
   mostrarFeedback(`✅ Completo (${total}/${total})`, "ok");
 
   // Si querés, agrandá el botón volver
@@ -614,35 +616,35 @@ $(document).ready(function () {
     window.location.href = "warehouse.html";
   });
 
-//   $("#btn-salir")
-//     .off("click")
-//     .on("click", function () {
-//       const tx = db.transaction("expected", "readonly");
-//       const store = tx.objectStore("expected");
+  //   $("#btn-salir")
+  //     .off("click")
+  //     .on("click", function () {
+  //       const tx = db.transaction("expected", "readonly");
+  //       const store = tx.objectStore("expected");
 
-//       let total = 0;
-//       let ok = 0;
+  //       let total = 0;
+  //       let ok = 0;
 
-//       store.openCursor().onsuccess = function (e) {
-//         const cursor = e.target.result;
-//         if (cursor) {
-//           const v = cursor.value;
-//           const ret = v.retirado ?? 1;
+  //       store.openCursor().onsuccess = function (e) {
+  //         const cursor = e.target.result;
+  //         if (cursor) {
+  //           const v = cursor.value;
+  //           const ret = v.retirado ?? 1;
 
-//           // ✅ SOLO ENTREGAS
-//           // if (ret === 1) {
-//           //   total++;
-//           //   if (v.estado === "ok") ok++;
-//           // }
-//           if (ret === 1 && v.estado !== "alias") {
-//             total++;
-//             if (v.estado === "ok") ok++;
-//           }
-//           cursor.continue();
-//         } else {
-//           if (total > 0 && ok === total) window.location.href = "hdr.html";
-//           else mostrarToast(`⚠️ Faltan ${Math.max(total - ok, 0)} ENTREGAS`);
-//         }
-//       };
-//     });
-// });
+  //           // ✅ SOLO ENTREGAS
+  //           // if (ret === 1) {
+  //           //   total++;
+  //           //   if (v.estado === "ok") ok++;
+  //           // }
+  //           if (ret === 1 && v.estado !== "alias") {
+  //             total++;
+  //             if (v.estado === "ok") ok++;
+  //           }
+  //           cursor.continue();
+  //         } else {
+  //           if (total > 0 && ok === total) window.location.href = "hdr.html";
+  //           else mostrarToast(`⚠️ Faltan ${Math.max(total - ok, 0)} ENTREGAS`);
+  //         }
+  //       };
+  //     });
+});
