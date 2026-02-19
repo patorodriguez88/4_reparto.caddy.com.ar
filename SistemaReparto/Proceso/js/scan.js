@@ -227,10 +227,32 @@ function normalizarCodigo(raw) {
 
   return raw;
 }
+
+let audioCtx = null;
+
 function beepOk() {
   try {
-    const audio = new Audio("ok.mp3");
-    audio.play().catch(() => {});
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    const now = audioCtx.currentTime;
+
+    for (let i = 0; i < 2; i++) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = "square";
+      osc.frequency.value = 1000;
+
+      gain.gain.value = 0.15;
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.08);
+    }
   } catch (e) {}
 }
 
