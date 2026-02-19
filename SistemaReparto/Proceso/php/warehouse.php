@@ -20,14 +20,21 @@ if (isset($_POST['GetLista'])) {
 
     $items = [];
     while ($r = $sql->fetch_assoc()) {
+
+        // Normalizo meli_id para evitar que llegue como "0"
+        $meli = trim((string)($r['shipments_id'] ?? ''));
+
+        if ($meli === '0' || $meli === 'null') {
+            $meli = '';
+        }
+
         $items[] = [
             'base' => $r['CodigoSeguimiento'],
             'bultos' => (int)$r['Cantidad'],
             'retirado' => (int)$r['Retirado'],
-            'meli_id' => trim((string)($r['shipments_id'] ?? '')),
+            'meli_id' => $meli,
         ];
     }
-
     echo json_encode([
         'success' => 1,
         'recorrido' => $recorrido,
