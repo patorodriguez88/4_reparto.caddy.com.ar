@@ -1,0 +1,39 @@
+/* Swipe row */
+.wh-swipe {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.wh-swipe .wh-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  background: #dc3545; /* rojo bootstrap */
+}
+
+.wh-swipe .wh-actions i {
+  color: #fff;
+  font-size: 22px;
+}
+
+.wh-swipe .wh-content {
+  position: relative;
+  background: #fff;
+  transition: transform 160ms ease;
+  will-change: transform;
+}
+
+.wh-swipe.open .wh-content {
+  transform: translateX(-84px);
+}
+
+.wh-trash-btn {
+  cursor: pointer;
+  user-select: none;
+}

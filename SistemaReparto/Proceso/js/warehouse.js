@@ -1,4 +1,56 @@
 // Warehouse: ir a warehouse.html
+function borrarEscaneoBase(base, callback) {
+  const t = db.transaction(["scanned", "expected", "bases_done"], "readwrite");
+  const scanned = t.objectStore("scanned");
+  const expected = t.objectStore("expected");
+  const basesDone = t.objectStore("bases_done");
+
+  // 1) borrar en scanned todos los registros de esa base (solo entregas)
+  scanned.openCursor().onsuccess = function (e) {
+    const c = e.target.result;
+    if (c) {
+      const v = c.value;
+      const b = v.base || (v.code ? v.code.split("_")[0] : "");
+      const ret = Number(v.retirado ?? 1);
+      if (b === base && ret === 1) {
+        c.delete();
+      }
+      c.continue();
+      return;
+    }
+
+    // 2) revertir expected: todo lo de esa base vuelve a "pendiente" (excepto alias)
+    expected.openCursor().onsuccess = function (e2) {
+      const c2 = e2.target.result;
+      if (c2) {
+        const v2 = c2.value;
+        const b2 = v2.base || (v2.code ? v2.code.split("_")[0] : "");
+        const ret2 = Number(v2.retirado ?? 1);
+
+        if (b2 === base && ret2 === 1 && v2.estado !== "alias") {
+          v2.estado = "pendiente";
+          expected.put(v2);
+        }
+        c2.continue();
+        return;
+      }
+
+      // 3) base ya no está completa -> la saco de bases_done
+      try {
+        basesDone.delete(base);
+      } catch (e) {}
+    };
+  };
+
+  t.oncomplete = function () {
+    if (typeof callback === "function") callback(true);
+  };
+  t.onerror = function () {
+    console.error("borrarEscaneoBase error:", t.error);
+    if (typeof callback === "function") callback(false);
+  };
+}
+
 $(document).on("click", '.app-bottomnav .nav-item[data-action="warehouse"]', function (e) {
   e.preventDefault();
   window.location.href = "warehouse.html";
@@ -588,10 +640,24 @@ function renderScanned(done) {
             ? `<span class="badge ${cls} ms-2">${okE}/${totE}</span>`
             : `<span class="badge bg-secondary ms-2">${okE}</span>`;
 
+        // $("#wh-lista").append(`
+        //   <li class="list-group-item d-flex justify-content-between align-items-center">
+        //     <div>🟢 ${base}</div>
+        //     <div>${badge}</div>
+        //   </li>
+        // `);
         $("#wh-lista").append(`
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            <div>🟢 ${base}</div>
-            <div>${badge}</div>
+          <li class="list-group-item p-0 border-0 mb-2">
+            <div class="wh-swipe" data-base="${base}">
+              <div class="wh-actions">
+                <i class="mdi mdi-trash-can-outline wh-trash-btn" data-base="${base}" title="Borrar escaneo"></i>
+              </div>
+
+              <div class="wh-content list-group-item d-flex justify-content-between align-items-center">
+                <div>🟢 ${base}</div>
+                <div>${badge}</div>
+              </div>
+            </div>
           </li>
         `);
       });
@@ -646,3 +712,83 @@ $("#mi_recorrido").on("click", function (e) {
     window.location.href = "hdr.html";
   };
 });
+$(document).on("click", ".wh-trash-btn", function () {
+  const base = $(this).data("base");
+  if (!base) return;
+
+  // Confirmación (opcional)
+  if (typeof Swal !== "undefined") {
+    Swal.fire({
+      icon: "warning",
+      title: "Borrar escaneo",
+      text: `¿Querés borrar el escaneo de ${base}?`,
+      showCancelButton: true,
+      confirmButtonText: "Sí, borrar",
+      cancelButtonText: "Cancelar",
+    }).then((r) => {
+      if (!r.isConfirmed) return;
+      borrarEscaneoBase(base, () => {
+        safeRenderScanned();
+        actualizarHUD(1);
+        saToast("success", "Escaneo borrado", 900);
+      });
+    });
+  } else {
+    borrarEscaneoBase(base, () => {
+      safeRenderScanned();
+      actualizarHUD(1);
+      mostrarToast("Escaneo borrado");
+    });
+  }
+});
+(function initSwipeToDelete() {
+  let startX = 0;
+  let current = null;
+  let moved = false;
+
+  // cerrar otros abiertos
+  function closeAll(except) {
+    document.querySelectorAll(".wh-swipe.open").forEach((el) => {
+      if (except && el === except) return;
+      el.classList.remove("open");
+    });
+  }
+
+  document.addEventListener("pointerdown", function (e) {
+    const row = e.target.closest(".wh-swipe");
+    if (!row) return;
+
+    closeAll(row);
+
+    startX = e.clientX;
+    current = row;
+    moved = false;
+  });
+
+  document.addEventListener("pointermove", function (e) {
+    if (!current) return;
+
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) < 8) return;
+
+    moved = true;
+
+    // swipe izquierda
+    if (dx < -30) current.classList.add("open");
+    // swipe derecha
+    if (dx > 30) current.classList.remove("open");
+  });
+
+  document.addEventListener("pointerup", function () {
+    current = null;
+    moved = false;
+  });
+
+  // tap afuera cierra
+  document.addEventListener("click", function (e) {
+    const row = e.target.closest(".wh-swipe");
+    const isTrash = e.target.closest(".wh-trash-btn");
+    if (isTrash) return; // no cierres antes del click
+    if (!row) closeAll(null);
+  });
+})();
