@@ -34,6 +34,10 @@
 }
 
 .wh-trash-btn {
-  cursor: pointer;
-  user-select: none;
+  border-radius: 10px;
+  min-width: 38px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }

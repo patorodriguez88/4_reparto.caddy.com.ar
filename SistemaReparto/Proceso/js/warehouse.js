@@ -646,20 +646,24 @@ function renderScanned(done) {
         //     <div>${badge}</div>
         //   </li>
         // `);
-        $("#wh-lista").append(`
-          <li class="list-group-item p-0 border-0 mb-2">
-            <div class="wh-swipe" data-base="${base}">
-              <div class="wh-actions">
-                <i class="mdi mdi-trash-can-outline wh-trash-btn" data-base="${base}" title="Borrar escaneo"></i>
-              </div>
+        $whLista.append(`
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-2">
+            <span>🟢</span>
+            <span class="fw-semibold">${base}</span>
+          </div>
 
-              <div class="wh-content list-group-item d-flex justify-content-between align-items-center">
-                <div>🟢 ${base}</div>
-                <div>${badge}</div>
-              </div>
-            </div>
-          </li>
-        `);
+          <div class="d-flex align-items-center gap-2">
+            ${badge}
+            <button type="button"
+              class="btn btn-danger btn-sm px-2 py-1 wh-trash-btn"
+              data-base="${base}"
+              title="Borrar escaneo">
+              <i class="mdi mdi-trash-can-outline mdi-18px"></i>
+            </button>
+          </div>
+        </li>
+      `);
       });
 
       // mantiene tu HUD (si ya lo ajustaste a “solo entregas”)
