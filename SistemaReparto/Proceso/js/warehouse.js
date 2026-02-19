@@ -587,7 +587,9 @@ function actualizarHUD(retiradoObjetivo = 1) {
 }
 
 function renderScanned(done) {
-  $("#wh-lista").empty();
+  const $whLista = $("#wh-lista"); // ✅ DEFINIDA ACÁ
+
+  $whLista.empty();
 
   const t = db.transaction(["scanned", "expected"], "readonly");
   const scannedStore = t.objectStore("scanned");
