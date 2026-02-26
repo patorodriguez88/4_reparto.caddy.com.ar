@@ -146,7 +146,7 @@ if (isset($_POST['InitColecta'])) {
 
         // 2) Servicios asignados a esa colecta (excluyo padre)
         $stT = $mysqli->prepare("
-          SELECT id, CodigoSeguimiento, Cantidad,CodigoProveedor
+          SELECT id, CodigoSeguimiento, Cantidad,shipments_id
           FROM TransClientes
           WHERE idColecta = ?
             AND Eliminado=0 AND Entregado=0 AND Devuelto=0
@@ -265,15 +265,15 @@ $nroOrden        = '';
 $baseCandidate = trim(explode('_', $basePost)[0]);
 $base = $baseCandidate;
 
-// ✅ Si el bulto es numérico => ES CodigoProveedor. Vamos directo por ahí.
+// ✅ Si el bulto es numérico => ES shipments_id. Vamos directo por ahí.
 if (ctype_digit($bultoPost)) {
 
     $shipIdInt = (int)$bultoPost;
 
     $sqlS = $mysqli->prepare("
-      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden, CodigoProveedor
+      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden, shipments_id
       FROM TransClientes
-      WHERE CodigoProveedor=? AND Eliminado=0
+      WHERE shipments_id=? AND Eliminado=0
       ORDER BY id DESC
       LIMIT 1
     ");
@@ -415,14 +415,14 @@ if ($colectaId > 0 && $padreId > 0) {
 
     // 2.e) anti-duplicado / merge
     // - QR: duplicado real por code exacto (BASE_n)
-    // - ML: si vuelve el mismo CodigoProveedor, SUMAMOS qty (hasta el tope)
+    // - ML: si vuelve el mismo shipments_id, SUMAMOS qty (hasta el tope)
 
     $nowTs = date('Y-m-d H:i:s');
 
     // ✅ QR verdadero SOLO si matchea BASE_N (no por “tiene _”)
     $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
 
-    // ✅ ML si el bulto es numérico (CodigoProveedor)
+    // ✅ ML si el bulto es numérico (shipments_id)
     $esML = ctype_digit((string)$bultoPost);
 
     $codeStore = $esQR ? $codigoEscaneado : $bultoPost;
@@ -503,7 +503,7 @@ if ($colectaId > 0 && $padreId > 0) {
     $newQty = 1; // ✅ ML y QR cuentan 1 por escaneo
 
     $scans[] = [
-        'code' => $codeStore,     // QR: BASE_n, ML: CodigoProveedor Ferni:CodigoProveedor
+        'code' => $codeStore,     // QR: BASE_n, ML: shipments_id Ferni:CodigoProveedor
         'base' => $base,          // base Caddy real
         'qty'  => $newQty,        // 1 por scan
         'ts'   => $nowTs,

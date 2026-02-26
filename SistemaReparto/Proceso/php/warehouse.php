@@ -14,7 +14,7 @@ if (isset($_POST['GetLista'])) {
         exit;
     }
 
-    $sql = $mysqli->query("SELECT TransClientes.Retirado,TransClientes.CodigoSeguimiento, TransClientes.Cantidad,TransClientes.CodigoProveedor
+    $sql = $mysqli->query("SELECT TransClientes.Retirado,TransClientes.CodigoSeguimiento, TransClientes.Cantidad,TransClientes.shipments_id
     FROM HojaDeRuta
     INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
     WHERE HojaDeRuta.Recorrido = '$recorrido'
@@ -27,7 +27,7 @@ if (isset($_POST['GetLista'])) {
     while ($r = $sql->fetch_assoc()) {
 
         // Normalizo meli_id para evitar que llegue como "0"
-        $meli = trim((string)($r['CodigoProveedor'] ?? ''));
+        $meli = trim((string)($r['shipments_id'] ?? ''));
 
         if ($meli === '0' || $meli === 'null') {
             $meli = '';
