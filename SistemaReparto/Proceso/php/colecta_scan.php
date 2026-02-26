@@ -270,6 +270,7 @@ if (ctype_digit($bultoPost)) {
 
     $shipIdInt = (int)$bultoPost;
 
+    // 1) intento ML por shipments_id
     $sqlS = $mysqli->prepare("
       SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden, shipments_id
       FROM TransClientes
@@ -287,27 +288,35 @@ if (ctype_digit($bultoPost)) {
         $idCliente = (int)($trS['idClienteDestino'] ?? 0);
         $destino   = (string)($trS['DomicilioDestino'] ?? '');
         $nroOrden  = (string)($trS['NumerodeOrden'] ?? '');
-    }
-} else {
+    } else {
 
-    // 1.a) Buscar por CodigoSeguimiento (solo si NO es ML)
-    $sqlT = $mysqli->prepare("
-      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
-      FROM TransClientes
-      WHERE SUBSTRING_INDEX(CodigoSeguimiento,'_',1)=? AND Eliminado=0
-      ORDER BY id DESC
-      LIMIT 1
-    ");
-    $sqlT->bind_param("s", $baseCandidate);
-    $sqlT->execute();
-    $tr = $sqlT->get_result()->fetch_assoc();
+        // 2) fallback Ferniplast por CodigoProveedor + anti-colisión por IngBrutosOrigen
+        $codeProv = trim((string)$bultoPost);
 
-    if ($tr && !empty($tr['id'])) {
-        $idTransClientes = (int)$tr['id'];
-        $base = explode('_', (string)($tr['CodigoSeguimiento'] ?? $baseCandidate))[0];
-        $idCliente = (int)($tr['idClienteDestino'] ?? 0);
-        $destino   = (string)($tr['DomicilioDestino'] ?? '');
-        $nroOrden  = (string)($tr['NumerodeOrden'] ?? '');
+        // ✅ PONÉ ACÁ el valor real de Ferniplast (IngBrutos / CUIT / lo que uses)
+        // Ejemplo si es CUIT: "30-xxxxxxxx-x" o "307xxxxxxx"
+        $FERNIPLAST_INGB = "19396";
+
+        $sqlP = $mysqli->prepare("
+        SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
+        FROM TransClientes
+        WHERE CodigoProveedor=? 
+            AND IngBrutosOrigen=?       
+            AND Eliminado=0
+        ORDER BY id DESC
+        LIMIT 1
+        ");
+        $sqlP->bind_param("ss", $codeProv, $FERNIPLAST_INGB);
+        $sqlP->execute();
+        $trP = $sqlP->get_result()->fetch_assoc();
+
+        if ($trP && !empty($trP['id'])) {
+            $idTransClientes = (int)$trP['id'];
+            $base = explode('_', (string)$trP['CodigoSeguimiento'])[0];
+            $idCliente = (int)($trP['idClienteDestino'] ?? 0);
+            $destino   = (string)($trP['DomicilioDestino'] ?? '');
+            $nroOrden  = (string)($trP['NumerodeOrden'] ?? '');
+        }
     }
 }
 
