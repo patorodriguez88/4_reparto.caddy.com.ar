@@ -146,7 +146,7 @@ if (isset($_POST['InitColecta'])) {
 
         // 2) Servicios asignados a esa colecta (excluyo padre)
         $stT = $mysqli->prepare("
-          SELECT id, CodigoSeguimiento, Cantidad,CodigoProveedor
+          SELECT id, CodigoSeguimiento, Cantidad,shipments_id
           FROM TransClientes
           WHERE idColecta = ?
             AND Eliminado=0 AND Entregado=0 AND Devuelto=0
@@ -265,15 +265,16 @@ $nroOrden        = '';
 $baseCandidate = trim(explode('_', $basePost)[0]);
 $base = $baseCandidate;
 
-// ✅ Si el bulto es numérico => ES CodigoProveedor. Vamos directo por ahí.
+// ✅ Si el bulto es numérico => ES shipments_id. Vamos directo por ahí.
 if (ctype_digit($bultoPost)) {
 
     $shipIdInt = (int)$bultoPost;
 
+    // 1) intento ML por shipments_id
     $sqlS = $mysqli->prepare("
-      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden, CodigoProveedor
+      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden, shipments_id
       FROM TransClientes
-      WHERE CodigoProveedor=? AND Eliminado=0
+      WHERE shipments_id=? AND Eliminado=0
       ORDER BY id DESC
       LIMIT 1
     ");
@@ -287,27 +288,35 @@ if (ctype_digit($bultoPost)) {
         $idCliente = (int)($trS['idClienteDestino'] ?? 0);
         $destino   = (string)($trS['DomicilioDestino'] ?? '');
         $nroOrden  = (string)($trS['NumerodeOrden'] ?? '');
-    }
-} else {
+    } else {
 
-    // 1.a) Buscar por CodigoSeguimiento (solo si NO es ML)
-    $sqlT = $mysqli->prepare("
-      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
-      FROM TransClientes
-      WHERE SUBSTRING_INDEX(CodigoSeguimiento,'_',1)=? AND Eliminado=0
-      ORDER BY id DESC
-      LIMIT 1
-    ");
-    $sqlT->bind_param("s", $baseCandidate);
-    $sqlT->execute();
-    $tr = $sqlT->get_result()->fetch_assoc();
+        // 2) fallback Ferniplast por CodigoProveedor + anti-colisión por IngBrutosOrigen
+        $codeProv = trim((string)$bultoPost);
 
-    if ($tr && !empty($tr['id'])) {
-        $idTransClientes = (int)$tr['id'];
-        $base = explode('_', (string)($tr['CodigoSeguimiento'] ?? $baseCandidate))[0];
-        $idCliente = (int)($tr['idClienteDestino'] ?? 0);
-        $destino   = (string)($tr['DomicilioDestino'] ?? '');
-        $nroOrden  = (string)($tr['NumerodeOrden'] ?? '');
+        // ✅ PONÉ ACÁ el valor real de Ferniplast (IngBrutos / CUIT / lo que uses)
+        // Ejemplo si es CUIT: "30-xxxxxxxx-x" o "307xxxxxxx"
+        $FERNIPLAST_INGB = "19396";
+
+        $sqlP = $mysqli->prepare("
+        SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
+        FROM TransClientes
+        WHERE CodigoProveedor=? 
+            AND IngBrutosOrigen=?       
+            AND Eliminado=0
+        ORDER BY id DESC
+        LIMIT 1
+        ");
+        $sqlP->bind_param("ss", $codeProv, $FERNIPLAST_INGB);
+        $sqlP->execute();
+        $trP = $sqlP->get_result()->fetch_assoc();
+
+        if ($trP && !empty($trP['id'])) {
+            $idTransClientes = (int)$trP['id'];
+            $base = explode('_', (string)$trP['CodigoSeguimiento'])[0];
+            $idCliente = (int)($trP['idClienteDestino'] ?? 0);
+            $destino   = (string)($trP['DomicilioDestino'] ?? '');
+            $nroOrden  = (string)($trP['NumerodeOrden'] ?? '');
+        }
     }
 }
 
@@ -415,14 +424,14 @@ if ($colectaId > 0 && $padreId > 0) {
 
     // 2.e) anti-duplicado / merge
     // - QR: duplicado real por code exacto (BASE_n)
-    // - ML: si vuelve el mismo CodigoProveedor, SUMAMOS qty (hasta el tope)
+    // - ML: si vuelve el mismo shipments_id, SUMAMOS qty (hasta el tope)
 
     $nowTs = date('Y-m-d H:i:s');
 
     // ✅ QR verdadero SOLO si matchea BASE_N (no por “tiene _”)
     $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
 
-    // ✅ ML si el bulto es numérico (CodigoProveedor)
+    // ✅ ML si el bulto es numérico (shipments_id)
     $esML = ctype_digit((string)$bultoPost);
 
     $codeStore = $esQR ? $codigoEscaneado : $bultoPost;
@@ -503,7 +512,7 @@ if ($colectaId > 0 && $padreId > 0) {
     $newQty = 1; // ✅ ML y QR cuentan 1 por escaneo
 
     $scans[] = [
-        'code' => $codeStore,     // QR: BASE_n, ML: CodigoProveedor Ferni:CodigoProveedor
+        'code' => $codeStore,     // QR: BASE_n, ML: shipments_id Ferni:CodigoProveedor
         'base' => $base,          // base Caddy real
         'qty'  => $newQty,        // 1 por scan
         'ts'   => $nowTs,

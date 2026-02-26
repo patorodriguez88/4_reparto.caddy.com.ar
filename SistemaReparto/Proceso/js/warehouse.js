@@ -418,7 +418,7 @@ function cargarLista() {
           // const meliId = (item.meli_id || "").trim(); // shipment_id (si backend lo manda)
           const codigoSeguimiento = String(item.base ?? "").trim();
           const meliId = String(item.meli_id ?? "").trim();
-
+          const provCode = String(item.codigo_proveedor ?? "").trim();
           if (!codigoSeguimiento) return;
 
           // 1) Normal (por CodigoSeguimiento)
@@ -455,6 +455,18 @@ function cargarLista() {
               retirado: retirado,
               codigoSeguimiento: codigoSeguimiento,
               meli_id: meliId,
+            });
+          }
+          // 3) Alias por Código de Proveedor (Ferniplast u otros)
+          if (provCode && provCode !== codigoSeguimiento && provCode !== meliId) {
+            expected.put({
+              code: provCode,
+              base: codigoSeguimiento,
+              estado: "alias",
+              retirado: retirado,
+              codigoSeguimiento: codigoSeguimiento,
+              meli_id: meliId,
+              codigo_proveedor: provCode,
             });
           }
           if (retirado === 1) totalEntregas += bultos;

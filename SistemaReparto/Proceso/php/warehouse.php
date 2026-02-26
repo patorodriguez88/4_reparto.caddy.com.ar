@@ -14,7 +14,7 @@ if (isset($_POST['GetLista'])) {
         exit;
     }
 
-    $sql = $mysqli->query("SELECT TransClientes.Retirado,TransClientes.CodigoSeguimiento, TransClientes.Cantidad,TransClientes.CodigoProveedor
+    $sql = $mysqli->query("SELECT TransClientes.Retirado,TransClientes.CodigoSeguimiento, TransClientes.Cantidad,TransClientes.shipments_id,TransClientes.CodigoProveedor
     FROM HojaDeRuta
     INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
     WHERE HojaDeRuta.Recorrido = '$recorrido'
@@ -27,10 +27,18 @@ if (isset($_POST['GetLista'])) {
     while ($r = $sql->fetch_assoc()) {
 
         // Normalizo meli_id para evitar que llegue como "0"
-        $meli = trim((string)($r['CodigoProveedor'] ?? ''));
+        $meli = trim((string)($r['shipments_id'] ?? ''));
 
         if ($meli === '0' || $meli === 'null') {
             $meli = '';
+        }
+        $prov = trim((string)($r['CodigoProveedor'] ?? ''));
+        if ($prov === '0' || $prov === 'null') $prov = '';
+
+        // (opcional) si por alguna razón CodigoProveedor trae lo mismo que shipments_id, evitamos duplicar
+        if ($prov !== '' && $meli !== '' && $prov === $meli) {
+            // OK, dejamos ambos iguales o anulamos uno:
+            $prov = '';
         }
 
         $items[] = [
@@ -38,6 +46,8 @@ if (isset($_POST['GetLista'])) {
             'bultos' => (int)$r['Cantidad'],
             'retirado' => (int)$r['Retirado'],
             'meli_id' => $meli,
+            'codigo_proveedor' => $prov,
+
         ];
     }
     echo json_encode([
