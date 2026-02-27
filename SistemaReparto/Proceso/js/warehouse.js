@@ -622,14 +622,13 @@ function renderScanned(done) {
             <i class="mdi mdi-package-variant-closed mdi-18px text-success"></i>
             <span class="fw-semibold">${base}</span>
           </div>
-
           <div class="d-flex align-items-center gap-2">
             ${badge}
             <button type="button"
-              class="btn btn-danger btn-sm px-2 py-1 wh-trash-btn"
+              class="wh-trash-btn"
               data-base="${base}"
               title="Borrar escaneo">
-              <i class="mdi mdi-trash-can-outline mdi-18px"></i>
+              <i class="mdi mdi-trash-can-outline mdi-18px text-danger"></i>
             </button>
           </div>
         </li>
