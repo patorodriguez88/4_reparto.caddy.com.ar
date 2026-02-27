@@ -19,6 +19,7 @@ function doLogout() {
       $("#info-alert-modal-header").html("Cerrando Sesión...");
     },
     success: function () {
+      hideBottomnav();
       $("#hdr, #navbar, #topnav, #screen-operacion, #screen-totales, #screen-cuenta").hide();
       $("#login").show();
       $("#info-alert-modal").modal("hide");
@@ -292,6 +293,7 @@ function cerrarSesionForzada(reason) {
   $("#login").show();
   $("body").addClass("login-lock");
   $("body").addClass("loading"); // si querés reaprovechar la clase
+  hideBottomnav();
   document.body.style.overflow = "hidden";
   Swal.fire({
     icon: "warning",
@@ -442,6 +444,12 @@ $(document).ready(function () {
   // ✅ Chequeo sesión real
   initApp();
 });
+function showBottomnav() {
+  $("body").addClass("app-ready").removeClass("login-lock");
+}
+function hideBottomnav() {
+  $("body").removeClass("app-ready").addClass("login-lock");
+}
 
 function initApp() {
   $.ajax({
@@ -455,6 +463,7 @@ function initApp() {
       if (jsonData && jsonData.forceLogout) {
         // ✅ Si es la primera carga o no hay usuario, NO muestres cartel
         if (jsonData.reason === "NO_IDUSUARIO") {
+          hideBottomnav();
           $("#hdr,#navbar,#topnav").hide();
           $("#login").show();
           $("body").addClass("login-lock");
@@ -467,7 +476,7 @@ function initApp() {
       }
       // ✅ Hay sesión -> arrancamos
       if (jsonData && jsonData.success == 1) {
-        // $("#hdr,#navbar,#topnav").show();
+        showBottomnav();
         $("#screen-operacion,#navbar,#topnav").show();
         $("#login").hide();
         $("body").removeClass("login-lock");
@@ -497,6 +506,7 @@ function initApp() {
         paneles(null, false); // ✅ recién ahora
         asegurarMenuWarehouse(); // ✅ recién ahora
       } else {
+        hideBottomnav();
         // ❌ No hay sesión -> login
         $("#hdr,#navbar,#topnav").hide();
         $("#login").show();
@@ -504,7 +514,7 @@ function initApp() {
       }
     })
     .fail(function (xhr) {
-      // 401 o error -> login
+      hideBottomnav();
       $("#hdr,#navbar,#topnav").hide();
       $("#login").show();
       $("body").addClass("login-lock");
@@ -1120,6 +1130,7 @@ $(document).on("click", "#ingreso", function (e) {
       }
 
       if (jsonData && jsonData.success == 1) {
+        showBottomnav();
         $("#login").hide();
         // $("#hdr,#navbar,#topnav").show();
         $("#screen-operacion,#navbar,#topnav").show();
