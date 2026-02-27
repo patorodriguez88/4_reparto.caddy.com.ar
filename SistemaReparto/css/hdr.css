@@ -472,3 +472,17 @@ input.btn-caddy {
 .app-bottomnav .nav-item:active {
   transform: scale(0.96);
 }
+/* Footer visible por defecto */
+#app-footer {
+  display: block;
+}
+
+/* Ocultar todo el footer en login */
+body.login-lock #app-footer {
+  display: none !important;
+}
+
+/* La barra inferior adentro del footer */
+#app-footer .app-bottomnav {
+  display: flex !important;
+}
