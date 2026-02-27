@@ -307,40 +307,44 @@ function puedeSalir() {
 
   store.openCursor().onsuccess = function (e) {
     const cursor = e.target.result;
+
     if (cursor) {
       const v = cursor.value;
       const ret = Number(v.retirado ?? 1);
-      console.log("pendientesEntrega:", pendientesEntrega);
+
       if (ret === 1 && v.estado !== "ok") pendientesEntrega++;
       cursor.continue();
       return;
     }
+
+    console.log("pendientesEntrega:", pendientesEntrega);
 
     if (pendientesEntrega > 0) {
       saModal("warning", "Faltan entregas", "Hay ENTREGAS sin validar. No se puede salir.");
       return;
     }
 
-    // ✅ Todo OK local → ahora persistimos “En Tránsito” en backend
     saToast("info", "Validando salida…", 900);
-    console.log("Bases enviadas:", bases);
-    obtenerBasesDone(function (bases) {
+
+    // ✅ tomamos bases_done y enviamos
+    obtenerBasesDone(function (basesDone) {
+      console.log("Bases enviadas:", basesDone);
+
       $.ajax({
         url: "Proceso/php/warehouse.php",
         type: "POST",
         dataType: "json",
         data: {
           RegistrarWarehouseBatch: 1,
-          bases: JSON.stringify(bases),
+          bases: JSON.stringify(basesDone),
           state_id: 13,
         },
         success: function (res) {
           if (!res || res.success !== 1) {
-            saModal("error", "Error", res?.error || "No se pudo registrar");
+            saModal("error", "Error", res && res.error ? res.error : "No se pudo registrar");
             return;
           }
 
-          // 🔥 Ahora sí marcamos En Tránsito
           marcarEnTransitoBackend(function (ok2, r2) {
             if (!ok2) {
               saModal("error", "Error", r2.error || "No se pudo registrar En Tránsito");
@@ -356,16 +360,6 @@ function puedeSalir() {
         },
       });
     });
-    // marcarEnTransitoBackend(function (ok, res) {
-    //   if (!ok) {
-    //     saModal("error", "No se pudo registrar En Tránsito", res.error || "Error");
-    //     return;
-    //   }
-
-    //   saModal("success", "Listo", "Entregas validadas. Envíos en tránsito.");
-    //   // si querés redirigir automáticamente:
-    //   // setTimeout(() => (window.location.href = "hdr.html"), 900);
-    // });
   };
 }
 function limpiarDB(callback) {
