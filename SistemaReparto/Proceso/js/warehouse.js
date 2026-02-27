@@ -619,7 +619,7 @@ function renderScanned(done) {
         $whLista.append(`
         <li class="list-group-item d-flex justify-content-between align-items-center">
           <div class="d-flex align-items-center gap-2">
-            <span>🟢</span>
+            <i class="mdi mdi-package-variant-closed mdi-18px text-success"></i>
             <span class="fw-semibold">${base}</span>
           </div>
 
