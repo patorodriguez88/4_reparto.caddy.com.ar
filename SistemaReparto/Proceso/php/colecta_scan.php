@@ -10,6 +10,11 @@ require_once __DIR__ . '/../../Funciones/estados.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 header('Content-Type: application/json; charset=utf-8');
 
+if ($basePost !== '' && $basePost[0] === '{') responder(['success' => 0, 'error' => 'SOLO_CADDY']);
+if (ctype_digit($basePost)) responder(['success' => 0, 'error' => 'SOLO_CADDY']);
+
+if ($bultoPost !== '' && $bultoPost[0] === '{') responder(['success' => 0, 'error' => 'SOLO_CADDY']);
+if (ctype_digit($bultoPost)) responder(['success' => 0, 'error' => 'SOLO_CADDY']);
 function responder($arr)
 {
     echo json_encode($arr, JSON_UNESCAPED_UNICODE);
@@ -235,8 +240,10 @@ if (isset($_POST['InitColecta'])) {
 if (!isset($_POST['ColectaBulto'])) {
     responder(['success' => 0, 'error' => 'Acción inválida']);
 }
-$basePost  = normalizarMeliJsonAId($_POST['base'] ?? '');
-$bultoPost = normalizarMeliJsonAId($_POST['bulto'] ?? '');
+// $basePost  = normalizarMeliJsonAId($_POST['base'] ?? '');
+// $bultoPost = normalizarMeliJsonAId($_POST['bulto'] ?? '');
+$basePost  = trim((string)($_POST['base'] ?? ''));
+$bultoPost = trim((string)($_POST['bulto'] ?? ''));
 
 if ($basePost === '' || $bultoPost === '') {
     responder(['success' => 0, 'error' => 'Faltan base o bulto']);
@@ -272,7 +279,7 @@ if (ctype_digit($bultoPost)) {
 
     // 1) intento ML por shipments_id
     $sqlS = $mysqli->prepare("
-      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden, shipments_id
+      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
       FROM TransClientes
       WHERE shipments_id=? AND Eliminado=0
       ORDER BY id DESC

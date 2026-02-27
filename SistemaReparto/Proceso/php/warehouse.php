@@ -14,46 +14,48 @@ if (isset($_POST['GetLista'])) {
         exit;
     }
 
-    $sql = $mysqli->query("SELECT TransClientes.Retirado,TransClientes.CodigoSeguimiento, TransClientes.Cantidad,TransClientes.shipments_id,TransClientes.CodigoProveedor
-    FROM HojaDeRuta
-    INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
-    WHERE HojaDeRuta.Recorrido = '$recorrido'
-    AND HojaDeRuta.Estado = 'Abierto'
-    AND HojaDeRuta.Eliminado = 0
-    AND TransClientes.Eliminado = 0
-    ORDER BY TransClientes.CodigoSeguimiento ASC");
+    $st = $mysqli->prepare("
+        SELECT t.Retirado, t.CodigoSeguimiento, t.Cantidad
+        FROM HojaDeRuta h
+        INNER JOIN TransClientes t ON t.id = h.idTransClientes
+        WHERE h.Recorrido = ?
+            AND h.Estado = 'Abierto'
+            AND h.Eliminado = 0
+            AND t.Eliminado = 0
+        ORDER BY t.CodigoSeguimiento ASC
+        ");
+
+    $st->bind_param("s", $recorrido);
+    $st->execute();
+    $sql = $st->get_result();
 
     $items = [];
     while ($r = $sql->fetch_assoc()) {
 
-        // Normalizo meli_id para evitar que llegue como "0"
-        $meli = trim((string)($r['shipments_id'] ?? ''));
-
-        if ($meli === '0' || $meli === 'null') {
-            $meli = '';
-        }
-        $prov = trim((string)($r['CodigoProveedor'] ?? ''));
-        if ($prov === '0' || $prov === 'null') $prov = '';
-
-        // (opcional) si por alguna razón CodigoProveedor trae lo mismo que shipments_id, evitamos duplicar
-        if ($prov !== '' && $meli !== '' && $prov === $meli) {
-            // OK, dejamos ambos iguales o anulamos uno:
-            $prov = '';
-        }
 
         $items[] = [
             'base' => $r['CodigoSeguimiento'],
             'bultos' => (int)$r['Cantidad'],
             'retirado' => (int)$r['Retirado'],
-            'meli_id' => $meli,
-            'codigo_proveedor' => $prov,
+
 
         ];
+    }
+    $solo_hash = isset($_POST['solo_hash']) ? (int)$_POST['solo_hash'] : 0;
+    $hash = md5($recorrido . json_encode($items));
+
+    if ($solo_hash === 1) {
+        echo json_encode([
+            'success' => 1,
+            'recorrido' => $recorrido,
+            'hash' => $hash,
+        ]);
+        exit;
     }
     echo json_encode([
         'success' => 1,
         'recorrido' => $recorrido,
-        'hash' => md5($recorrido . json_encode($items)),
+        'hash' => $hash,
         'items' => $items
     ]);
     exit;

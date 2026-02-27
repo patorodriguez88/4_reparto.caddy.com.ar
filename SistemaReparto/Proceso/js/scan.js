@@ -241,17 +241,6 @@ function actualizarEstado(retiradoObjetivo = 1) {
 function normalizarCodigo(raw) {
   raw = (raw || "").trim();
   if (!raw) return "";
-
-  // QR MercadoLibre: viene como JSON {"id":"...","sender_id":...}
-  if (raw.startsWith("{") && raw.endsWith("}")) {
-    try {
-      const obj = JSON.parse(raw);
-      if (obj && obj.id) return String(obj.id).trim(); // <- "46460390729"
-    } catch (e) {
-      // si no parsea, seguimos con raw
-    }
-  }
-
   return raw;
 }
 
@@ -380,7 +369,8 @@ function validarExacto(code, retiradoObjetivo, resolve) {
         baseYaRegistrada(base, (ya) => {
           // ✅ SOLO si fue un OK nuevo
           if (marcadoNuevo) {
-            mostrarFeedback(eraAlias ? `✅ OK (ML): ${base}` : `✅ OK: ${base}`, "ok");
+            // mostrarFeedback(eraAlias ? `✅ OK (ML): ${base}` : `✅ OK: ${base}`, "ok");
+            mostrarFeedback(`✅ OK: ${base}`, "ok");
             beepOk();
           }
 
@@ -484,6 +474,21 @@ const onSuccess = async (decodedText) => {
 
   const raw = (decodedText || "").trim();
   if (!raw) return;
+
+  // ✅ MODO CADDY-ONLY: rechazamos Mercado Libre (JSON) y códigos numéricos puros (proveedor)
+  if (raw.startsWith("{")) {
+    mostrarFeedback("❌ Solo etiquetas Caddy (no ML)", "warn");
+    return;
+  }
+  if (/^\d+$/.test(raw)) {
+    mostrarFeedback("❌ Solo etiquetas Caddy (no proveedor)", "warn");
+    return;
+  }
+  // ✅ Validar formato Caddy: BASE o BASE_n (solo letras/números/guión y sufijo opcional)
+  if (!/^[A-Za-z0-9\-]+(_[1-9][0-9]*)?$/.test(raw)) {
+    mostrarFeedback("❌ Formato inválido. Escaneá etiqueta Caddy.", "error");
+    return;
+  }
 
   const now = Date.now();
   if (coolingDown) return;

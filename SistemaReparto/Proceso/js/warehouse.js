@@ -27,7 +27,7 @@ function borrarEscaneoBase(base, callback) {
         const b2 = v2.base || (v2.code ? v2.code.split("_")[0] : "");
         const ret2 = Number(v2.retirado ?? 1);
 
-        if (b2 === base && ret2 === 1 && v2.estado !== "alias") {
+        if (b2 === base && ret2 === 1) {
           v2.estado = "pendiente";
           expected.put(v2);
         }
@@ -311,7 +311,7 @@ function puedeSalir() {
       const v = cursor.value;
       const ret = Number(v.retirado ?? 1);
       console.log("pendientesEntrega:", pendientesEntrega);
-      if (ret === 1 && v.estado !== "ok" && v.estado !== "alias") pendientesEntrega++;
+      if (ret === 1 && v.estado !== "ok") pendientesEntrega++;
       cursor.continue();
       return;
     }
@@ -413,12 +413,7 @@ function cargarLista() {
         res.items.forEach((item) => {
           const bultos = parseInt(item.bultos, 10) || 1;
           const retirado = Number(item.retirado); // 0 o 1
-
-          // const codigoSeguimiento = (item.base || "").trim(); // tu código interno
-          // const meliId = (item.meli_id || "").trim(); // shipment_id (si backend lo manda)
           const codigoSeguimiento = String(item.base ?? "").trim();
-          const meliId = String(item.meli_id ?? "").trim();
-          const provCode = String(item.codigo_proveedor ?? "").trim();
           if (!codigoSeguimiento) return;
 
           // 1) Normal (por CodigoSeguimiento)
@@ -429,7 +424,7 @@ function cargarLista() {
               estado: "pendiente",
               retirado: retirado,
               codigoSeguimiento: codigoSeguimiento,
-              meli_id: meliId,
+              // meli_id: meliId,
             });
           } else {
             for (let i = 1; i <= bultos; i++) {
@@ -439,36 +434,11 @@ function cargarLista() {
                 estado: "pendiente",
                 retirado: retirado,
                 codigoSeguimiento: codigoSeguimiento,
-                meli_id: meliId,
+                // meli_id: meliId,
               });
             }
           }
 
-          // 2) Alias ML (por meli_id) -> NO cuenta como bulto esperado
-          // Lo guardamos solo como "alias" para poder matchear el escaneo.
-          if (meliId) {
-            // si hay bultos > 1 y ML trae un solo meliId, igual lo dejamos como alias base
-            expected.put({
-              code: meliId,
-              base: codigoSeguimiento,
-              estado: "alias", // 👈 clave: NO es pendiente
-              retirado: retirado,
-              codigoSeguimiento: codigoSeguimiento,
-              meli_id: meliId,
-            });
-          }
-          // 3) Alias por Código de Proveedor (Ferniplast u otros)
-          if (provCode && provCode !== codigoSeguimiento && provCode !== meliId) {
-            expected.put({
-              code: provCode,
-              base: codigoSeguimiento,
-              estado: "alias",
-              retirado: retirado,
-              codigoSeguimiento: codigoSeguimiento,
-              meli_id: meliId,
-              codigo_proveedor: provCode,
-            });
-          }
           if (retirado === 1) totalEntregas += bultos;
         });
 
@@ -568,14 +538,10 @@ function actualizarHUD(retiradoObjetivo = 1) {
     const cursor = e.target.result;
     if (cursor) {
       const v = cursor.value;
-      // const ret = v.retirado ?? 1;
+
       const ret = Number(v.retirado);
 
-      // if (ret === retiradoObjetivo) {
-      //   total++;
-      //   if (v.estado === "ok") ok++;
-      // }
-      if (ret === retiradoObjetivo && v.estado !== "alias") {
+      if (ret === retiradoObjetivo) {
         total++;
         if (v.estado === "ok") ok++;
       }
@@ -635,7 +601,7 @@ function renderScanned(done) {
         const base = v.base || (v.code ? v.code.split("_")[0] : "");
         const ret = v.retirado ?? 1;
 
-        if (base && ret === 1 && v.estado !== "alias") {
+        if (base && ret === 1) {
           if (!expectedCount[base]) expectedCount[base] = { entrega: 0 };
           expectedCount[base].entrega++;
         }
