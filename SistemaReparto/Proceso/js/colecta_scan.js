@@ -139,6 +139,7 @@
         ColectaBulto: 1,
         colectaId,
         padreId,
+        raw: raw,
         base,
         bulto: token,
         cantidad,

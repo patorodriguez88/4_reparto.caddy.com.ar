@@ -1,7 +1,7 @@
 <?php
 //colecta_scan.php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 
 session_start();
 require_once "../../Conexion/conexioni.php";
@@ -10,17 +10,11 @@ require_once __DIR__ . '/../../Funciones/estados.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 header('Content-Type: application/json; charset=utf-8');
 
-if ($basePost !== '' && $basePost[0] === '{') responder(['success' => 0, 'error' => 'SOLO_CADDY']);
-if (ctype_digit($basePost)) responder(['success' => 0, 'error' => 'SOLO_CADDY']);
-
-if ($bultoPost !== '' && $bultoPost[0] === '{') responder(['success' => 0, 'error' => 'SOLO_CADDY']);
-if (ctype_digit($bultoPost)) responder(['success' => 0, 'error' => 'SOLO_CADDY']);
 function responder($arr)
 {
     echo json_encode($arr, JSON_UNESCAPED_UNICODE);
     exit;
 }
-
 /**
  * Helpers colecta JSON
  */
@@ -151,7 +145,7 @@ if (isset($_POST['InitColecta'])) {
 
         // 2) Servicios asignados a esa colecta (excluyo padre)
         $stT = $mysqli->prepare("
-          SELECT id, CodigoSeguimiento, Cantidad,shipments_id
+          SELECT id, CodigoSeguimiento, Cantidad,shipments_id,CodigoProveedor
           FROM TransClientes
           WHERE idColecta = ?
             AND Eliminado=0 AND Entregado=0 AND Devuelto=0
@@ -232,6 +226,209 @@ if (isset($_POST['InitColecta'])) {
     }
 }
 
+//HELPERS COLECTA CON DISTINTOS CODIGOS
+
+function parseMeliJsonId($raw)
+{
+    $t = trim((string)$raw);
+    if ($t === '' || $t[0] !== '{') return null;
+    $j = json_decode($t, true);
+    if (is_array($j) && isset($j['id']) && $j['id'] !== '') return trim((string)$j['id']);
+    return null;
+}
+
+function parseCaddyBase($raw)
+{
+    $t = strtoupper(trim((string)$raw));
+    if ($t === '') return '';
+    $base = explode('_', $t)[0];
+    return trim($base);
+}
+
+/**
+ * Resolver servicio (TransClientes) a partir de lo escaneado.
+ * - Busca primero dentro de la colecta (si hay colectaId).
+ * - Orden de resolución:
+ *   1) ML JSON -> shipments_id
+ *   2) Caddy QR -> base por CodigoSeguimiento (SUBSTRING_INDEX)
+ *   3) Proveedor -> CodigoProveedor (Ferniplast/otros) con filtro por idClienteOrigen si aplica
+ */
+function resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $ferniplastClienteId = 0)
+{
+    $raw = trim((string)$raw);
+    if ($raw === '') return null;
+
+    // 1) Mercado Libre JSON
+    $meliId = parseMeliJsonId($raw);
+    if ($meliId !== null && ctype_digit($meliId)) {
+        $ship = (int)$meliId;
+
+        if ($colectaId > 0) {
+            $st = $mysqli->prepare("
+                SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                FROM TransClientes
+                WHERE idColecta=? AND Eliminado=0 AND Entregado=0 AND Devuelto=0
+                  AND shipments_id=?
+                  AND (?=0 OR id<>?)
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $st->bind_param("iiii", $colectaId, $ship, $padreId, $padreId);
+        } else {
+            $st = $mysqli->prepare("
+                SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                FROM TransClientes
+                WHERE Eliminado=0 AND Entregado=0 AND Devuelto=0
+                  AND shipments_id=?
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $st->bind_param("i", $ship);
+        }
+
+        $st->execute();
+        $tr = $st->get_result()->fetch_assoc();
+        if ($tr && !empty($tr['id'])) {
+            $base = parseCaddyBase($tr['CodigoSeguimiento']);
+            return [
+                'tipo' => 'ML_JSON',
+                'idTransClientes' => (int)$tr['id'],
+                'cs_base' => $base,
+                'cantidad' => (int)($tr['Cantidad'] ?? 1),
+                'idClienteOrigen' => (int)($tr['idClienteOrigen'] ?? 0),
+                'idClienteDestino' => (int)($tr['idClienteDestino'] ?? 0),
+                'destino' => (string)($tr['DomicilioDestino'] ?? ''),
+                'nroOrden' => (string)($tr['NumerodeOrden'] ?? ''),
+                'token_store' => $meliId, // guardás el shipment_id como token
+            ];
+        }
+
+        // si es JSON pero no lo encontró, devolvemos null (no forzamos otra heurística)
+        return null;
+    }
+
+    // 2) Caddy QR (BASE o BASE_n)
+    $base = parseCaddyBase($raw);
+    if ($base !== '' && preg_match('/^[A-Z0-9\-]+$/', $base)) {
+
+        if ($colectaId > 0) {
+            $st = $mysqli->prepare("
+                SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                FROM TransClientes
+                WHERE idColecta=? AND Eliminado=0 AND Entregado=0 AND Devuelto=0
+                  AND SUBSTRING_INDEX(CodigoSeguimiento,'_',1)=?
+                  AND (?=0 OR id<>?)
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $st->bind_param("isii", $colectaId, $base, $padreId, $padreId);
+        } else {
+            $st = $mysqli->prepare("
+                SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                FROM TransClientes
+                WHERE Eliminado=0 AND Entregado=0 AND Devuelto=0
+                  AND SUBSTRING_INDEX(CodigoSeguimiento,'_',1)=?
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $st->bind_param("s", $base);
+        }
+
+        $st->execute();
+        $tr = $st->get_result()->fetch_assoc();
+        if ($tr && !empty($tr['id'])) {
+            return [
+                'tipo' => 'CADDY_QR',
+                'idTransClientes' => (int)$tr['id'],
+                'cs_base' => $base,
+                'cantidad' => (int)($tr['Cantidad'] ?? 1),
+                'idClienteOrigen' => (int)($tr['idClienteOrigen'] ?? 0),
+                'idClienteDestino' => (int)($tr['idClienteDestino'] ?? 0),
+                'destino' => (string)($tr['DomicilioDestino'] ?? ''),
+                'nroOrden' => (string)($tr['NumerodeOrden'] ?? ''),
+                'token_store' => $raw, // guardás BASE_n o BASE
+            ];
+        }
+    }
+
+    // 3) Proveedor (Ferniplast u otros): match por CodigoProveedor
+    $prov = trim((string)$raw);
+    if ($prov !== '') {
+
+        // Si querés “modo Ferniplast” por idClienteOrigen, aplicá filtro.
+        // Si $ferniplastClienteId == 0, no filtramos.
+        if ($colectaId > 0) {
+            if ($ferniplastClienteId > 0) {
+                $st = $mysqli->prepare("
+                    SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                    FROM TransClientes
+                    WHERE idColecta=? AND Eliminado=0 AND Entregado=0 AND Devuelto=0
+                      AND CodigoProveedor=?
+                      AND idClienteOrigen=?
+                      AND (?=0 OR id<>?)
+                    ORDER BY id DESC
+                    LIMIT 1
+                ");
+                $st->bind_param("isiii", $colectaId, $prov, $ferniplastClienteId, $padreId, $padreId);
+            } else {
+                $st = $mysqli->prepare("
+                    SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                    FROM TransClientes
+                    WHERE idColecta=? AND Eliminado=0 AND Entregado=0 AND Devuelto=0
+                      AND CodigoProveedor=?
+                      AND (?=0 OR id<>?)
+                    ORDER BY id DESC
+                    LIMIT 1
+                ");
+                $st->bind_param("isii", $colectaId, $prov, $padreId, $padreId);
+            }
+        } else {
+            if ($ferniplastClienteId > 0) {
+                $st = $mysqli->prepare("
+                    SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                    FROM TransClientes
+                    WHERE Eliminado=0 AND Entregado=0 AND Devuelto=0
+                      AND CodigoProveedor=?
+                      AND idClienteOrigen=?
+                    ORDER BY id DESC
+                    LIMIT 1
+                ");
+                $st->bind_param("si", $prov, $ferniplastClienteId);
+            } else {
+                $st = $mysqli->prepare("
+                    SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                    FROM TransClientes
+                    WHERE Eliminado=0 AND Entregado=0 AND Devuelto=0
+                      AND CodigoProveedor=?
+                    ORDER BY id DESC
+                    LIMIT 1
+                ");
+                $st->bind_param("s", $prov);
+            }
+        }
+
+        $st->execute();
+        $tr = $st->get_result()->fetch_assoc();
+        if ($tr && !empty($tr['id'])) {
+            $base2 = parseCaddyBase($tr['CodigoSeguimiento']);
+            return [
+                'tipo' => ($ferniplastClienteId > 0 ? 'FERNIPLAST_CODPROV' : 'PROV_CODPROV'),
+                'idTransClientes' => (int)$tr['id'],
+                'cs_base' => $base2,
+                'cantidad' => (int)($tr['Cantidad'] ?? 1),
+                'idClienteOrigen' => (int)($tr['idClienteOrigen'] ?? 0),
+                'idClienteDestino' => (int)($tr['idClienteDestino'] ?? 0),
+                'destino' => (string)($tr['DomicilioDestino'] ?? ''),
+                'nroOrden' => (string)($tr['NumerodeOrden'] ?? ''),
+                'token_store' => $prov, // guardás el CodigoProveedor
+            ];
+        }
+    }
+
+    return null;
+}
+
+
 /**
  * ============================================================
  * ROUTER 2: ColectaBulto
@@ -240,13 +437,18 @@ if (isset($_POST['InitColecta'])) {
 if (!isset($_POST['ColectaBulto'])) {
     responder(['success' => 0, 'error' => 'Acción inválida']);
 }
-// $basePost  = normalizarMeliJsonAId($_POST['base'] ?? '');
-// $bultoPost = normalizarMeliJsonAId($_POST['bulto'] ?? '');
+$colectaId = (int)($_POST['colectaId'] ?? 0);
+$padreId   = (int)($_POST['padreId'] ?? 0);
+
+$raw = trim((string)($_POST['raw'] ?? ''));            // 👈 si podés, mandalo desde JS
 $basePost  = trim((string)($_POST['base'] ?? ''));
 $bultoPost = trim((string)($_POST['bulto'] ?? ''));
 
-if ($basePost === '' || $bultoPost === '') {
-    responder(['success' => 0, 'error' => 'Faltan base o bulto']);
+if ($raw === '')  $raw = $bultoPost;
+if ($raw === '')  $raw = $basePost;
+
+if ($raw === '') {
+    responder(['success' => 0, 'error' => 'FALTA_RAW']);
 }
 
 $cantidad = (int)($_POST['cantidad'] ?? 1);
@@ -260,72 +462,46 @@ if ($usuario === '') {
     responder(['success' => 0, 'forceLogout' => 1, 'reason' => 'NO_IDUSUARIO', 'error' => 'Sin sesión']);
 }
 
-// ---------------------------------------
-// 1) Resolver TransClientes del "servicio escaneado"
-// ---------------------------------------
-$idTransClientes = 0;
-$idCliente       = 0;
-$destino         = '';
-$nroOrden        = '';
+// ===============================
+// Detectar “modo Ferniplast”
+// ===============================
+// Opción 1: fijo (recomendado)
+// $FERNIPLAST_CLIENTE_ID = 19396;
 
-
-$baseCandidate = trim(explode('_', $basePost)[0]);
-$base = $baseCandidate;
-
-// ✅ Si el bulto es numérico => ES shipments_id. Vamos directo por ahí.
-if (ctype_digit($bultoPost)) {
-
-    $shipIdInt = (int)$bultoPost;
-
-    // 1) intento ML por shipments_id
-    $sqlS = $mysqli->prepare("
-      SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
-      FROM TransClientes
-      WHERE shipments_id=? AND Eliminado=0
-      ORDER BY id DESC
-      LIMIT 1
-    ");
-    $sqlS->bind_param("i", $shipIdInt);
-    $sqlS->execute();
-    $trS = $sqlS->get_result()->fetch_assoc();
-
-    if ($trS && !empty($trS['id'])) {
-        $idTransClientes = (int)$trS['id'];
-        $base = explode('_', (string)$trS['CodigoSeguimiento'])[0];
-        $idCliente = (int)($trS['idClienteDestino'] ?? 0);
-        $destino   = (string)($trS['DomicilioDestino'] ?? '');
-        $nroOrden  = (string)($trS['NumerodeOrden'] ?? '');
-    } else {
-
-        // 2) fallback Ferniplast por CodigoProveedor + anti-colisión por IngBrutosOrigen
-        $codeProv = trim((string)$bultoPost);
-
-        // ✅ PONÉ ACÁ el valor real de Ferniplast (IngBrutos / CUIT / lo que uses)
-        // Ejemplo si es CUIT: "30-xxxxxxxx-x" o "307xxxxxxx"
-        $FERNIPLAST_INGB = "19396";
-
-        $sqlP = $mysqli->prepare("
-        SELECT id, CodigoSeguimiento, idClienteDestino, DomicilioDestino, NumerodeOrden
-        FROM TransClientes
-        WHERE CodigoProveedor=? 
-            AND IngBrutosOrigen=?       
-            AND Eliminado=0
-        ORDER BY id DESC
-        LIMIT 1
-        ");
-        $sqlP->bind_param("ss", $codeProv, $FERNIPLAST_INGB);
-        $sqlP->execute();
-        $trP = $sqlP->get_result()->fetch_assoc();
-
-        if ($trP && !empty($trP['id'])) {
-            $idTransClientes = (int)$trP['id'];
-            $base = explode('_', (string)$trP['CodigoSeguimiento'])[0];
-            $idCliente = (int)($trP['idClienteDestino'] ?? 0);
-            $destino   = (string)($trP['DomicilioDestino'] ?? '');
-            $nroOrden  = (string)($trP['NumerodeOrden'] ?? '');
-        }
-    }
+// Opción 2: inferido por el padre (si el padre es Ferniplast)
+// Si el padreId existe, usamos su idClienteOrigen como filtro de proveedor
+$FERNIPLAST_CLIENTE_ID = 0;
+if ($padreId > 0) {
+    $stFP = $mysqli->prepare("SELECT idClienteOrigen FROM TransClientes WHERE id=? LIMIT 1");
+    $stFP->bind_param("i", $padreId);
+    $stFP->execute();
+    $rFP = $stFP->get_result()->fetch_assoc();
+    $FERNIPLAST_CLIENTE_ID = (int)($rFP['idClienteOrigen'] ?? 0);
 }
+
+// ===============================
+// Resolver servicio por RAW
+// ===============================
+$info = resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $FERNIPLAST_CLIENTE_ID);
+
+if (!$info) {
+    responder([
+        'success' => 0,
+        'error' => 'SERVICIO_NO_RESUELTO',
+        'debug' => ['raw' => $raw, 'colectaId' => $colectaId, 'padreId' => $padreId]
+    ]);
+}
+
+$tipoDetectado   = (string)$info['tipo'];
+$tokenStore      = (string)$info['token_store'];   // shipments_id / CodigoProveedor / BASE_n
+$idTransClientes = (int)$info['idTransClientes'];
+$base            = (string)$info['cs_base'];       // base Caddy real
+$idCliente       = (int)$info['idClienteDestino'];
+$destino         = (string)$info['destino'];
+$nroOrden        = (string)$info['nroOrden'];
+
+// Este es el “escaneado” real para validar sufijo si aplica:
+$codigoEscaneado = strtoupper(trim($raw));
 
 if ($idTransClientes === 0 || !preg_match('/^[A-Za-z0-9\-]+$/', $base)) {
     responder([
@@ -371,20 +547,27 @@ if ($colectaId > 0 && $padreId > 0) {
     $paquetesSvc = (int)($svc['paquetes'] ?? 1);
     if ($paquetesSvc <= 0) $paquetesSvc = 1;
 
-    // 2.c) validar sufijo _n cuando es QR (si viene con _)
-    // Para QR normal: el "código" real viene en bultoPost o basePost? (en tu JS se manda token=bulto, base=base)
-    // Para validar límites, miramos el código que el usuario escaneó: bultoPost (si es "BASE_2") o basePost si ahí viene.
-    $codigoEscaneado = $bultoPost;
+    // --- 2.c) Validar sufijo SOLO si es QR real BASE_N ---
+    $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
 
-    // Si el token es numérico (ML) no aplica sufijo. Usamos heurística: si contiene "_" y empieza por la base, tratamos QR
-    // $esQR = (strpos($codigoEscaneado, $base . '_') === 0) || ($codigoEscaneado === $base);
-    // $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
-    $esQR = (strpos($codigoEscaneado, '_') !== false);
+    $esML    = ($tipoDetectado === 'ML_JSON');
+    $esFerni = ($tipoDetectado === 'FERNIPLAST_CODPROV');
+    $esProv  = ($tipoDetectado === 'PROV_CODPROV');
+
+    // codeStore (una sola definición en todo el flujo)
+    if ($esQR) {
+        $codeStore = $codigoEscaneado;      // BASE_1
+    } else if ($esML || $esFerni || $esProv) {
+        $codeStore = $tokenStore;           // shipment_id o CodigoProveedor
+    } else {
+        $codeStore = $tokenStore ?: $codigoEscaneado;
+    }
+
+    // Validación sufijo/rango solo para QR
     if ($esQR) {
         [$bScan, $suf] = parseBaseAndSuffix($codigoEscaneado);
 
-        // base debe coincidir
-        if ($bScan !== $base) {
+        if (strtoupper($bScan) !== strtoupper($base)) {
             responder(['success' => 0, 'error' => 'BASE_NO_COINCIDE', 'esperado' => $base, 'escaneado' => $bScan]);
         }
 
@@ -396,7 +579,7 @@ if ($colectaId > 0 && $padreId > 0) {
                 responder(['success' => 0, 'error' => 'SUFIJO_FUERA_DE_RANGO', 'detail' => "Permitido {$base}_1..{$base}_{$paquetesSvc}"]);
             }
         } else {
-            // paquetesSvc == 1 => NO permitir _n
+            // paquetesSvc == 1 => no permitir sufijo
             if ($suf !== null) {
                 responder(['success' => 0, 'error' => 'NO_PERMITE_SUFIJO', 'detail' => "Para {$base} debe ser sin sufijo"]);
             }
@@ -428,20 +611,8 @@ if ($colectaId > 0 && $padreId > 0) {
             'max' => $paquetesSvc
         ]);
     }
-
     // 2.e) anti-duplicado / merge
-    // - QR: duplicado real por code exacto (BASE_n)
-    // - ML: si vuelve el mismo shipments_id, SUMAMOS qty (hasta el tope)
-
     $nowTs = date('Y-m-d H:i:s');
-
-    // ✅ QR verdadero SOLO si matchea BASE_N (no por “tiene _”)
-    $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
-
-    // ✅ ML si el bulto es numérico (shipments_id)
-    $esML = ctype_digit((string)$bultoPost);
-
-    $codeStore = $esQR ? $codigoEscaneado : $bultoPost;
 
     // buscar si ya existe ese codeStore en scans
     $foundIdx = -1;
@@ -454,7 +625,7 @@ if ($colectaId > 0 && $padreId > 0) {
 
     if ($foundIdx >= 0) {
 
-        // QR: duplicado real
+        // QR: duplicado real (BASE_n)
         if ($esQR) {
             $payload['resume'] = calcularResume($payload);
             responder([
@@ -467,7 +638,7 @@ if ($colectaId > 0 && $padreId > 0) {
             ]);
         }
 
-        // ML: sumar qty (1 por scan) hasta tope
+        // ML / Ferni / Prov: sumar 1 por escaneo hasta tope
         $currentQty = (int)($scans[$foundIdx]['qty'] ?? 1);
         $addQty = 1;
 
@@ -516,14 +687,12 @@ if ($colectaId > 0 && $padreId > 0) {
     }
 
     // 2.f) NUEVO scan (primera vez que vemos este codeStore)
-    $newQty = 1; // ✅ ML y QR cuentan 1 por escaneo
-
     $scans[] = [
-        'code' => $codeStore,     // QR: BASE_n, ML: shipments_id Ferni:CodigoProveedor
-        'base' => $base,          // base Caddy real
-        'qty'  => $newQty,        // 1 por scan
+        'code' => $codeStore,
+        'base' => $base,
+        'qty'  => 1, // 1 por escaneo
         'ts'   => $nowTs,
-        'kind' => $esQR ? 'QR' : ($esML ? 'ML' : 'OTHER'),
+        'kind' => $esQR ? 'QR' : ($esML ? 'ML' : ($esFerni ? 'FERNI' : ($esProv ? 'PROV' : 'OTHER'))),
     ];
 
     $payload['scans'] = $scans;
@@ -537,7 +706,6 @@ if ($colectaId > 0 && $padreId > 0) {
     $scanSavedToColecta = 1;
     $colectaResume = $payload['resume'];
 
-    // seguimos flujo normal, PERO devolvemos ya el resume actualizado:
     responder([
         'success' => 1,
         'inserted' => 1,
@@ -590,7 +758,7 @@ $Estado    = (string)$st['Estado'];
 $fecha = date('Y-m-d');
 $hora  = date('H:i:s');
 
-$obs = "BULTO {$bultoPost}";
+$obs = "BULTO {$raw}";
 if ($cantidad > 1) $obs .= " | Cantidad confirmada: {$cantidad}";
 
 $sqlIns = $mysqli->prepare("
