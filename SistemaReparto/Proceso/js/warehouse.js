@@ -576,7 +576,7 @@ function renderScanned(done) {
     if (cursor) {
       const v = cursor.value;
       const base = v.base || (v.code ? v.code.split("_")[0] : "");
-      const ret = v.retirado ?? 1;
+      const ret = Number(v.retirado ?? 1);
 
       if (base && ret === 1) {
         if (!scannedCount[base]) scannedCount[base] = { entrega: 0 };
@@ -593,7 +593,7 @@ function renderScanned(done) {
       if (c2) {
         const v = c2.value;
         const base = v.base || (v.code ? v.code.split("_")[0] : "");
-        const ret = v.retirado ?? 1;
+        const ret = Number(v.retirado ?? 1);
 
         if (base && ret === 1) {
           if (!expectedCount[base]) expectedCount[base] = { entrega: 0 };

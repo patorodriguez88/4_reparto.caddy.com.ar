@@ -35,7 +35,9 @@ function getNextPendingCodeForBase(base, retiradoObjetivo, callback) {
       const v = cursor.value;
 
       // 👇 SOLO los de esta base + este tipo (0 retiro / 1 entrega) + pendientes
-      if (v.base === base && (v.retirado ?? 1) === retiradoObjetivo && v.estado !== "ok" && v.estado !== "alias") {
+
+      const ret = Number(v.retirado ?? 1);
+      if (v.base === base && ret === Number(retiradoObjetivo) && v.estado !== "ok" && v.estado !== "alias") {
         return callback(v.code);
       }
       cursor.continue();
@@ -64,7 +66,8 @@ function baseCompleto(base, retiradoObjetivo, callback) {
     if (cursor) {
       const v = cursor.value;
 
-      if (v.base === base && (v.retirado ?? 1) === retiradoObjetivo && v.estado !== "alias") {
+      const ret = Number(v.retirado ?? 1);
+      if (v.base === base && ret === Number(retiradoObjetivo) && v.estado !== "alias") {
         total++;
         if (v.estado === "ok") ok++;
       }
@@ -85,31 +88,6 @@ function marcarBaseRegistrada(base) {
   const t = db.transaction("bases_done", "readwrite");
   t.objectStore("bases_done").put({ base: base, ts: Date.now() });
 }
-
-// function registrarWarehouse(base) {
-//   $.ajax({
-//     url: "Proceso/php/warehouse.php",
-//     type: "POST",
-//     dataType: "json",
-//     data: {
-//       RegistrarWarehouse: 1,
-//       codigo: base, // 👈 base SIN _n
-//       state_id: 13, // opcional cuando lo tengas definido
-//     },
-//     success: function (res) {
-//       if (res.success === 1) {
-//         // Mensaje “OK” lindo (sin alert)
-//         mostrarToast(`✅ ${base} validado en warehouse`);
-//       } else {
-//         console.warn(res);
-//       }
-//     },
-//     error: function (xhr) {
-//       if (manejar401(xhr)) return;
-//       console.error(xhr.responseText);
-//     },
-//   });
-// }
 
 // Toast simple arriba
 function mostrarToast(txt) {
@@ -165,25 +143,6 @@ function setEstadoParcial(ok, total) {
 
   scanLocked = false; // 👈 por si volvés a parcial
 }
-// function setEstadoParcial(ok, total) {
-//   $("#estado").removeClass("bg-success").addClass("bg-warning");
-//   $("#wh-msg").text("Escaneá todos los bultos para salir");
-// //   $("#btn-salir")
-// //     .prop("disabled", true)
-// //     .removeClass("btn-success")
-// //     .addClass("btn-secondary")
-// //     .text(`Faltan ${Math.max(total - ok, 0)} ENTREGAS`);
-// }
-
-// function setEstadoCompleto(total) {
-//   $("#estado").removeClass("bg-warning").addClass("bg-success");
-//   $("#wh-msg").text("Todo OK. Podés iniciar el recorrido.");
-// //   $("#btn-salir")
-// //     .prop("disabled", false)
-// //     .removeClass("btn-secondary")
-// //     .addClass("btn-success")
-// //     .text("Iniciar recorrido");
-// }
 async function setEstadoCompleto(total) {
   $("#estado").removeClass("bg-warning").addClass("bg-success");
   $("#wh-msg").text("✅ Todo OK. Volvé a Warehouse y presioná Confirmar carga.");
@@ -221,7 +180,9 @@ function actualizarEstado(retiradoObjetivo = 1) {
     if (cursor) {
       const v = cursor.value;
 
-      if ((v.retirado ?? 1) === retiradoObjetivo && v.estado !== "alias") {
+      // if ((v.retirado ?? 1) === retiradoObjetivo && v.estado !== "alias") {
+      const ret = Number(v.retirado ?? 1);
+      if (ret === Number(retiradoObjetivo) && v.estado !== "alias") {
         total++;
         if (v.estado === "ok") ok++;
       }
@@ -289,27 +250,13 @@ function validarExacto(code, retiradoObjetivo, resolve) {
       mostrarFeedback("❌ No pertenece al recorrido", "error");
       return resolve("no_pertenece");
     }
+    const ret = Number(item.retirado ?? 1);
 
-    if ((item.retirado ?? 1) !== retiradoObjetivo) {
+    if (ret !== Number(retiradoObjetivo)) {
       mostrarFeedback("⚠️ Este QR no es una ENTREGA", "warn");
       return resolve("no_corresponde");
     }
 
-    // if (item.estado === "ok") {
-    //   mostrarFeedback("⚠️ Ya escaneado", "warn");
-    //   return resolve("ya_ok");
-    // }
-
-    // item.estado = "ok";
-    // expected.put(item);
-
-    // scanned.put({
-    //   id: crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random(),
-    //   code: code,
-    //   base: item.base,
-    //   retirado: item.retirado ?? 1,
-    //   ts: Date.now(),
-    // });
     if (item.estado === "ok") {
       mostrarFeedback("⚠️ Ya escaneado", "warn");
       return resolve("ya_ok");
@@ -383,33 +330,7 @@ function validarExacto(code, retiradoObjetivo, resolve) {
             resolve("ok");
           });
         });
-        // baseYaRegistrada(base, (ya) => {
-        //   // ✅ feedback OK inmediato
-        //   // mostrarFeedback(`✅ OK: ${base}`, "ok");
-        //   mostrarFeedback(eraAlias ? `✅ OK (ML): ${base}` : `✅ OK: ${base}`, "ok");
-        //   beepOk();
-
-        //   if (ya) return resolve("ok");
-
-        //   baseCompleto(base, retiradoObjetivo, (completo) => {
-        //     if (completo) {
-        //       // registrarWarehouse(base);
-        //       marcarBaseRegistrada(base);
-        //     }
-        //     resolve("ok");
-        //   });
-        // });
       };
-      // baseYaRegistrada(base, (ya) => {
-      //   if (ya) return resolve("ok");
-      //   baseCompleto(base, retiradoObjetivo, (completo) => {
-      //     if (completo) {
-      //       registrarWarehouse(base);
-      //       marcarBaseRegistrada(base);
-      //     }
-      //     resolve("ok");
-      //   });
-      // });
     };
   };
 }
@@ -493,13 +414,6 @@ const onSuccess = async (decodedText) => {
   const now = Date.now();
   if (coolingDown) return;
 
-  // if (raw === lastCode && now - lastTime < 1500) return;
-
-  // lastCode = raw;
-  // lastTime = now;
-
-  // const normalized = normalizarCodigo(raw);
-  // const r = await validarBulto(normalized);
   const normalized = normalizarCodigo(raw);
   if (normalized === lastCode && now - lastTime < 1500) return;
 
@@ -620,36 +534,27 @@ $(document).ready(function () {
     await stopScanner();
     window.location.href = "warehouse.html";
   });
+  function normalizar(code) {
+    return (code || "").trim().toUpperCase();
+  }
 
-  //   $("#btn-salir")
-  //     .off("click")
-  //     .on("click", function () {
-  //       const tx = db.transaction("expected", "readonly");
-  //       const store = tx.objectStore("expected");
+  function esSufijoNumerico(code) {
+    return /_\d+$/.test(code);
+  }
 
-  //       let total = 0;
-  //       let ok = 0;
+  function resolverAliasPrimero(code, expectedStore, cb) {
+    const c = normalizar(code);
+    const base = c.split("_")[0];
 
-  //       store.openCursor().onsuccess = function (e) {
-  //         const cursor = e.target.result;
-  //         if (cursor) {
-  //           const v = cursor.value;
-  //           const ret = v.retirado ?? 1;
+    if (esSufijoNumerico(c)) return cb(c);
 
-  //           // ✅ SOLO ENTREGAS
-  //           // if (ret === 1) {
-  //           //   total++;
-  //           //   if (v.estado === "ok") ok++;
-  //           // }
-  //           if (ret === 1 && v.estado !== "alias") {
-  //             total++;
-  //             if (v.estado === "ok") ok++;
-  //           }
-  //           cursor.continue();
-  //         } else {
-  //           if (total > 0 && ok === total) window.location.href = "hdr.html";
-  //           else mostrarToast(`⚠️ Faltan ${Math.max(total - ok, 0)} ENTREGAS`);
-  //         }
-  //       };
-  //     });
+    const req = expectedStore.get(`${base}_1`);
+    req.onsuccess = function () {
+      if (req.result) return cb(`${base}_1`);
+      cb(c);
+    };
+    req.onerror = function () {
+      cb(c);
+    };
+  }
 });

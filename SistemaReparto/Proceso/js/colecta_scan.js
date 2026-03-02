@@ -386,7 +386,8 @@
           // candidateLocal = jsonId ? scannedToken : paquetesSvc <= 1 ? base : raw;
           candidateLocal = jsonId ? "__ML__" : paquetesSvc <= 1 ? base : raw;
         }
-        const allowRepeatForQty = esModoColecta() && !jsonId && !hasN && paquetesSvc > 1; // paquetesSvc viene del servicio esperado (si no, dejalo en 1)
+        // const allowRepeatForQty = esModoColecta() && !jsonId && !hasN && paquetesSvc > 1; // paquetesSvc viene del servicio esperado (si no, dejalo en 1)
+        const allowRepeatForQty = esModoColecta() && !jsonId && paquetesSvc > 1;
 
         if (!allowRepeatForQty && codigosEscaneados.has(candidateLocal)) {
           swalFire({
@@ -413,7 +414,11 @@
 
         let res = null;
         try {
-          res = await postColectaBulto(base, scannedToken);
+          // res = await postColectaBulto(base, scannedToken);
+          // ✅ Backend: si el servicio tiene múltiples bultos, mandamos SIEMPRE la BASE (sin sufijo)
+          const tokenBackend = esModoColecta() && !jsonId && paquetesSvc > 1 ? base : scannedToken;
+
+          res = await postColectaBulto(base, tokenBackend);
 
           if (res && res.success == 1 && res.duplicate == 1) {
             feedbackScan(false);
@@ -486,7 +491,8 @@
             // QR normal colecta
             // codeToStoreFinal = paquetesSvc <= 1 ? base : raw;
             // ✅ caso ML texto plano SIN sufijo pero con paquetesSvc > 1
-            if (esModoColecta() && !hasN && paquetesSvc > 1) {
+            // QR normal colecta
+            if (esModoColecta() && !jsonId && paquetesSvc > 1) {
               const next = getNextSuffixForBase(base, paquetesSvc);
               if (!next) {
                 swalFire({
@@ -501,7 +507,6 @@
               }
               codeToStoreFinal = next; // BASE_1, BASE_2, ...
             } else {
-              // QR normal colecta (con sufijo o paquete único)
               codeToStoreFinal = paquetesSvc <= 1 ? base : raw;
             }
           }
