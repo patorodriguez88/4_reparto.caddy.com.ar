@@ -71,7 +71,8 @@
       const base = String(s.cs_base || "").trim();
       if (!base) return;
 
-      const paquetes = parseInt(s.paquetes || 1, 10) || 1;
+      // const paquetes = parseInt(s.paquetes || 1, 10) || 1;
+      const paquetes = parseInt(s.paquetes ?? s.Cantidad ?? s.bultos ?? 1, 10) || 1;
       if (paquetes <= 1) out.push(base);
       else for (let i = 1; i <= paquetes; i++) out.push(`${base}_${i}`);
     });
@@ -615,6 +616,19 @@
 
   // ===== UI handlers =====
   $(document).on("click", "#btnValidarFaltantes", function () {
+    const expected = buildExpectedCodesForColecta();
+
+    if (!expected.length) {
+      swalFire({
+        icon: "info",
+        title: "Todavía no cargó la colecta",
+        text: "Esperá un segundo y volvé a intentar.",
+        timer: 1200,
+        showConfirmButton: false,
+      });
+      return;
+    }
+
     const faltan = getFaltantesColecta();
     if (!faltan.length) {
       swalFire({
