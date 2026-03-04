@@ -767,17 +767,17 @@ $sqlIns = $mysqli->prepare("
   (Fecha, Hora, Usuario, Sucursal, CodigoSeguimiento, Observaciones,
    Entregado, Estado, Destino, Avisado, idCliente, Retirado, Visitas,
    idTransClientes, TimeStamp, Recorrido, Devuelto, Webhook, state_id,
-   NumerodeOrden, status, Eliminado)
+   NumerodeOrden, status, Eliminado,Estado_id)
   VALUES
   (?, ?, ?, ?, ?, ?,
    0, ?, ?, 0, ?, 0, 0,
    ?, NOW(), ?, 0, 0, ?,
-   ?, ?, 0)
+   ?, ?, 0,?)
 ");
 if (!$sqlIns) responder(['success' => 0, 'error' => 'prepare insert failed', 'detail' => $mysqli->error]);
 
 // $types = "ssssssssii" . "s" . "i" . "ss"; // 14 params
-$types = "ssssssssii" . "s" . "i" . "ss";
+$types = "ssssssssii" . "s" . "i" . "ssi";
 // y verificá con strlen($types) == 14 durante debug
 if (!$sqlIns->bind_param(
     $types,
@@ -794,7 +794,8 @@ if (!$sqlIns->bind_param(
     $recorrido,
     $Estado_id,
     $nroOrden,
-    $status
+    $status,
+    $Estado_id
 )) {
     responder(['success' => 0, 'error' => 'bind_param failed', 'detail' => $sqlIns->error]);
 }

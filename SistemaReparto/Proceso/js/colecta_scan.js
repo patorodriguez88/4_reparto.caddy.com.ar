@@ -173,16 +173,6 @@
 
     return scannerStopPromise;
   }
-  // function normalizeBaseAndIdx(txt) {
-  //   const s = String(txt || "").trim();
-  //   const m = s.match(/^(.+?)(?:_(\d+))?$/);
-  //   if (!m) return { base: "", idx: null, hasN: false };
-
-  //   const base = String(m[1] || "").trim();
-  //   const idx = m[2] ? parseInt(m[2], 10) : null;
-
-  //   return { base, idx: Number.isInteger(idx) ? idx : null, hasN: m[2] != null };
-  // }
   function extraerIdDesdeJson(raw) {
     const t = (raw || "").trim();
     if (!t.startsWith("{") || !t.endsWith("}")) return null;
@@ -266,7 +256,7 @@
 
         const raw = (decodedText || "").trim();
         if (!raw) return;
-
+        const hasN = raw.includes("_");
         // anti-rebote
         const now = Date.now();
         if (raw === colectaLast && now - colectaLastT < 900) return;
@@ -276,15 +266,14 @@
         const expectedBase = getExpectedBase();
 
         // 1) Detectar JSON ML / token / base para backend
+
         const jsonId = extraerIdDesdeJson(raw);
-        const scannedToken = jsonId ? jsonId : raw;
 
-        // base para backend:
-        // - si es JSON ML -> shipment_id (jsonId)
-        // - si es QR normal -> base de CS
-        const base = jsonId ? jsonId : raw.split("_")[0].trim();
-        const hasN = raw.includes("_");
+        // OJO: para JSON NO hay "base" real en el QR.
+        // Para QR normal sí: base = BASE
+        const base = jsonId ? String(jsonId) : (hasN ? raw.split("_").slice(0, -1).join("_") : raw).trim();
 
+        const looksLikeBase = !jsonId && /^[A-Z0-9]{8,}(?:_\d+)?$/i.test(raw); // ajustá 8->10 si querés
         // 2) Contexto válido
         if (esModoColecta()) {
           const exp = getColectaExpected();
@@ -305,7 +294,7 @@
         let paquetesSvc = 1;
         let qtyExpectedLocal = getCantidadEsperada(); // modo normal
 
-        if (!jsonId) {
+        if (!jsonId && looksLikeBase) {
           if (esModoColecta()) {
             const svc = getServicioEsperadoPorBase(base);
             if (!svc) {
@@ -337,9 +326,33 @@
 
             if (hasN) {
               const parts = raw.split("_");
-              const suf = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
+              const suf = parts.length > 1 ? parseInt(parts[parts.length - 1], 10) : NaN;
 
-              if (!Number.isInteger(suf) || suf < 1 || suf > paquetesSvc) {
+              if (!Number.isInteger(suf) || suf < 1) {
+                swalFire({
+                  icon: "error",
+                  title: "Bulto inválido",
+                  text: `Sufijo inválido en ${raw}`,
+                  timer: 1600,
+                  showConfirmButton: false,
+                });
+                feedbackScan(false);
+                return;
+              }
+
+              if (paquetesSvc === 1 && suf !== 1) {
+                swalFire({
+                  icon: "error",
+                  title: "Bulto inválido",
+                  text: `Para ${base} sólo se permite ${base}_1`,
+                  timer: 1600,
+                  showConfirmButton: false,
+                });
+                feedbackScan(false);
+                return;
+              }
+
+              if (paquetesSvc > 1 && suf > paquetesSvc) {
                 swalFire({
                   icon: "error",
                   title: "Bulto inválido",
@@ -349,48 +362,6 @@
                 });
                 feedbackScan(false);
                 return;
-              }
-              if (hasN) {
-                const parts = raw.split("_");
-                const suf = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
-
-                if (!Number.isInteger(suf) || suf < 1) {
-                  swalFire({
-                    icon: "error",
-                    title: "Bulto inválido",
-                    text: `Sufijo inválido en ${raw}`,
-                    timer: 1600,
-                    showConfirmButton: false,
-                  });
-                  feedbackScan(false);
-                  return;
-                }
-
-                // ✅ Si paquetesSvc==1, permitimos SOLO _1
-                if (paquetesSvc === 1 && suf !== 1) {
-                  swalFire({
-                    icon: "error",
-                    title: "Bulto inválido",
-                    text: `Para ${base} sólo se permite ${base}_1`,
-                    timer: 1600,
-                    showConfirmButton: false,
-                  });
-                  feedbackScan(false);
-                  return;
-                }
-
-                // ✅ Si paquetesSvc>1, suf debe estar dentro de rango
-                if (paquetesSvc > 1 && suf > paquetesSvc) {
-                  swalFire({
-                    icon: "error",
-                    title: "Bulto inválido",
-                    text: `Para ${base} sólo se permiten ${base}_1 … ${base}_${paquetesSvc}`,
-                    timer: 1600,
-                    showConfirmButton: false,
-                  });
-                  feedbackScan(false);
-                  return;
-                }
               }
             }
           } else {
@@ -423,42 +394,45 @@
 
         // 4) Backend (autoridad) + duplicado local preliminar
         // Armamos un "candidate" inicial sólo para anti-duplicado rápido
-        let candidateLocal = "";
-        if (!esModoColecta()) {
-          candidateLocal = qtyExpectedLocal <= 1 ? expectedBase : raw;
-        } else {
-          // candidateLocal = jsonId ? scannedToken : paquetesSvc <= 1 ? base : raw;
-          candidateLocal = jsonId ? "__ML__" : paquetesSvc <= 1 ? base : raw;
-        }
-        // const allowRepeatForQty = esModoColecta() && !jsonId && !hasN && paquetesSvc > 1; // paquetesSvc viene del servicio esperado (si no, dejalo en 1)
-        const allowRepeatForQty = esModoColecta() && !jsonId && paquetesSvc > 1;
 
-        if (!allowRepeatForQty && codigosEscaneados.has(candidateLocal)) {
-          swalFire({
-            icon: "info",
-            title: "Ya escaneado",
-            text: candidateLocal,
-            timer: 900,
-            showConfirmButton: false,
-          });
-          feedbackScan(false);
-          return;
-        }
+        // Para JSON NO hacemos anti-duplicado PREVIO,
+        // porque un mismo token (CodigoProveedor) puede sumar bultos (qty) hasta completar.
+        // El backend ya te controla el tope con paquetes_servicio.
+        if (!jsonId && looksLikeBase) {
+          const candidateLocal = esModoColecta()
+            ? paquetesSvc > 1
+              ? raw
+              : `${base}_1`
+            : qtyExpectedLocal > 1
+              ? raw
+              : `${expectedBase}_1`;
 
+          if (codigosEscaneados.has(candidateLocal)) {
+            swalFire({
+              icon: "info",
+              title: "Ya escaneado",
+              text: candidateLocal,
+              timer: 900,
+              showConfirmButton: false,
+            });
+            feedbackScan(false);
+            return;
+          }
+        }
+        // const uiLabel = jsonId ? "BULTO (token)" : hasN ? raw : `${base}_1`;
+        const uiLabel = jsonId ? `TOKEN: ${jsonId}` : looksLikeBase ? (hasN ? raw : `${base}_1`) : `TOKEN: ${raw}`;
         let res = null;
         try {
           // ✅ Backend: si el servicio tiene múltiples bultos, mandamos SIEMPRE la BASE (sin sufijo)
-          const tokenBackend = esModoColecta() && !jsonId && paquetesSvc > 1 ? base : scannedToken;
-
-          // res = await postColectaBulto(base, tokenBackend);
-          res = await postColectaBulto(base, tokenBackend, 1, raw);
-
+          // Backend es autoridad: siempre mandamos raw.
+          // base/bulto quedan "decorativos" por compatibilidad.
+          res = await postColectaBulto(base, "", 1, raw);
           if (res && res.success == 1 && res.duplicate == 1) {
             feedbackScan(false);
             swalFire({
               icon: "info",
               title: "Ya registrado",
-              text: candidateLocal,
+              text: uiLabel,
               timer: 700,
               showConfirmButton: false,
             });
@@ -491,24 +465,21 @@
         // 5) Definir codeToStore FINAL (lo que va al select2 y al set)
         if (!esModoColecta()) {
           // envío normal
-          // codeToStoreFinal = qtyExpectedLocal <= 1 ? expectedBase : raw;
+
           codeToStoreFinal = qtyExpectedLocal <= 1 ? `${expectedBase}_1` : raw;
         } else {
           // colecta
           if (jsonId) {
-            // ML: el QR no trae _1.._n. Los generamos para UI según paquetes del servicio.
-            const b = baseReal ? baseReal : scannedToken;
             const paquetes = paquetesSvcBack || 1;
 
             if (!baseReal) {
-              // si no vino cs_base, fallback feo pero funcional
-              codeToStoreFinal = scannedToken;
+              // backend no pudo devolver cs_base: guardamos el id del JSON como fallback
+              codeToStoreFinal = jsonId ? String(jsonId) : raw;
             } else if (paquetes <= 1) {
               codeToStoreFinal = `${baseReal}_1`;
             } else {
               const next = getNextSuffixForBase(baseReal, paquetes);
               if (!next) {
-                // ya completaste todos los bultos
                 swalFire({
                   icon: "info",
                   title: "Completo",
@@ -519,30 +490,52 @@
                 feedbackScan(false);
                 return;
               }
-              codeToStoreFinal = next; // ej: BASE_2, BASE_3...
+              codeToStoreFinal = next;
             }
           } else {
-            // QR normal colecta
-            // codeToStoreFinal = paquetesSvc <= 1 ? base : raw;
-            // ✅ caso ML texto plano SIN sufijo pero con paquetesSvc > 1
-            // QR normal colecta
-            if (esModoColecta() && !jsonId && paquetesSvc > 1) {
-              const next = getNextSuffixForBase(base, paquetesSvc);
-              if (!next) {
-                swalFire({
-                  icon: "info",
-                  title: "Completo",
-                  text: `Ya están los ${paquetesSvc} bultos de ${base}`,
-                  timer: 900,
-                  showConfirmButton: false,
-                });
-                feedbackScan(false);
-                return;
+            // NO jsonId (puede ser QR base o token proveedor)
+            if (!looksLikeBase) {
+              // token proveedor: usamos lo que manda el backend
+              const paquetes = paquetesSvcBack || 1;
+
+              if (!baseReal) {
+                codeToStoreFinal = raw; // fallback
+              } else if (paquetes <= 1) {
+                codeToStoreFinal = `${baseReal}_1`;
+              } else {
+                const next = getNextSuffixForBase(baseReal, paquetes);
+                if (!next) {
+                  swalFire({
+                    icon: "info",
+                    title: "Completo",
+                    text: `Ya están los ${paquetes} bultos de ${baseReal}`,
+                    timer: 900,
+                    showConfirmButton: false,
+                  });
+                  feedbackScan(false);
+                  return;
+                }
+                codeToStoreFinal = next;
               }
-              codeToStoreFinal = next; // BASE_1, BASE_2, ...
             } else {
-              // codeToStoreFinal = paquetesSvc <= 1 ? base : raw;
-              codeToStoreFinal = paquetesSvc <= 1 ? `${base}_1` : raw;
+              // QR normal colecta (tu lógica actual)
+              if (paquetesSvc > 1) {
+                const next = getNextSuffixForBase(base, paquetesSvc);
+                if (!next) {
+                  swalFire({
+                    icon: "info",
+                    title: "Completo",
+                    text: `Ya están los ${paquetesSvc} bultos de ${base}`,
+                    timer: 900,
+                    showConfirmButton: false,
+                  });
+                  feedbackScan(false);
+                  return;
+                }
+                codeToStoreFinal = next;
+              } else {
+                codeToStoreFinal = `${base}_1`;
+              }
             }
           }
         }
