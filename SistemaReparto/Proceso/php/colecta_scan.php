@@ -1,7 +1,7 @@
 <?php
 //colecta_scan.php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 
 session_start();
 require_once "../../Conexion/conexioni.php";
@@ -439,6 +439,7 @@ if (!isset($_POST['ColectaBulto'])) {
 }
 $colectaId = (int)($_POST['colectaId'] ?? 0);
 $padreId   = (int)($_POST['padreId'] ?? 0);
+$paquetesSvc = 1;
 
 $raw = trim((string)($_POST['raw'] ?? ''));            // 👈 si podés, mandalo desde JS
 $basePost  = trim((string)($_POST['base'] ?? ''));
@@ -548,23 +549,58 @@ if ($colectaId > 0 && $padreId > 0) {
     if ($paquetesSvc <= 0) $paquetesSvc = 1;
 
     // --- 2.c) Validar sufijo SOLO si es QR real BASE_N ---
-    $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
+    // $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
+    // $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '(?:_(\d+))?$/', $codigoEscaneado);
+    // $esML    = ($tipoDetectado === 'ML_JSON');
+    // $esFerni = ($tipoDetectado === 'FERNIPLAST_CODPROV');
+    // $esProv  = ($tipoDetectado === 'PROV_CODPROV');
 
+    // codeStore (una sola definición en todo el flujo)
+    // if ($esQR) {
+    //     $codeStore = $codigoEscaneado;      // BASE_1
+    // } else if ($esML || $esFerni || $esProv) {
+    //     $codeStore = $tokenStore;           // shipment_id o CodigoProveedor
+    // } else {
+    //     $codeStore = $tokenStore ?: $codigoEscaneado;
+    // }
+
+    // Validación sufijo/rango solo para QR
+    // if ($esQR) {
+    //     [$bScan, $suf] = parseBaseAndSuffix($codigoEscaneado);
+    //     if ($paquetesSvc == 1 && $suf === null) {
+    //         $codeStore = $base . "_1";
+    //     } else {
+    //         $codeStore = $codigoEscaneado; // BASE_n
+    //     }
+    //     if (strtoupper($bScan) !== strtoupper($base)) {
+    //         responder(['success' => 0, 'error' => 'BASE_NO_COINCIDE', 'esperado' => $base, 'escaneado' => $bScan]);
+    //     }
+
+    //     if ($paquetesSvc > 1) {
+    //         if ($suf === null) {
+    //             responder(['success' => 0, 'error' => 'FALTA_SUFIJO', 'detail' => "Se requiere {$base}_1..{$base}_{$paquetesSvc}"]);
+    //         }
+    //         if ($suf < 1 || $suf > $paquetesSvc) {
+    //             responder(['success' => 0, 'error' => 'SUFIJO_FUERA_DE_RANGO', 'detail' => "Permitido {$base}_1..{$base}_{$paquetesSvc}"]);
+    //         }
+    //     } else {
+    //         // paquetesSvc == 1 => aceptar sin sufijo o con _1, pero NO otros
+    //         if ($suf !== null && $suf !== 1) {
+    //             responder(['success' => 0, 'error' => 'SUFIJO_FUERA_DE_RANGO', 'detail' => "Para {$base} sólo se permite {$base}_1"]);
+    //         }
+    //     }
+    // }
+    // --- 2.c) Tipos
     $esML    = ($tipoDetectado === 'ML_JSON');
     $esFerni = ($tipoDetectado === 'FERNIPLAST_CODPROV');
     $esProv  = ($tipoDetectado === 'PROV_CODPROV');
 
+    // QR Caddy: acepto BASE o BASE_n (siempre que empiece con la base)
+    $esQR = (bool)preg_match('/^' . preg_quote(strtoupper($base), '/') . '(?:_(\d+))?$/', $codigoEscaneado);
+
     // codeStore (una sola definición en todo el flujo)
     if ($esQR) {
-        $codeStore = $codigoEscaneado;      // BASE_1
-    } else if ($esML || $esFerni || $esProv) {
-        $codeStore = $tokenStore;           // shipment_id o CodigoProveedor
-    } else {
-        $codeStore = $tokenStore ?: $codigoEscaneado;
-    }
-
-    // Validación sufijo/rango solo para QR
-    if ($esQR) {
+        // Canonización: para paquetesSvc==1 guardo SIEMPRE BASE_1
         [$bScan, $suf] = parseBaseAndSuffix($codigoEscaneado);
 
         if (strtoupper($bScan) !== strtoupper($base)) {
@@ -572,20 +608,26 @@ if ($colectaId > 0 && $padreId > 0) {
         }
 
         if ($paquetesSvc > 1) {
+            // exige sufijo
             if ($suf === null) {
                 responder(['success' => 0, 'error' => 'FALTA_SUFIJO', 'detail' => "Se requiere {$base}_1..{$base}_{$paquetesSvc}"]);
             }
             if ($suf < 1 || $suf > $paquetesSvc) {
                 responder(['success' => 0, 'error' => 'SUFIJO_FUERA_DE_RANGO', 'detail' => "Permitido {$base}_1..{$base}_{$paquetesSvc}"]);
             }
+            $codeStore = strtoupper($base) . "_" . (int)$suf; // normalizado
         } else {
-            // paquetesSvc == 1 => no permitir sufijo
-            if ($suf !== null) {
-                responder(['success' => 0, 'error' => 'NO_PERMITE_SUFIJO', 'detail' => "Para {$base} debe ser sin sufijo"]);
+            // paquetesSvc == 1: acepto BASE o BASE_1, pero NO BASE_2...
+            if ($suf !== null && $suf !== 1) {
+                responder(['success' => 0, 'error' => 'SUFIJO_FUERA_DE_RANGO', 'detail' => "Para {$base} sólo se permite {$base} o {$base}_1"]);
             }
+            $codeStore = strtoupper($base) . "_1"; // ✅ canonizo
         }
+    } else if ($esML || $esFerni || $esProv) {
+        $codeStore = $tokenStore; // shipment_id / CodigoProveedor
+    } else {
+        $codeStore = $tokenStore ?: $codigoEscaneado;
     }
-
     // 2.d) validar que no supere cantidad total del servicio
     $scans = $payload['scans'] ?? [];
     if (!is_array($scans)) $scans = [];
@@ -801,6 +843,9 @@ if (!$sqlIns->bind_param(
 if (!$sqlIns->execute()) {
     responder(['success' => 0, 'error' => 'execute failed', 'detail' => $sqlIns->error]);
 }
+if ($colectaResume === null && $colectaId > 0) {
+    $colectaResume = leerResumeColecta($mysqli, $colectaId);
+}
 
 responder([
     'success'    => 1,
@@ -812,5 +857,4 @@ responder([
     'scan_saved' => $scanSavedToColecta,
     'resume'     => $colectaResume,
     'paquetes_servicio' => $paquetesSvc
-
 ]);
