@@ -46,7 +46,7 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
   display: flex;
   justify-content: space-around;
-  background: rgba(141, 141, 141, 0.96);
+  background: rgba(243, 239, 239, 0.96);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   z-index: 1050;

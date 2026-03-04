@@ -73,7 +73,8 @@
 
       // const paquetes = parseInt(s.paquetes || 1, 10) || 1;
       const paquetes = parseInt(s.paquetes ?? s.Cantidad ?? s.bultos ?? 1, 10) || 1;
-      if (paquetes <= 1) out.push(base);
+      if (paquetes <= 1)
+        out.push(`${base}_1`); // ✅ canon
       else for (let i = 1; i <= paquetes; i++) out.push(`${base}_${i}`);
     });
     return out;
@@ -128,7 +129,7 @@
   }
 
   // ===== Backend =====
-  function postColectaBulto(base, token, cantidad = 1) {
+  function postColectaBulto(base, token, cantidad = 1, raw = "") {
     const colectaId = esModoColecta() ? parseInt(window.idColectaActual, 10) || 0 : 0;
     const padreId = esModoColecta() ? parseInt(window.colectaPadreId, 10) || 0 : 0;
 
@@ -140,7 +141,7 @@
         ColectaBulto: 1,
         colectaId,
         padreId,
-        raw: raw,
+        raw, // ✅ ahora sí
         base,
         bulto: token,
         cantidad,
@@ -171,7 +172,16 @@
 
     return scannerStopPromise;
   }
+  function normalizeBaseAndIdx(txt) {
+    const s = String(txt || "").trim();
+    const m = s.match(/^(.+?)(?:_(\d+))?$/);
+    if (!m) return { base: "", idx: null, hasN: false };
 
+    const base = String(m[1] || "").trim();
+    const idx = m[2] ? parseInt(m[2], 10) : null;
+
+    return { base, idx: Number.isInteger(idx) ? idx : null, hasN: m[2] != null };
+  }
   function extraerIdDesdeJson(raw) {
     const t = (raw || "").trim();
     if (!t.startsWith("{") || !t.endsWith("}")) return null;
@@ -339,16 +349,58 @@
                 feedbackScan(false);
                 return;
               }
-              if (paquetesSvc === 1) {
-                swalFire({
-                  icon: "error",
-                  title: "Bulto inválido",
-                  text: `El servicio ${base} tiene 1 bulto. Escaneá ${base} (sin sufijo).`,
-                  timer: 1600,
-                  showConfirmButton: false,
-                });
-                feedbackScan(false);
-                return;
+              // if (paquetesSvc === 1) {
+              //   swalFire({
+              //     icon: "error",
+              //     title: "Bulto inválido",
+              //     text: `El servicio ${base} tiene 1 bulto. Escaneá ${base} (sin sufijo).`,
+              //     timer: 1600,
+              //     showConfirmButton: false,
+              //   });
+              //   feedbackScan(false);
+              //   return;
+              // }
+              if (hasN) {
+                const parts = raw.split("_");
+                const suf = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
+
+                if (!Number.isInteger(suf) || suf < 1) {
+                  swalFire({
+                    icon: "error",
+                    title: "Bulto inválido",
+                    text: `Sufijo inválido en ${raw}`,
+                    timer: 1600,
+                    showConfirmButton: false,
+                  });
+                  feedbackScan(false);
+                  return;
+                }
+
+                // ✅ Si paquetesSvc==1, permitimos SOLO _1
+                if (paquetesSvc === 1 && suf !== 1) {
+                  swalFire({
+                    icon: "error",
+                    title: "Bulto inválido",
+                    text: `Para ${base} sólo se permite ${base}_1`,
+                    timer: 1600,
+                    showConfirmButton: false,
+                  });
+                  feedbackScan(false);
+                  return;
+                }
+
+                // ✅ Si paquetesSvc>1, suf debe estar dentro de rango
+                if (paquetesSvc > 1 && suf > paquetesSvc) {
+                  swalFire({
+                    icon: "error",
+                    title: "Bulto inválido",
+                    text: `Para ${base} sólo se permiten ${base}_1 … ${base}_${paquetesSvc}`,
+                    timer: 1600,
+                    showConfirmButton: false,
+                  });
+                  feedbackScan(false);
+                  return;
+                }
               }
             }
           } else {
@@ -420,7 +472,8 @@
           // ✅ Backend: si el servicio tiene múltiples bultos, mandamos SIEMPRE la BASE (sin sufijo)
           const tokenBackend = esModoColecta() && !jsonId && paquetesSvc > 1 ? base : scannedToken;
 
-          res = await postColectaBulto(base, tokenBackend);
+          // res = await postColectaBulto(base, tokenBackend);
+          res = await postColectaBulto(base, tokenBackend, 1, raw);
 
           if (res && res.success == 1 && res.duplicate == 1) {
             feedbackScan(false);
@@ -460,7 +513,8 @@
         // 5) Definir codeToStore FINAL (lo que va al select2 y al set)
         if (!esModoColecta()) {
           // envío normal
-          codeToStoreFinal = qtyExpectedLocal <= 1 ? expectedBase : raw;
+          // codeToStoreFinal = qtyExpectedLocal <= 1 ? expectedBase : raw;
+          codeToStoreFinal = qtyExpectedLocal <= 1 ? `${expectedBase}_1` : raw;
         } else {
           // colecta
           if (jsonId) {
@@ -472,7 +526,7 @@
               // si no vino cs_base, fallback feo pero funcional
               codeToStoreFinal = scannedToken;
             } else if (paquetes <= 1) {
-              codeToStoreFinal = baseReal;
+              codeToStoreFinal = `${baseReal}_1`;
             } else {
               const next = getNextSuffixForBase(baseReal, paquetes);
               if (!next) {
@@ -509,7 +563,8 @@
               }
               codeToStoreFinal = next; // BASE_1, BASE_2, ...
             } else {
-              codeToStoreFinal = paquetesSvc <= 1 ? base : raw;
+              // codeToStoreFinal = paquetesSvc <= 1 ? base : raw;
+              codeToStoreFinal = paquetesSvc <= 1 ? `${base}_1` : raw;
             }
           }
         }
