@@ -173,16 +173,16 @@
 
     return scannerStopPromise;
   }
-  function normalizeBaseAndIdx(txt) {
-    const s = String(txt || "").trim();
-    const m = s.match(/^(.+?)(?:_(\d+))?$/);
-    if (!m) return { base: "", idx: null, hasN: false };
+  // function normalizeBaseAndIdx(txt) {
+  //   const s = String(txt || "").trim();
+  //   const m = s.match(/^(.+?)(?:_(\d+))?$/);
+  //   if (!m) return { base: "", idx: null, hasN: false };
 
-    const base = String(m[1] || "").trim();
-    const idx = m[2] ? parseInt(m[2], 10) : null;
+  //   const base = String(m[1] || "").trim();
+  //   const idx = m[2] ? parseInt(m[2], 10) : null;
 
-    return { base, idx: Number.isInteger(idx) ? idx : null, hasN: m[2] != null };
-  }
+  //   return { base, idx: Number.isInteger(idx) ? idx : null, hasN: m[2] != null };
+  // }
   function extraerIdDesdeJson(raw) {
     const t = (raw || "").trim();
     if (!t.startsWith("{") || !t.endsWith("}")) return null;
