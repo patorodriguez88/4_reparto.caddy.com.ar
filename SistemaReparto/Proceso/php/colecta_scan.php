@@ -548,48 +548,7 @@ if ($colectaId > 0 && $padreId > 0) {
     $paquetesSvc = (int)($svc['paquetes'] ?? 1);
     if ($paquetesSvc <= 0) $paquetesSvc = 1;
 
-    // --- 2.c) Validar sufijo SOLO si es QR real BASE_N ---
-    // $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '_(\d+)$/', $codigoEscaneado);
-    // $esQR = (bool)preg_match('/^' . preg_quote($base, '/') . '(?:_(\d+))?$/', $codigoEscaneado);
-    // $esML    = ($tipoDetectado === 'ML_JSON');
-    // $esFerni = ($tipoDetectado === 'FERNIPLAST_CODPROV');
-    // $esProv  = ($tipoDetectado === 'PROV_CODPROV');
 
-    // codeStore (una sola definición en todo el flujo)
-    // if ($esQR) {
-    //     $codeStore = $codigoEscaneado;      // BASE_1
-    // } else if ($esML || $esFerni || $esProv) {
-    //     $codeStore = $tokenStore;           // shipment_id o CodigoProveedor
-    // } else {
-    //     $codeStore = $tokenStore ?: $codigoEscaneado;
-    // }
-
-    // Validación sufijo/rango solo para QR
-    // if ($esQR) {
-    //     [$bScan, $suf] = parseBaseAndSuffix($codigoEscaneado);
-    //     if ($paquetesSvc == 1 && $suf === null) {
-    //         $codeStore = $base . "_1";
-    //     } else {
-    //         $codeStore = $codigoEscaneado; // BASE_n
-    //     }
-    //     if (strtoupper($bScan) !== strtoupper($base)) {
-    //         responder(['success' => 0, 'error' => 'BASE_NO_COINCIDE', 'esperado' => $base, 'escaneado' => $bScan]);
-    //     }
-
-    //     if ($paquetesSvc > 1) {
-    //         if ($suf === null) {
-    //             responder(['success' => 0, 'error' => 'FALTA_SUFIJO', 'detail' => "Se requiere {$base}_1..{$base}_{$paquetesSvc}"]);
-    //         }
-    //         if ($suf < 1 || $suf > $paquetesSvc) {
-    //             responder(['success' => 0, 'error' => 'SUFIJO_FUERA_DE_RANGO', 'detail' => "Permitido {$base}_1..{$base}_{$paquetesSvc}"]);
-    //         }
-    //     } else {
-    //         // paquetesSvc == 1 => aceptar sin sufijo o con _1, pero NO otros
-    //         if ($suf !== null && $suf !== 1) {
-    //             responder(['success' => 0, 'error' => 'SUFIJO_FUERA_DE_RANGO', 'detail' => "Para {$base} sólo se permite {$base}_1"]);
-    //         }
-    //     }
-    // }
     // --- 2.c) Tipos
     $esML    = ($tipoDetectado === 'ML_JSON');
     $esFerni = ($tipoDetectado === 'FERNIPLAST_CODPROV');

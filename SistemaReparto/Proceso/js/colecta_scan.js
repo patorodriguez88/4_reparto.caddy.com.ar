@@ -1,4 +1,5 @@
 // Proceso/js/colecta_scan.js
+//Colecta del repartidor en los clientes.
 
 (function () {
   let colectaQr = null;
@@ -349,17 +350,6 @@
                 feedbackScan(false);
                 return;
               }
-              // if (paquetesSvc === 1) {
-              //   swalFire({
-              //     icon: "error",
-              //     title: "Bulto inválido",
-              //     text: `El servicio ${base} tiene 1 bulto. Escaneá ${base} (sin sufijo).`,
-              //     timer: 1600,
-              //     showConfirmButton: false,
-              //   });
-              //   feedbackScan(false);
-              //   return;
-              // }
               if (hasN) {
                 const parts = raw.split("_");
                 const suf = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
@@ -454,21 +444,9 @@
           feedbackScan(false);
           return;
         }
-        // if (!jsonId && codigosEscaneados.has(candidateLocal)) {
-        //   swalFire({
-        //     icon: "info",
-        //     title: "Ya escaneado",
-        //     text: candidateLocal,
-        //     timer: 900,
-        //     showConfirmButton: false,
-        //   });
-        //   feedbackScan(false);
-        //   return;
-        // }
 
         let res = null;
         try {
-          // res = await postColectaBulto(base, scannedToken);
           // ✅ Backend: si el servicio tiene múltiples bultos, mandamos SIEMPRE la BASE (sin sufijo)
           const tokenBackend = esModoColecta() && !jsonId && paquetesSvc > 1 ? base : scannedToken;
 
