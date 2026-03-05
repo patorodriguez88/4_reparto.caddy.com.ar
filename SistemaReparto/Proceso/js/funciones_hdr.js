@@ -1,3 +1,4 @@
+console.log("Version 1.16 - 2024-06-18");
 $(".botonera-icon").on("click", function () {
   // sacamos activo de todos
   $(".botonera-icon").removeClass("active");
