@@ -166,13 +166,25 @@ function upsertSeguimiento($mysqli, $data)
         return ['inserted' => 0, 'error' => 'DATOS_INSUFICIENTES_SEGUIMIENTO'];
     }
 
-    // evitar duplicado EXACTO por CodigoSeguimiento + status
-    $chk = $mysqli->prepare("SELECT 1 FROM Seguimiento WHERE CodigoSeguimiento=? AND status=? AND Eliminado=0 LIMIT 1");
-    $chk->bind_param("ss", $codigo, $status);
+    $chkSql = "SELECT 1 FROM Seguimiento WHERE CodigoSeguimiento=? AND status=? AND Eliminado=0";
+    if ($status === 'pickup_scanned') {
+        $chkSql .= " AND Observaciones=?";
+    }
+    $chkSql .= " LIMIT 1";
+
+    $chk = $mysqli->prepare($chkSql);
+
+    if ($status === 'pickup_scanned') {
+        $chk->bind_param("sss", $codigo, $status, $obs);
+    } else {
+        $chk->bind_param("ss", $codigo, $status);
+    }
     $chk->execute();
     if ($chk->get_result()->num_rows > 0) {
         return ['inserted' => 0];
     }
+
+
 
     $fecha = date('Y-m-d');
     $hora  = date('H:i:s');
@@ -903,7 +915,9 @@ if ($isColecta) {
     $stPad->execute();
     $rPad = $stPad->get_result()->fetch_assoc();
     if ($rPad && !empty($rPad['CodigoSeguimiento'])) {
-        $codigoPadre = trim((string)$rPad['CodigoSeguimiento']);
+        // $codigoPadre = trim((string)$rPad['CodigoSeguimiento']);
+        $codigoPadre = strtoupper(trim((string)$rPad['CodigoSeguimiento']));
+        $codigoPadre = explode('_', $codigoPadre)[0]; // base pura
     }
 
     // Insert padre si no existe
@@ -976,8 +990,8 @@ if ($isColecta) {
     if ($baseRetiro === '') $baseRetiro = $base;
 
     // canon: BASE_1
-    $codigoRetiro = strtoupper($baseRetiro) . "_1";
 
+    $codigoRetiro = strtoupper($baseRetiro); // BASE pura, sin _n
     $obsR = "Retiro confirmado ({$raw})";
     if ($cantidad > 1) $obsR .= " | Cantidad confirmada: {$cantidad}";
 
