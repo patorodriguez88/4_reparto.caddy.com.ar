@@ -79,6 +79,7 @@ function cargarCuentaHTML() {
     // 6) Acciones por screen
     if (realKey === "operacion") {
       $("#hdractivas").show(); // ✅ solo acá se ven paneles
+      $("#app-footer").show();
     }
 
     if (realKey === "totales") {
