@@ -161,6 +161,9 @@ function upsertSeguimiento($mysqli, $data)
     $nroOrden  = (string)($data['nroOrden'] ?? '');
     $obs       = (string)($data['obs'] ?? '');
     $retirado  = (int)($data['retirado'] ?? 0);
+    $codigo = strtoupper(trim((string)$codigo));
+    $codigo = explode('_', $codigo)[0]; // BASE pura siempre
+    $codigo = trim($codigo);
 
     if ($codigo === '' || $status === '' || $estadoId <= 0) {
         return ['inserted' => 0, 'error' => 'DATOS_INSUFICIENTES_SEGUIMIENTO'];
@@ -945,11 +948,11 @@ if ($isColecta) {
         responder(['success' => 0, 'error' => 'HIJOS_COMPLETOS', 'detail' => "Ya están completos los bultos de $base"]);
     }
 
-    $obsH = "BULTO {$raw}";
+    $obsH = "BULTO {$raw} | HIJO {$codigoHijo}";
     if ($cantidad > 1) $obsH .= " | Cantidad confirmada: {$cantidad}";
 
     $insH = upsertSeguimiento($mysqli, [
-        'codigo'         => $codigoHijo,
+        'codigo'         => $base,
         'status'         => $hijoStatus,
         'estado_id'      => $hijoEstadoId,
         'estado_txt'     => $hijoEstadoTxt,
@@ -972,7 +975,7 @@ if ($isColecta) {
         'success'    => 1,
         'inserted'   => (int)($insH['inserted'] ?? 0),
         'codigo'     => $base,
-        'codigoHijo' => $codigoHijo,
+        'codigoHijo' => $base,
         'status'     => $hijoStatus,
         'estado'     => $hijoEstadoTxt,
         'scan_saved' => $scanSavedToColecta,
