@@ -427,6 +427,7 @@ $("#prueba").on("change", function () {
 });
 
 $(document).ready(function () {
+  $("app-footer").hide();
   if (isAppInstalled()) {
     disableBellIndicator();
   }
@@ -479,6 +480,7 @@ function initApp() {
         showBottomnav();
         $("#screen-operacion,#navbar,#topnav").show();
         $("#login").hide();
+        $("app-footer").show();
         $("body").removeClass("login-lock");
         // 🔓 habilitar scroll (mobile fix)
         document.body.classList.remove("loading");
@@ -1132,6 +1134,7 @@ $(document).on("click", "#ingreso", function (e) {
       if (jsonData && jsonData.success == 1) {
         showBottomnav();
         $("#login").hide();
+        $("app-footer").show();
         // $("#hdr,#navbar,#topnav").show();
         $("#screen-operacion,#navbar,#topnav").show();
         $("body").removeClass("login-lock");
