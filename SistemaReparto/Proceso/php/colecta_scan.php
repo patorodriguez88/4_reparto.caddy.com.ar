@@ -335,7 +335,8 @@ function resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $ferniplas
     // 1) Mercado Libre JSON => shipments_id
     $meliId = parseMeliJsonId($raw);
     if ($meliId !== null && ctype_digit($meliId)) {
-        $ship = (int)$meliId;
+        $ship = (string)$meliId; // NO casteo a int
+
 
         if ($colectaId > 0) {
             $st = $mysqli->prepare("
@@ -347,7 +348,7 @@ function resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $ferniplas
                 ORDER BY id DESC
                 LIMIT 1
             ");
-            $st->bind_param("iiii", $colectaId, $ship, $padreId, $padreId);
+            $st->bind_param("isii", $colectaId, $ship, $padreId, $padreId);
         } else {
             $st = $mysqli->prepare("
                 SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
@@ -357,7 +358,7 @@ function resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $ferniplas
                 ORDER BY id DESC
                 LIMIT 1
             ");
-            $st->bind_param("i", $ship);
+            $st->bind_param("s", $ship);
         }
 
         $st->execute();
