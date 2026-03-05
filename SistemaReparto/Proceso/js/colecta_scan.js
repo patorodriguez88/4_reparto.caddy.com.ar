@@ -1,5 +1,6 @@
 // Proceso/js/colecta_scan.js
 //Colecta del repartidor en los clientes.
+console.log("Version 1.16 - 2024-06-18");
 
 (function () {
   let colectaQr = null;
