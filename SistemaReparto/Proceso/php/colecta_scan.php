@@ -201,7 +201,7 @@ function upsertSeguimiento($mysqli, $data)
     $usuario   = (string)($data['usuario'] ?? '');
     $sucursal  = (string)($data['sucursal'] ?? '');
     $recorrido = (string)($data['recorrido'] ?? '');
-    $nroOrden  = (string)($data['nroOrden'] ?? '');
+    $nroOrden  = (int)($data['nroOrden'] ?? 0);
     $obs       = (string)($data['obs'] ?? '');
     $retirado  = (int)($data['retirado'] ?? 0);
     $codigo = strtoupper(trim((string)$codigo));
@@ -230,13 +230,10 @@ function upsertSeguimiento($mysqli, $data)
         return ['inserted' => 0];
     }
 
-
-
     $fecha = date('Y-m-d');
     $hora  = date('H:i:s');
 
-    $sql = $mysqli->prepare("
-        INSERT INTO Seguimiento
+    $sql = $mysqli->prepare("INSERT INTO Seguimiento
         (Fecha, Hora, Usuario, Sucursal, CodigoSeguimiento, Observaciones,
          Entregado, Estado, Destino, Avisado, idCliente, Retirado, Visitas,
          idTransClientes, TimeStamp, Recorrido, Devuelto, Webhook, state_id,
@@ -258,7 +255,7 @@ function upsertSeguimiento($mysqli, $data)
     // recorrido(s), state_id(i),
     // nroOrden(s), status(s),
     // Estado_id(i)
-    $types = "ssssssssiiisissi";
+    $types = "ssssssssiiisiisi";
 
     if (!$sql->bind_param(
         $types,
@@ -566,29 +563,28 @@ if (isset($_POST['InitColecta'])) {
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
         // Traer colecta real
-        $stC = $mysqli->prepare("
-          SELECT id, Cantidad, Cantidad_m
-          FROM Colecta
-          WHERE id=? AND Eliminado=0
-          LIMIT 1
-        ");
+        $stC = $mysqli->prepare("SELECT id, Cantidad, Cantidad_m
+            FROM Colecta
+            WHERE id=? AND Eliminado=0
+            LIMIT 1");
+
         $stC->bind_param("i", $colectaId);
         $stC->execute();
         $c = $stC->get_result()->fetch_assoc();
 
         if (!$c) responder(['success' => 0, 'error' => 'COLECTA_NO_ENCONTRADA']);
 
-        $totalEsperado = (int)($c['Cantidad_m'] ?? 0);
-        if ($totalEsperado <= 0) $totalEsperado = (int)($c['Cantidad'] ?? 0);
+        // Cantidad declarada por operador (para auditoría)
+        $paquetesOperador = (int)($c['Cantidad_m'] ?? 0);
+        if ($paquetesOperador <= 0) $paquetesOperador = (int)($c['Cantidad'] ?? 0);
 
         // Servicios asignados a esa colecta (excluyo padre)
-        $stT = $mysqli->prepare("
-          SELECT id, CodigoSeguimiento, Cantidad, shipments_id, CodigoProveedor
-          FROM TransClientes
-          WHERE idColecta = ?
+        $stT = $mysqli->prepare("SELECT id, CodigoSeguimiento, Cantidad, shipments_id, CodigoProveedor
+        FROM TransClientes
+        WHERE idColecta = ?
             AND Eliminado=0 AND Entregado=0 AND Devuelto=0
-            AND id <> ?
-        ");
+            AND id <> ?");
+
         $stT->bind_param("ii", $colectaId, $padreId);
         $stT->execute();
         $res = $stT->get_result();
@@ -610,18 +606,41 @@ if (isset($_POST['InitColecta'])) {
                 'cs_base'         => $base,
                 'paquetes'        => $cant,
             ];
+
             $sumaTrans += $cant;
         }
 
-        // Ajuste no bloqueante
-        if ($totalEsperado <= 0) $totalEsperado = $sumaTrans;
-        if ($sumaTrans > 0 && $totalEsperado < $sumaTrans) $totalEsperado = $sumaTrans;
+        // Cantidad real escaneable según hijos activos
+        $paquetesSistema = $sumaTrans > 0 ? $sumaTrans : $paquetesOperador;
+
+        // Bandera de inconsistencia para auditoría
+        $inconsistenciaCantidad = (
+            $paquetesOperador > 0 &&
+            $paquetesSistema > 0 &&
+            $paquetesOperador != $paquetesSistema
+        );
+
+        // Opcional: loguear inconsistencia
+        if ($inconsistenciaCantidad) {
+            logScanError([
+                'usuario'   => $_SESSION['Usuario'] ?? '',
+                'recorrido' => $_SESSION['RecorridoAsignado'] ?? '',
+                'colectaId' => $colectaId,
+                'padreId'   => $padreId,
+                'raw'       => '',
+                'error'     => 'COLECTA_CANTIDAD_INCONSISTENTE',
+                'detalle'   => "Operador={$paquetesOperador} / Sistema={$paquetesSistema}"
+            ]);
+        }
 
         $expected = [
-            'servicios'         => count($serviciosDetalle),
-            'paquetes_total'    => $totalEsperado,
-            'servicios_detalle' => $serviciosDetalle,
-            'colecta_id'        => $colectaId
+            'servicios'               => count($serviciosDetalle),
+            'paquetes_total'          => $paquetesSistema,
+            'paquetes_operador'       => $paquetesOperador,
+            'paquetes_sistema'        => $paquetesSistema,
+            'inconsistencia_cantidad' => $inconsistenciaCantidad ? 1 : 0,
+            'servicios_detalle'       => $serviciosDetalle,
+            'colecta_id'              => $colectaId
         ];
 
         $payload = [
@@ -633,18 +652,17 @@ if (isset($_POST['InitColecta'])) {
                 'servicios_ok'    => 0,
                 'servicios_total' => count($serviciosDetalle),
                 'paquetes_ok'     => 0,
-                'paquetes_total'  => $totalEsperado,
+                'paquetes_total'  => $paquetesSistema,
             ],
         ];
 
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
         $now = date('Y-m-d H:i:s');
 
-        $up = $mysqli->prepare("
-          UPDATE Colecta
-          SET ColectaScans=?, ColectaScansUpdatedAt=?
-          WHERE id=?
-        ");
+        $up = $mysqli->prepare("UPDATE Colecta
+            SET ColectaScans=?, ColectaScansUpdatedAt=?
+            WHERE id=?");
+
         $up->bind_param("ssi", $json, $now, $colectaId);
         $up->execute();
 

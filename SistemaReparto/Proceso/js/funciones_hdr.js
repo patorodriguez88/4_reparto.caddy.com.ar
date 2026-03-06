@@ -436,11 +436,11 @@ $(document).ready(function () {
   }
   lockBellClickIfInstalled();
 
-  // UI init (esto sí puede correr siempre)
   $("#prueba").select2({
-    placeholder: "Select an option",
-    tags: true,
-    tokenSeparators: [",", " "],
+    placeholder: "Seleccione ...",
+    tags: false,
+    closeOnSelect: false,
+    width: "100%",
   });
 
   Dropzone.autoDiscover = false;
@@ -812,6 +812,32 @@ function initColectaExpected(colectaId, padreId) {
     window.colectaExpected = r?.expected || null;
     window.colectaExpectedId = r?.colectaId || colectaId;
     window.colectaPadreId = r?.padreId || padreId;
+
+    const expected = r?.expected || {};
+    const resume = r?.resume || {};
+
+    const servicios = parseInt(expected.servicios || 0, 10) || 0;
+    const bultos = parseInt(expected.paquetes_total || 0, 10) || 0;
+    const escaneados = parseInt(resume.paquetes_ok || 0, 10) || 0;
+    const faltan = Math.max(bultos - escaneados, 0);
+
+    $("#card-receptor-cantidad").html(bultos);
+    $("#totalServicios").html(servicios);
+    $("#totalBultos").html(bultos);
+    $("#totalt").html(escaneados);
+    $("#totalFaltan").html(faltan);
+
+    // opcional: auditoría visual si hay inconsistencia
+    if (parseInt(expected.inconsistencia_cantidad || 0, 10) === 1) {
+      $("#colecta-cantidad-msg").html(`
+        <div class="alert alert-warning py-1 px-2 mt-2 mb-0">
+          Declarado por operador: <strong>${expected.paquetes_operador || 0}</strong> |
+          Escaneable: <strong>${expected.paquetes_sistema || bultos}</strong>
+        </div>
+      `);
+    } else {
+      $("#colecta-cantidad-msg").html("");
+    }
   });
 }
 function verok(i) {
@@ -846,7 +872,12 @@ function verok(i) {
       $("#contacto").html(dato.NombreCliente || "");
       $("#observaciones").html(dato.Observaciones || "");
       $("#card-seguimiento").html(dato.CodigoSeguimiento || "");
-      $("#card-receptor-cantidad").html(dato.Cantidad || 0);
+      // $("#card-receptor-cantidad").html(dato.Cantidad || 0);
+      $("#card-receptor-cantidad").html(0);
+      $("#totalServicios").html(0);
+      $("#totalBultos").html(0);
+      $("#totalt").html(0);
+      $("#totalFaltan").html(0);
 
       $("#btnEscanear").attr("data-expected", (dato.CodigoSeguimiento || "").split("_")[0]);
 
@@ -872,7 +903,14 @@ function verok(i) {
 
       if (esRetiro) {
         servicio = esColecta ? "COLECTA" : "RETIRO";
-
+        if (!esColecta) {
+          const cant = parseInt(dato.Cantidad || 0, 10) || 0;
+          $("#card-receptor-cantidad").html(cant);
+          $("#totalServicios").html(cant > 0 ? 1 : 0);
+          $("#totalBultos").html(cant);
+          $("#totalt").html(0);
+          $("#totalFaltan").html(cant);
+        }
         // Bootstrap 5: text-dark (si vos tenés text-black custom, cambiá acá)
         const clase = esColecta ? "text-dark" : "text-warning";
 

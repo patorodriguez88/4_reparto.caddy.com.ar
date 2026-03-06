@@ -1,0 +1,14 @@
+{"fecha":"2026-03-06 12:04:29","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"abc","error":"SERVICIO_NO_RESUELTO","detalle":""}
+{"fecha":"2026-03-06 12:04:29","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"abc","error":"SERVICIO_NO_RESUELTO","detalle":{"raw":"abc","colectaId":1152,"padreId":216982}}
+{"fecha":"2026-03-06 12:04:37","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"abc","error":"SERVICIO_NO_RESUELTO","detalle":""}
+{"fecha":"2026-03-06 12:04:37","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"abc","error":"SERVICIO_NO_RESUELTO","detalle":{"raw":"abc","colectaId":1152,"padreId":216982}}
+{"fecha":"2026-03-06 12:04:45","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"abc","error":"SERVICIO_NO_RESUELTO","detalle":""}
+{"fecha":"2026-03-06 12:04:45","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"abc","error":"SERVICIO_NO_RESUELTO","detalle":{"raw":"abc","colectaId":1152,"padreId":216982}}
+{"fecha":"2026-03-06 12:13:17","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"aaa","error":"SERVICIO_NO_RESUELTO","detalle":""}
+{"fecha":"2026-03-06 12:13:17","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"aaa","error":"SERVICIO_NO_RESUELTO","detalle":{"raw":"aaa","colectaId":1152,"padreId":216982}}
+{"fecha":"2026-03-06 13:09:08","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"","error":"COLECTA_CANTIDAD_INCONSISTENTE","detalle":"Operador=4 \/ Sistema=3"}
+{"fecha":"2026-03-06 13:15:20","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"","error":"COLECTA_CANTIDAD_INCONSISTENTE","detalle":"Operador=4 \/ Sistema=3"}
+{"fecha":"2026-03-06 13:17:56","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"","error":"COLECTA_CANTIDAD_INCONSISTENTE","detalle":"Operador=4 \/ Sistema=3"}
+{"fecha":"2026-03-06 14:06:18","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"","error":"COLECTA_CANTIDAD_INCONSISTENTE","detalle":"Operador=4 \/ Sistema=3"}
+{"fecha":"2026-03-06 14:47:01","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"","error":"COLECTA_CANTIDAD_INCONSISTENTE","detalle":"Operador=4 \/ Sistema=3"}
+{"fecha":"2026-03-06 14:49:00","usuario":"prueba","recorrido":"1352","colectaId":1152,"padreId":216982,"raw":"","error":"COLECTA_CANTIDAD_INCONSISTENTE","detalle":"Operador=4 \/ Sistema=3"}

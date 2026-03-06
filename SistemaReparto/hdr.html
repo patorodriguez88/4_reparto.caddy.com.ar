@@ -213,30 +213,43 @@
 
                                 <!-- ITEMS -->
                                 <div id="card-receptor-items" style="display: none">
-                                  <i class="mdi mdi-package-variant"></i> CANTIDAD <a id="card-receptor-cantidad"> </a>
-
                                   <li class="mb-2">
-                                    <p class="text-muted mb-1 font-13">
-                                      <i class="mdi mdi-fountain-pen-tip"> </i> ITEMS
-                                      <span class="badge bg-success" id="totalt"> 0 </span>
-                                      <i
-                                        id="btnIngresoManual"
-                                        class="mdi mdi-24px mdi-keyboard-outline text-secondary float-end me-0"
-                                        style="cursor: pointer"
-                                        title="Ingresar código manual"
-                                      ></i>
+                                    <p class="text-muted mb-1 font-13 d-flex align-items-center flex-wrap gap-2">
+                                      <span>
+                                        <i class="mdi mdi-tag-multiple-outline"></i> SERVICIOS
+                                        <span class="badge bg-info" id="totalServicios">0</span>
+                                      </span>
+
+                                      <span>
+                                        <i class="mdi mdi-package-variant-closed"></i> BULTOS
+                                        <span class="badge bg-primary" id="totalBultos">0</span>
+                                      </span>
+
+                                      <span>
+                                        <i class="mdi mdi-check-circle-outline"></i> ESCANEADOS
+                                        <span class="badge bg-success" id="totalt">0</span>
+                                      </span>
+
+                                      <span>
+                                        <i class="mdi mdi-clock-outline"></i> FALTAN
+                                        <span class="badge bg-warning text-dark" id="totalFaltan">0</span>
+                                      </span>
 
                                       <i
                                         id="btnEscanear"
-                                        class="mdi mdi-24px mdi-barcode-scan text-primary float-end me-4"
+                                        class="mdi mdi-24px mdi-barcode-scan text-primary float-end ms-auto"
                                         style="cursor: pointer"
                                         title="Escanear"
                                       ></i>
-                                      <!-- <i
-                                        id="btnEscanear"
-                                        class="mdi mdi-24px mdi-barcode-scan text-primary mr-0 float-end"
-                                      ></i> -->
+
+                                      <i
+                                        id="btnIngresoManual"
+                                        class="mdi mdi-24px mdi-keyboard-outline text-secondary float-end ms-2"
+                                        style="cursor: pointer"
+                                        title="Ingresar manualmente"
+                                      ></i>
                                     </p>
+
                                     <div class="input-group input-group-merge">
                                       <select
                                         id="prueba"
@@ -248,6 +261,9 @@
                                       ></select>
                                     </div>
                                   </li>
+
+                                  <div id="colecta-cantidad-msg" class="mt-2"></div>
+
                                   <div id="colecta-cantidad-msg" class="mt-2"></div>
                                 </div>
                                 <li class="mb-2" id="card-receptor-observaciones">
