@@ -22,12 +22,55 @@ require_once __DIR__ . '/../../Funciones/estados.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 header('Content-Type: application/json; charset=utf-8');
 
-function responder($arr)
+function responder(array $arr): void
 {
+    // Auto-log de errores (success=0) si viene contexto mínimo
+    if (($arr['success'] ?? null) === 0 || isset($arr['error'])) {
+        // intentamos capturar contexto sin romper si no existe
+        $usuario   = $_SESSION['Usuario'] ?? ($_POST['Usuario'] ?? '');
+        $recorrido = $_SESSION['RecorridoAsignado'] ?? ($_POST['Recorrido'] ?? '');
+        $colectaId = (int)($_POST['colectaId'] ?? 0);
+        $padreId   = (int)($_POST['padreId'] ?? 0);
+        $raw       = (string)($_POST['raw'] ?? ($_POST['bulto'] ?? ($_POST['base'] ?? '')));
+
+        // armamos detalle "explicativo"
+        $detalle = $arr['detail'] ?? ($arr['detalle'] ?? null) ?? ($arr['debug'] ?? null);
+
+        logScanError([
+            'usuario'   => $usuario,
+            'recorrido' => $recorrido,
+            'colectaId' => $colectaId,
+            'padreId'   => $padreId,
+            'raw'       => $raw,
+            'error'     => (string)($arr['error'] ?? 'ERROR'),
+            'detalle'   => $detalle,
+        ]);
+    }
+
     echo json_encode($arr, JSON_UNESCAPED_UNICODE);
     exit;
 }
+function logScanError($data)
+{
+    $logFile = __DIR__ . "/../../logs/colecta_scan_errors.log";
 
+    $line = [
+        'fecha'      => date('Y-m-d H:i:s'),
+        'usuario'    => $data['usuario'] ?? '',
+        'recorrido'  => $data['recorrido'] ?? '',
+        'colectaId'  => $data['colectaId'] ?? '',
+        'padreId'    => $data['padreId'] ?? '',
+        'raw'        => $data['raw'] ?? '',
+        'error'      => $data['error'] ?? '',
+        'detalle'    => $data['detalle'] ?? ''
+    ];
+
+    file_put_contents(
+        $logFile,
+        json_encode($line, JSON_UNESCAPED_UNICODE) . PHP_EOL,
+        FILE_APPEND | LOCK_EX
+    );
+}
 /* ============================================================
    Helpers generales
    ============================================================ */
@@ -635,23 +678,34 @@ $bultoPost = trim((string)($_POST['bulto'] ?? ''));
 if ($raw === '')  $raw = $bultoPost;
 if ($raw === '')  $raw = $basePost;
 
-if ($raw === '') {
-    responder(['success' => 0, 'error' => 'FALTA_RAW']);
-}
-
 $cantidad = (int)($_POST['cantidad'] ?? 1);
+
 if ($cantidad <= 0) $cantidad = 1;
 
 $usuario   = $_SESSION['Usuario']  ?? ($_POST['Usuario']  ?? '');
 $sucursal  = $_SESSION['Sucursal'] ?? ($_POST['Sucursal'] ?? '');
 $recorrido = $_SESSION['RecorridoAsignado'] ?? ($_POST['Recorrido'] ?? '');
 
+if ($raw === '') {
+
+    logScanError([
+        'usuario'   => $usuario ?? '',
+        'recorrido' => $recorrido ?? '',
+        'colectaId' => $colectaId,
+        'padreId'   => $padreId,
+        'raw'       => '',
+        'error'     => 'FALTA_RAW'
+    ]);
+
+    responder(['success' => 0, 'error' => 'FALTA_RAW']);
+}
+
 if ($usuario === '') {
     responder(['success' => 0, 'forceLogout' => 1, 'reason' => 'NO_IDUSUARIO', 'error' => 'Sin sesión']);
 }
 
 // Inferir “modo Ferniplast” por idClienteOrigen del padre (si hay padre)
-$FERNIPLAST_CLIENTE_ID = 0;
+$FERNIPLAST_CLIENTE_ID = 19396;
 if ($padreId > 0) {
     $stFP = $mysqli->prepare("SELECT idClienteOrigen FROM TransClientes WHERE id=? LIMIT 1");
     $stFP->bind_param("i", $padreId);
@@ -663,10 +717,24 @@ if ($padreId > 0) {
 // Resolver servicio
 $info = resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $FERNIPLAST_CLIENTE_ID);
 if (!$info) {
+
+    logScanError([
+        'usuario'   => $usuario ?? '',
+        'recorrido' => $recorrido ?? '',
+        'colectaId' => $colectaId,
+        'padreId'   => $padreId,
+        'raw'       => $raw,
+        'error'     => 'SERVICIO_NO_RESUELTO'
+    ]);
+
     responder([
         'success' => 0,
         'error'   => 'SERVICIO_NO_RESUELTO',
-        'debug'   => ['raw' => $raw, 'colectaId' => $colectaId, 'padreId' => $padreId]
+        'debug'   => [
+            'raw' => $raw,
+            'colectaId' => $colectaId,
+            'padreId' => $padreId
+        ]
     ]);
 }
 
@@ -719,6 +787,16 @@ if ($isColecta) {
     // Validar pertenencia
     $svc = getExpectedServicio($payload, $base);
     if (!$svc) {
+
+        logScanError([
+            'usuario'   => $usuario ?? '',
+            'recorrido' => $recorrido ?? '',
+            'colectaId' => $colectaId,
+            'padreId'   => $padreId,
+            'raw'       => $raw,
+            'error'     => 'SERVICIO_FUERA_DE_COLECTA',
+            'detalle'   => $base
+        ]);
         responder(['success' => 0, 'error' => 'SERVICIO_FUERA_DE_COLECTA', 'base' => $base]);
     }
 
@@ -949,8 +1027,31 @@ if ($isColecta) {
         responder(['success' => 0, 'error' => 'HIJOS_COMPLETOS', 'detail' => "Ya están completos los bultos de $base"]);
     }
 
-    $obsH = "BULTO {$raw} | HIJO {$codigoHijo}";
+    // $obsH = "BULTO {$raw} | HIJO {$codigoHijo}";
+    // --- Armar observación legible para Seguimiento ---
+    $rawTrim = trim((string)$raw);
+    $mlIdObs = parseMeliJsonId($rawTrim); // si raw es JSON
+    $isMlObs = ($mlIdObs !== null && ctype_digit($mlIdObs));
+
+    // "BULTO xxx (ML)" o "BULTO XXX" (QR/CodProv)
+    $bultoLabel = '';
+    if ($isMlObs) {
+        $bultoLabel = $mlIdObs . ' (ML)';
+    } else {
+        // si raw es QR BASE_1 o BASE_2, lo dejamos como vino (pero sin espacios raros)
+        $bultoLabel = $rawTrim;
+    }
+
+    // PADRE: usamos el código padre real que ya resolviste arriba ($codigoPadre)
+    $padreLabel = strtoupper(trim((string)$codigoPadre));
+    if ($padreLabel !== '') $padreLabel = explode('_', $padreLabel)[0];
+
+    $obsH = "BASE {$bultoLabel}";
+    if ($padreLabel !== '') $obsH .= " | Colecta {$padreLabel}";
+    $obsH .= " | CODIGO {$codigoHijo}";
+
     if ($cantidad > 1) $obsH .= " | Cantidad confirmada: {$cantidad}";
+
 
     $insH = upsertSeguimiento($mysqli, [
         'codigo'         => $base,

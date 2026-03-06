@@ -79,7 +79,8 @@ function cargarCuentaHTML() {
     // 6) Acciones por screen
     if (realKey === "operacion") {
       $("#hdractivas").show(); // ✅ solo acá se ven paneles
-      $("#app-footer").show();
+
+      $("#app-footer").removeClass("d-none");
     }
 
     if (realKey === "totales") {
@@ -429,7 +430,7 @@ $("#prueba").on("change", function () {
 });
 
 $(document).ready(function () {
-  $("app-footer").hide();
+  $("#app-footer").addClass("d-none");
   if (isAppInstalled()) {
     disableBellIndicator();
   }
@@ -482,7 +483,8 @@ function initApp() {
         showBottomnav();
         $("#screen-operacion,#navbar,#topnav").show();
         $("#login").hide();
-        $("app-footer").show();
+
+        $("#app-footer").removeClass("d-none");
         $("body").removeClass("login-lock");
         // 🔓 habilitar scroll (mobile fix)
         document.body.classList.remove("loading");
@@ -1136,7 +1138,7 @@ $(document).on("click", "#ingreso", function (e) {
       if (jsonData && jsonData.success == 1) {
         showBottomnav();
         $("#login").hide();
-        $("app-footer").show();
+        $("#app-footer").removeClass("d-none");
         // $("#hdr,#navbar,#topnav").show();
         $("#screen-operacion,#navbar,#topnav").show();
         $("body").removeClass("login-lock");

@@ -2,6 +2,41 @@
 //Colecta del repartidor en los clientes.
 console.log("Version 1.16 - 2024-06-18");
 
+$(document).on("click", "#btnIngresoManual", async function () {
+  const modalIsOpen = $("#colectaScanModal").hasClass("show");
+
+  const r = await Swal.fire({
+    icon: "question",
+    title: "Ingresar código manual",
+    input: "text",
+    inputPlaceholder: "Pegá o escribí el código (QR / ML JSON / Cod. Proveedor)",
+    showCancelButton: true,
+    confirmButtonText: "Validar",
+    cancelButtonText: "Cancelar",
+    inputAttributes: { autocapitalize: "none", autocorrect: "off", spellcheck: "false" },
+    preConfirm: (val) => {
+      const v = String(val || "").trim();
+      if (!v) {
+        Swal.showValidationMessage("Ingresá un código.");
+        return false;
+      }
+      return v;
+    },
+  });
+
+  if (!r.isConfirmed) return;
+
+  // Si el modal no está abierto, lo abrimos para mantener el mismo contexto visual
+  if (!modalIsOpen) {
+    $("#btnEscanear").trigger("click");
+    // esperamos a que el modal se vea antes de procesar
+    setTimeout(() => procesarScan(r.value, "manual"), 200);
+    return;
+  }
+
+  await procesarScan(r.value, "manual");
+});
+
 (function () {
   let colectaQr = null;
   let colectaLast = "";
@@ -134,6 +169,24 @@ console.log("Version 1.16 - 2024-06-18");
   function postColectaBulto(base, token, cantidad = 1, raw = "") {
     const colectaId = esModoColecta() ? parseInt(window.idColectaActual, 10) || 0 : 0;
     const padreId = esModoColecta() ? parseInt(window.colectaPadreId, 10) || 0 : 0;
+    raw = (raw || "").toString();
+    base = ($("#base").val() || "").toString().trim();
+
+    try {
+      const obj = JSON.parse(raw);
+      if (!base && obj && obj.id) base = String(obj.id).trim();
+    } catch (e) {}
+
+    // si vienen sufijos tipo _1, _2 (bultos), normalizamos la base “padre”
+    base = base.replace(/_\d+$/, "");
+
+    // si no estás enviando bulto explícito, mandalo (para 1 bulto es 1)
+    let bulto = ($("#bulto").val() || "1").toString().trim();
+    if (!bulto) bulto = "1";
+
+    // cantidad total de bultos (si es 1, queda 1)
+    cantidad = ($("#cantidad").val() || "1").toString().trim();
+    if (!cantidad) cantidad = "1";
 
     return $.ajax({
       url: "Proceso/php/colecta_scan.php",
@@ -141,12 +194,12 @@ console.log("Version 1.16 - 2024-06-18");
       dataType: "json",
       data: {
         ColectaBulto: 1,
-        colectaId,
-        padreId,
-        raw, // ✅ ahora sí
-        base,
-        bulto: token,
-        cantidad,
+        colectaId: colectaId,
+        padreId: padreId,
+        raw: raw, // ✅ ahora sí
+        base: base,
+        bulto: bulto,
+        cantidad: cantidad,
       },
     });
   }
