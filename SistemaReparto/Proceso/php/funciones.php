@@ -514,6 +514,23 @@ if (isset($_POST['ConfirmoEntrega'])) {
         'INSERT Seguimiento Padre pickup_ready'
       );
     }
+    consultaOError(
+      $mysqli,
+      "UPDATE TransClientes
+   SET Estado        = '{$Estado}',
+       Entregado     = 0,
+       Retirado      = 1,
+       Transportista = '{$Transportista}',
+       NumerodeOrden = '{$NumeroOrden}',
+       Recorrido     = '{$Recorrido}',
+       idABM         = '{$idUsuario}',
+       infoABM       = '{$infoABM}',
+       FechaEntrega  = '{$Fecha}'
+   WHERE Eliminado = 0
+     AND CodigoSeguimiento = '{$csEsc}'
+   LIMIT 1",
+      'UPDATE TransClientes Padre retiro_multi'
+    );
 
     // 2) Hijos: pickup_scanned por cada base
     $statusItem = 'pickup_scanned';
