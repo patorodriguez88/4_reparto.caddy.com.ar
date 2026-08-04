@@ -49,8 +49,7 @@ function mail_status_notice(cs, slug) {
       const ctx = jsonData.context || {};
 
       const destino = (ctx.destination_name || "").trim();
-      const name = (ctx.name || "").trim();
-      const user = (ctx.mail || "").trim();
+      const recipients = Array.isArray(ctx.recipients) ? ctx.recipients : [];
 
       console.log("NOTICES ORIGEN:", jsonData);
       if (jsonData.code === "SKIPPED") {
@@ -58,7 +57,7 @@ function mail_status_notice(cs, slug) {
         return;
       }
 
-      if (!user) {
+      if (recipients.length === 0) {
         console.warn("NO MAIL ORIGEN -> no envío delivered.php", {
           cs,
           slug,
@@ -79,20 +78,26 @@ function mail_status_notice(cs, slug) {
 
       const asunto = asuntoEstado(slug, cs, destino);
 
-      $.ajax({
-        url: urlSendMail,
-        type: "POST",
-        dataType: "json",
-        data: {
-          txtEmail: user,
-          txtName: name,
-          txtAsunto: asunto,
-          txtMensa: mensaje,
-          txtHtml: "delivered",
-        },
-        success: function (jsonData1) {
-          console.log("MAIL ORIGEN:", jsonData1);
-        },
+      recipients.forEach(function (r) {
+        const user = (r.mail || "").trim();
+        const name = (r.name || "").trim();
+        if (!user) return;
+
+        $.ajax({
+          url: urlSendMail,
+          type: "POST",
+          dataType: "json",
+          data: {
+            txtEmail: user,
+            txtName: name,
+            txtAsunto: asunto,
+            txtMensa: mensaje,
+            txtHtml: "delivered",
+          },
+          success: function (jsonData1) {
+            console.log("MAIL ORIGEN:", jsonData1);
+          },
+        });
       });
     },
   });

@@ -62,6 +62,34 @@ function stmt_fetch_assoc(mysqli_stmt $stmt): ?array
     foreach ($row as $k => $v) $out[$k] = $v;
     return $out ?: null;
 }
+function stmt_fetch_all_assoc(mysqli_stmt $stmt): array
+{
+    if (method_exists($stmt, 'get_result')) {
+        $res = $stmt->get_result();
+        return $res ? $res->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
+    // Fallback sin mysqlnd
+    $stmt->store_result();
+    $meta = $stmt->result_metadata();
+    if (!$meta) return [];
+
+    $row = [];
+    $bind = [];
+    while ($field = $meta->fetch_field()) {
+        $row[$field->name] = null;
+        $bind[] = &$row[$field->name];
+    }
+    call_user_func_array([$stmt, 'bind_result'], $bind);
+
+    $out = [];
+    while ($stmt->fetch()) {
+        $copy = [];
+        foreach ($row as $k => $v) $copy[$k] = $v;
+        $out[] = $copy;
+    }
+    return $out;
+}
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 function getClienteById(mysqli $mysqli, int $id): ?array
 {
@@ -168,30 +196,32 @@ if ($avisos === 1) {
         respond(0, 'INVALID_IDCLIENTE', 'ingBrutosOrigen inválido', ['cs' => $cs, 'ingBrutosOrigen' => $tc['ingBrutosOrigen']]);
     }
 
-    $stmt2 = $mysqli->prepare("SELECT nombrecliente, Mail 
-                               FROM Clientes 
-                               WHERE id=? 
-                               LIMIT 1");
+    // Cliente ORIGEN: los destinatarios salen de mail_clientes (contactos con
+    // notificación operativa activada), ya no de Clientes.Mail.
+    $stmt2 = $mysqli->prepare("SELECT email, Nombre, Apellido
+                               FROM mail_clientes
+                               WHERE idCliente=? AND Eliminado=0 AND NotifOperativo=1");
     $stmt2->bind_param("i", $idCliente);
     $stmt2->execute();
+    $contactos = stmt_fetch_all_assoc($stmt2);
 
-    // $cl = $stmt2->get_result()->fetch_assoc();
-    $cl = stmt_fetch_assoc($stmt2);
-
-    if (!$cl) {
-        respond(0, 'NOT_FOUND_CLIENTE', 'No se encontró Cliente origen', ['idCliente' => $idCliente]);
+    $recipients = [];
+    foreach ($contactos as $row) {
+        $email = trim($row['email'] ?? '');
+        if ($email === '') continue;
+        $recipients[] = [
+            'mail' => $email,
+            'name' => trim(trim($row['Nombre'] ?? '') . ' ' . trim($row['Apellido'] ?? '')),
+        ];
     }
 
-    $mail = trim($cl['Mail'] ?? '');
-    $name = trim($cl['nombrecliente'] ?? '');
-
-    if ($mail === '') {
-        respond(0, 'NO_EMAIL', 'El cliente origen no tiene mail cargado', ['idCliente' => $idCliente, 'name' => $name]);
+    if (empty($recipients)) {
+        respond(0, 'NO_EMAIL', 'El cliente origen no tiene contactos con notificación operativa activada', ['idCliente' => $idCliente]);
     }
 
-    $stmt3 = $mysqli->prepare("SELECT id 
-                               FROM Notifications 
-                               WHERE idCliente=? AND CodigoSeguimiento=? AND State=? 
+    $stmt3 = $mysqli->prepare("SELECT id
+                               FROM Notifications
+                               WHERE idCliente=? AND CodigoSeguimiento=? AND State=?
                                LIMIT 1");
     $stmt3->bind_param("iss", $idCliente, $cs, $slug);
     $stmt3->execute();
@@ -201,18 +231,22 @@ if ($avisos === 1) {
     if ($exists) {
         respond(0, 'ALREADY_EXISTS', 'La notificación ya existe', ['id' => $exists['id'], 'idCliente' => $idCliente, 'cs' => $cs, 'slug' => $slug, 'label' => $label]);
     }
-    $token = bin2hex(random_bytes(16));
+
     $stmt4 = $mysqli->prepare("INSERT INTO Notifications (CodigoSeguimiento, idCliente, Name, Mail, State, Fecha, Hora, Token)
                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt4->bind_param("sissssss", $cs, $idCliente, $name, $mail, $slug, $Fecha, $Hora, $token);
+    foreach ($recipients as $r) {
+        $rMail  = $r['mail'];
+        $rName  = $r['name'];
+        $rToken = bin2hex(random_bytes(16));
+        $stmt4->bind_param("sissssss", $cs, $idCliente, $rName, $rMail, $slug, $Fecha, $Hora, $rToken);
 
-    if (!$stmt4->execute()) {
-        respond(0, 'DB_ERROR_INSERT', 'Error insertando Notifications', ['db_error' => $stmt4->error]);
+        if (!$stmt4->execute()) {
+            respond(0, 'DB_ERROR_INSERT', 'Error insertando Notifications', ['db_error' => $stmt4->error]);
+        }
     }
 
     respond(1, 'OK', 'Notificación creada', [
-        'mail' => $mail,
-        'name' => $name,
+        'recipients' => $recipients,
         'destination_name' => $tc['ClienteDestino'] ?? '',
         'state_slug' => $slug,
         'state_label' => $label
