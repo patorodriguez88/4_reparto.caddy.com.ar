@@ -409,6 +409,9 @@ function cargarLista() {
           const retirado = Number(item.retirado); // 0 o 1
           const codigoSeguimiento = String(item.base ?? "").trim();
           if (!codigoSeguimiento) return;
+          // MELI solo pisa envíos de 1 bulto (así llega shipments_id de TransClientes) -
+          // en múltiples bultos cada _n es un registro propio sin este campo.
+          const meliId = bultos === 1 ? String(item.meli_id ?? "").trim() || null : null;
 
           // 1) Normal (por CodigoSeguimiento)
           if (bultos === 1) {
@@ -418,7 +421,7 @@ function cargarLista() {
               estado: "pendiente",
               retirado: retirado,
               codigoSeguimiento: codigoSeguimiento,
-              // meli_id: meliId,
+              meli_id: meliId,
             });
           } else {
             for (let i = 1; i <= bultos; i++) {
@@ -428,7 +431,7 @@ function cargarLista() {
                 estado: "pendiente",
                 retirado: retirado,
                 codigoSeguimiento: codigoSeguimiento,
-                // meli_id: meliId,
+                meli_id: null,
               });
             }
           }

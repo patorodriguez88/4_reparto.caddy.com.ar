@@ -335,6 +335,29 @@ function validarExacto(code, retiradoObjetivo, resolve) {
   };
 }
 
+// Etiqueta de MELI: QR en JSON {"id": "<shipments_id>", ...}. Antes se
+// rechazaba directo ("Solo etiquetas Caddy") - ahora se resuelve por
+// shipments_id contra lo que ya cacheamos en "expected" (viene de
+// TransClientes.shipments_id via GetLista) y sigue el mismo camino de
+// validarExacto que un código Caddy. Si no matchea nada, es un rechazo real
+// (se loguea igual que un código Caddy que no pertenece).
+function validarBultoMeli(meliId) {
+  return new Promise((resolve) => {
+    const retiradoObjetivo = 1; // esta pantalla: ENTREGAS
+    const t = db.transaction("expected", "readonly");
+    const idx = t.objectStore("expected").index("meli_id");
+
+    idx.get(meliId).onsuccess = function (e) {
+      const item = e.target.result;
+      if (!item) {
+        mostrarFeedback("❌ No pertenece al recorrido", "error");
+        return resolve("no_pertenece");
+      }
+      validarExacto(item.code, retiradoObjetivo, resolve);
+    };
+  });
+}
+
 function validarBulto(rawCode) {
   return new Promise((resolve) => {
     const code = (rawCode || "").trim();
@@ -390,37 +413,64 @@ function validarBulto(rawCode) {
 // Scanner
 // --------------------
 
+function registrarRechazo(codigo) {
+  fetch("Proceso/php/warehouse.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "RegistrarRechazo=1&codigo=" + encodeURIComponent(codigo),
+    credentials: "include",
+  }).catch(function () {});
+}
+
 const onSuccess = async (decodedText) => {
   if (scanLocked) return; // 👈 no procesa nada más
 
   const raw = (decodedText || "").trim();
   if (!raw) return;
 
-  // ✅ MODO CADDY-ONLY: rechazamos Mercado Libre (JSON) y códigos numéricos puros (proveedor)
-  if (raw.startsWith("{")) {
-    mostrarFeedback("❌ Solo etiquetas Caddy (no ML)", "warn");
-    return;
-  }
-  if (/^\d+$/.test(raw)) {
-    mostrarFeedback("❌ Solo etiquetas Caddy (no proveedor)", "warn");
-    return;
-  }
-  // ✅ Validar formato Caddy: BASE o BASE_n (solo letras/números/guión y sufijo opcional)
-  if (!/^[A-Za-z0-9\-]+(_[1-9][0-9]*)?$/.test(raw)) {
-    mostrarFeedback("❌ Formato inválido. Escaneá etiqueta Caddy.", "error");
-    return;
-  }
-
   const now = Date.now();
   if (coolingDown) return;
 
-  const normalized = normalizarCodigo(raw);
-  if (normalized === lastCode && now - lastTime < 1500) return;
+  // Etiqueta MELI: JSON {"id": "<shipments_id>", ...} - se resuelve por
+  // shipments_id en vez de rechazarse de plano.
+  let r;
+  if (raw.startsWith("{")) {
+    let meliId = null;
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && obj.id) meliId = String(obj.id).trim();
+    } catch (e) {}
 
-  lastCode = normalized;
-  lastTime = now;
+    if (!meliId) {
+      mostrarFeedback("❌ Etiqueta MELI inválida", "error");
+      return;
+    }
+    if (meliId === lastCode && now - lastTime < 1500) return;
+    lastCode = meliId;
+    lastTime = now;
 
-  const r = await validarBulto(normalized);
+    r = await validarBultoMeli(meliId);
+    if (r === "no_pertenece") registrarRechazo(meliId);
+  } else {
+    if (/^\d+$/.test(raw)) {
+      mostrarFeedback("❌ Solo etiquetas Caddy (no proveedor)", "warn");
+      return;
+    }
+    // ✅ Validar formato Caddy: BASE o BASE_n (solo letras/números/guión y sufijo opcional)
+    if (!/^[A-Za-z0-9\-]+(_[1-9][0-9]*)?$/.test(raw)) {
+      mostrarFeedback("❌ Formato inválido. Escaneá etiqueta Caddy.", "error");
+      return;
+    }
+
+    const normalized = normalizarCodigo(raw);
+    if (normalized === lastCode && now - lastTime < 1500) return;
+
+    lastCode = normalized;
+    lastTime = now;
+
+    r = await validarBulto(normalized);
+    if (r === "no_pertenece") registrarRechazo(normalized);
+  }
 
   if (r === "ok") {
     coolingDown = true;

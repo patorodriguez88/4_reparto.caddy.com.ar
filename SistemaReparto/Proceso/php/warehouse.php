@@ -15,7 +15,7 @@ if (isset($_POST['GetLista'])) {
     }
 
     $st = $mysqli->prepare("
-        SELECT t.Retirado, t.CodigoSeguimiento, t.Cantidad
+        SELECT t.Retirado, t.CodigoSeguimiento, t.Cantidad, t.shipments_id
         FROM HojaDeRuta h
         INNER JOIN TransClientes t ON t.id = h.idTransClientes
         WHERE h.Recorrido = ?
@@ -32,13 +32,14 @@ if (isset($_POST['GetLista'])) {
     $items = [];
     while ($r = $sql->fetch_assoc()) {
 
+        $meliId = (string)($r['shipments_id'] ?? '');
+        if ($meliId === '0') $meliId = '';
 
         $items[] = [
             'base' => $r['CodigoSeguimiento'],
             'bultos' => (int)$r['Cantidad'],
             'retirado' => (int)$r['Retirado'],
-
-
+            'meli_id' => $meliId,
         ];
     }
     $solo_hash = isset($_POST['solo_hash']) ? (int)$_POST['solo_hash'] : 0;
@@ -288,5 +289,40 @@ if (isset($_POST['PuedeSalir'])) {
         'status' => $status,
         'estado' => $Estado
     ]);
+    exit;
+}
+
+// Trazabilidad de códigos escaneados que NO pertenecen al recorrido del
+// repartidor - no va a Seguimiento (eso lo ve el cliente, un rechazo no le
+// aporta nada), sino a una tabla interna. Reusa la última posición conocida
+// del repartidor (tabla UbicacionRepartidor) en vez de pedir un GPS nuevo en
+// el momento - si el paquete se pierde, esto ayuda a reconstruir "quién lo
+// leyó y dónde" aunque no fuera suyo.
+if (isset($_POST['RegistrarRechazo'])) {
+
+    $userId  = (int)($_SESSION['idusuario'] ?? 0);
+    $usuario = (string)($_SESSION['Usuario'] ?? '');
+    $codigo  = trim((string)($_POST['codigo'] ?? ''));
+
+    if ($userId <= 0 || $codigo === '') {
+        echo json_encode(['success' => 0, 'error' => 'Faltan datos']);
+        exit;
+    }
+
+    $stUbi = $mysqli->prepare("SELECT Latitud, Longitud FROM UbicacionRepartidor WHERE idUsuario = ?");
+    $stUbi->bind_param("i", $userId);
+    $stUbi->execute();
+    $ubi = $stUbi->get_result()->fetch_assoc() ?: [];
+
+    $stmt = $mysqli->prepare("
+        INSERT INTO EscaneosRechazados (idUsuario, Usuario, CodigoEscaneado, Contexto, Latitud, Longitud, TimeStamp)
+        VALUES (?, ?, ?, 'warehouse', ?, ?, NOW())
+    ");
+    $lat = $ubi['Latitud'] ?? null;
+    $lng = $ubi['Longitud'] ?? null;
+    $stmt->bind_param("issdd", $userId, $usuario, $codigo, $lat, $lng);
+    $stmt->execute();
+
+    echo json_encode(['success' => 1]);
     exit;
 }

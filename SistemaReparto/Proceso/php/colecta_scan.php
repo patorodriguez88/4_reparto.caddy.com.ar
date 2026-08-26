@@ -745,6 +745,27 @@ if (!$info) {
         'error'     => 'SERVICIO_NO_RESUELTO'
     ]);
 
+    // Trazabilidad: código escaneado que no pertenece a esta colecta/recorrido.
+    // No va a Seguimiento (eso lo ve el cliente) - reusa la última posición
+    // conocida del repartidor (UbicacionRepartidor) para saber "quién lo leyó
+    // y dónde", útil si el paquete se pierde.
+    $userIdRechazo = (int)($_SESSION['idusuario'] ?? 0);
+    if ($userIdRechazo > 0) {
+        $stUbiR = $mysqli->prepare("SELECT Latitud, Longitud FROM UbicacionRepartidor WHERE idUsuario = ?");
+        $stUbiR->bind_param("i", $userIdRechazo);
+        $stUbiR->execute();
+        $ubiR = $stUbiR->get_result()->fetch_assoc() ?: [];
+        $latR = $ubiR['Latitud'] ?? null;
+        $lngR = $ubiR['Longitud'] ?? null;
+
+        $stmtR = $mysqli->prepare("
+            INSERT INTO EscaneosRechazados (idUsuario, Usuario, CodigoEscaneado, Contexto, Latitud, Longitud, TimeStamp)
+            VALUES (?, ?, ?, 'colecta', ?, ?, NOW())
+        ");
+        $stmtR->bind_param("issdd", $userIdRechazo, $usuario, $raw, $latR, $lngR);
+        $stmtR->execute();
+    }
+
     responder([
         'success' => 0,
         'error'   => 'SERVICIO_NO_RESUELTO',
