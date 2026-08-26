@@ -15,7 +15,7 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-session_start();
+// session_start() la hace conexioni.php, con el nombre de cookie propio del sistema.
 require_once "../../Conexion/conexioni.php";
 require_once __DIR__ . '/../../Funciones/estados.php';
 

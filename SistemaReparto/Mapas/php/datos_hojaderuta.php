@@ -1,5 +1,5 @@
 <?php
-session_start();
+// session_start() la hace conexioni.php, con el nombre de cookie propio del sistema.
 require_once "../../Conexion/conexioni.php";
 $Rec = $_SESSION['RecorridoAsignado'];
 

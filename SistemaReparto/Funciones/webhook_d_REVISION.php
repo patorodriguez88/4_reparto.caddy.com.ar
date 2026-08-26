@@ -1,5 +1,6 @@
 <?php
-session_start();
+// session_start() la hace conexioni.php, con el nombre de cookie propio del
+// sistema - llamarla acá antes pisaba eso y quedaba con el PHPSESSID de siempre.
 require_once "../../Conexion/conexioni.php";
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 

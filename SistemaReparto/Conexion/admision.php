@@ -10,10 +10,10 @@ header('Content-Type: application/json; charset=utf-8');
 
 define('ALLOW_NO_SESSION', true);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
+// session_start() la hace conexioni.php, con el nombre de cookie propio del
+// sistema (CADDY_REPARTO_SESSID) - esto es el login real de los choferes, así
+// que es el archivo más importante para no arrancar la sesión con el PHPSESSID
+// por default antes de que conexioni.php la nombre bien.
 require_once __DIR__ . "/conexioni.php";
 
 if (!isset($mysqli) || !($mysqli instanceof mysqli)) {

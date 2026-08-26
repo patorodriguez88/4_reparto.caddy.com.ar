@@ -11,10 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
+// session_start() la hace conexioni.php, con el nombre de cookie propio del sistema.
 require_once __DIR__ . "/../../Conexion/conexioni.php";
 
 function responder(array $arr, int $code = 200): void

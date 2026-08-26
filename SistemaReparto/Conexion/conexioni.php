@@ -1,5 +1,21 @@
 <?php
+// sistema.caddy.com.ar, plataforma.caddy.com.ar y reparto.caddy.com.ar viven en el
+// mismo cPanel y usaban el nombre de cookie por default de PHP (PHPSESSID) sin fijar
+// dominio/path - eso puede hacer que el navegador mande la misma cookie a los tres
+// (o que compartan session.save_path) y que un login en un sistema termine pisando o
+// mezclándose con la sesión de otro, ya que las tres usan claves de $_SESSION
+// parecidas (Usuario, NCliente, etc.). Nombre de cookie propio + dominio explícito
+// (host-only, nunca el padre) corta el cruce sin depender de la config del hosting.
 if (session_status() === PHP_SESSION_NONE) {
+    session_name('CADDY_REPARTO_SESSID');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => '', // host-only: nunca .caddy.com.ar
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
 }
 

@@ -1,6 +1,5 @@
 <?php
-session_start();
-
+// session_start() la hace conexioni.php, con el nombre de cookie propio del sistema.
 require_once('../../../Google/geolocalizar.php');
 require_once "../../Conexion/conexioni.php";
 date_default_timezone_set('America/Argentina/Buenos_Aires');
