@@ -18,7 +18,37 @@
     if (mapsCargando) return mapsCargando;
 
     mapsCargando = new Promise(function (resolve, reject) {
+      var resuelto = false;
+
+      var timeoutId = setTimeout(function () {
+        if (resuelto) return;
+        resuelto = true;
+        reject(
+          new Error(
+            "Google Maps no respondió. Revisá que la key tenga habilitado este dominio y la Directions API.",
+          ),
+        );
+      }, 10000);
+
+      // Google llama esto específicamente cuando la key falla por auth
+      // (dominio no permitido, key inválida, facturación, etc.) - sin esto,
+      // un rechazo de la key deja la promesa colgada para siempre porque el
+      // script "carga" bien (200 OK) pero nunca llama al callback normal.
+      window.gm_authFailure = function () {
+        if (resuelto) return;
+        resuelto = true;
+        clearTimeout(timeoutId);
+        reject(
+          new Error(
+            "Google rechazó la key (dominio no permitido o API no habilitada).",
+          ),
+        );
+      };
+
       window.__caddyInitMapaRecorrido = function () {
+        if (resuelto) return;
+        resuelto = true;
+        clearTimeout(timeoutId);
         mapsCargado = true;
         resolve();
       };
@@ -29,9 +59,19 @@
         "&callback=__caddyInitMapaRecorrido&loading=async";
       script.async = true;
       script.onerror = function () {
+        if (resuelto) return;
+        resuelto = true;
+        clearTimeout(timeoutId);
         reject(new Error("No se pudo cargar Google Maps."));
       };
       document.head.appendChild(script);
+    });
+
+    // Si falla, no dejamos la promesa rota "pegada" - el próximo intento de
+    // abrir el mapa (por ejemplo después de arreglar la key) vuelve a probar
+    // desde cero en vez de fallar para siempre con el mismo error viejo.
+    mapsCargando.catch(function () {
+      mapsCargando = null;
     });
 
     return mapsCargando;
