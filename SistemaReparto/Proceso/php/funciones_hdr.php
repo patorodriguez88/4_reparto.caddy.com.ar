@@ -257,11 +257,14 @@ if (isset($_POST['Paneles'])) {
         continue;
       }
 
-      $idProveedor = $sqlBuscoidProveedor->fetch_array(MYSQLI_ASSOC);
+      // fetch_array() devuelve null si el Cliente de idClienteOrigen no existe
+      // (borrado, o un id inválido) - sin el ?: [] rompía con "Trying to access
+      // array offset on null" en vez de simplemente no mostrar el proveedor.
+      $idProveedor = $sqlBuscoidProveedor->fetch_array(MYSQLI_ASSOC) ?: [];
 
       // resto del código igual...
       // ---------------------------
-      $idP = ($idProveedor['idProveedor'] != 0) ? '[' . $idProveedor['idProveedor'] . ']' : '';
+      $idP = (!empty($idProveedor['idProveedor'])) ? '[' . $idProveedor['idProveedor'] . ']' : '';
       $Retirado = 0;
       //SI ES WEPOINT NO ES RETIRO ES COLECTA 
       //ATENCION A ESTO NO SE SI IMPACTA EN ALGUN OTRO LADO DEL SISTEMA
@@ -288,7 +291,7 @@ if (isset($_POST['Paneles'])) {
 
       $NombreCliente = $row['RazonSocial'];
 
-      if (strlen($row['TelefonoOrigen']) >= 10) {
+      if (strlen((string)($row['TelefonoOrigen'] ?? '')) >= 10) {
         $Contacto = (substr($row['TelefonoOrigen'], 0, 2) == '54')
           ? $row['TelefonoOrigen']
           : '54' . $row['TelefonoOrigen'];
@@ -316,9 +319,12 @@ if (isset($_POST['Paneles'])) {
         continue;
       }
 
-      $idProveedor = $sqlBuscoidProveedor->fetch_array(MYSQLI_ASSOC);
+      // fetch_array() devuelve null si el Cliente de idClienteDestino no existe
+      // (borrado, o un id inválido) - sin el ?: [] rompía con "Trying to access
+      // array offset on null" en vez de simplemente no mostrar el proveedor.
+      $idProveedor = $sqlBuscoidProveedor->fetch_array(MYSQLI_ASSOC) ?: [];
 
-      $idP = ($idProveedor['idProveedor'] != 0) ? '[' . $idProveedor['idProveedor'] . ']' : '';
+      $idP = (!empty($idProveedor['idProveedor'])) ? '[' . $idProveedor['idProveedor'] . ']' : '';
       $Retirado = 1;
       $Servicio = 'Entrega';
       $color = 'success';
@@ -331,7 +337,7 @@ if (isset($_POST['Paneles'])) {
 
       $NombreCliente = $row['ClienteDestino'];
 
-      if (strlen($row['TelefonoDestino']) >= 10) {
+      if (strlen((string)($row['TelefonoDestino'] ?? '')) >= 10) {
         $Contacto = (substr($row['TelefonoDestino'], 0, 2) == '54')
           ? $row['TelefonoDestino']
           : '54' . $row['TelefonoDestino'];
