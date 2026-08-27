@@ -1,3 +1,16 @@
 # Apagar el listado de directorios en todo el sitio (heredado por las
 # subcarpetas salvo que tengan su propio .htaccess que lo pise).
 Options -Indexes
+
+# El shell de la PWA (hdr.html, admision, etc.) tiene que revalidar siempre -
+# el hosting tiene un proxy/cache delante (nginx) que estaba sirviendo una
+# versión vieja de hdr.html incluso después de deployar cambios nuevos.
+# JS/CSS no llevan hash en el nombre, así que también los excluimos del
+# cacheo largo para no repetir el mismo problema en el próximo deploy.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|css)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>
