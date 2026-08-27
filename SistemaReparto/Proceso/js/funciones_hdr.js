@@ -505,6 +505,7 @@ function initApp() {
         $("#badge-total").html(jsonData.Total);
         $("#badge-sinentregar").html(jsonData.Abiertos);
         $("#badge-entregados").html(jsonData.Cerrados);
+        pintarEstadoRecorrido(jsonData);
 
         if (window.AppStatus) {
           AppStatus.postStatus({ stage: "session_ok" });
@@ -1160,9 +1161,114 @@ function cargarHeader() {
       $("#badge-total").html(jsonData.Total);
       $("#badge-sinentregar").html(jsonData.Abiertos);
       $("#badge-entregados").html(jsonData.Cerrados);
+      pintarEstadoRecorrido(jsonData);
     }
   });
 }
+
+// Banner "Iniciar Recorrido" / "En ruta desde..." + card resumen
+// (pendientes / km / tiempo estimado). Se alimenta de los campos que
+// agrega el handler Datos de funciones.php: HoraSalidaReal, KmPendientes,
+// TiempoPendienteMin.
+function pintarEstadoRecorrido(jsonData) {
+  if (jsonData.HoraSalidaReal) {
+    $("#btn-iniciar-recorrido").hide();
+    const fecha = new Date(jsonData.HoraSalidaReal.replace(" ", "T"));
+    const horaTxt = isNaN(fecha.getTime())
+      ? ""
+      : fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    $("#en-ruta-texto").text("En ruta" + (horaTxt ? " desde " + horaTxt : ""));
+    $("#banner-en-ruta").show();
+  } else {
+    $("#banner-en-ruta").hide();
+    // Sólo tiene sentido ofrecer arrancar el recorrido si hay algo
+    // pendiente - si ya está todo entregado, no mostramos el botón.
+    if ((jsonData.Abiertos || 0) > 0) {
+      $("#btn-iniciar-recorrido").show();
+    } else {
+      $("#btn-iniciar-recorrido").hide();
+    }
+  }
+
+  const pendientes = jsonData.Abiertos || 0;
+  if (pendientes > 0) {
+    $("#resumen-pendientes").text(pendientes);
+    $("#resumen-km").text(
+      jsonData.KmPendientes != null ? Number(jsonData.KmPendientes).toFixed(1) : "-",
+    );
+    if (jsonData.TiempoPendienteMin != null) {
+      const horas = Math.floor(jsonData.TiempoPendienteMin / 60);
+      const minutos = jsonData.TiempoPendienteMin % 60;
+      $("#resumen-tiempo").text(horas > 0 ? `${horas}h ${minutos}m` : `${minutos}m`);
+    } else {
+      $("#resumen-tiempo").text("-");
+    }
+    $("#card-resumen-recorrido").show();
+  } else {
+    $("#card-resumen-recorrido").hide();
+  }
+}
+
+// Click en "Iniciar Recorrido": toma la posición actual (reusa la del
+// tracker si es reciente, si no pide una nueva) y avisa al backend para
+// que marque el inicio real y dispare el primer recálculo de ETA.
+$(document).on("click", "#btn-iniciar-recorrido", function () {
+  const $btn = $(this);
+  $btn.prop("disabled", true).html('<i class="mdi mdi-loading mdi-spin"></i> Iniciando...');
+
+  function enviar(lat, lng) {
+    $.ajax({
+      url: "Proceso/php/iniciar_recorrido.php",
+      type: "POST",
+      dataType: "json",
+      data: { lat, lng },
+    })
+      .done(function (jsonData) {
+        if (!jsonData || jsonData.success !== 1) {
+          Swal.fire({
+            icon: "error",
+            title: "No se pudo iniciar el recorrido",
+            text: (jsonData && jsonData.error) || "Reintentá en unos segundos.",
+          });
+        }
+        cargarHeader();
+      })
+      .fail(function () {
+        Swal.fire({ icon: "error", title: "Error de servidor", text: "No se pudo iniciar el recorrido." });
+      })
+      .always(function () {
+        $btn.prop("disabled", false).html('<i class="mdi mdi-rocket-launch-outline"></i> Iniciar Recorrido');
+      });
+  }
+
+  const ultima = window.CaddyGeo && window.CaddyGeo.getLastPosition ? window.CaddyGeo.getLastPosition() : null;
+  if (ultima && Date.now() - ultima.ts < 2 * 60 * 1000) {
+    enviar(ultima.lat, ultima.lng);
+    return;
+  }
+
+  if (!("geolocation" in navigator)) {
+    Swal.fire({ icon: "error", title: "Sin GPS", text: "Este dispositivo no tiene geolocalización disponible." });
+    $btn.prop("disabled", false).html('<i class="mdi mdi-rocket-launch-outline"></i> Iniciar Recorrido');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      enviar(pos.coords.latitude, pos.coords.longitude);
+    },
+    function () {
+      Swal.fire({
+        icon: "error",
+        title: "No se pudo obtener tu ubicación",
+        text: "Activá el GPS/permiso de ubicación e intentá de nuevo.",
+      });
+      $btn.prop("disabled", false).html('<i class="mdi mdi-rocket-launch-outline"></i> Iniciar Recorrido');
+    },
+    { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 },
+  );
+});
+
 //INGRESO!
 $(document).on("click", "#ingreso", function (e) {
   e.preventDefault();

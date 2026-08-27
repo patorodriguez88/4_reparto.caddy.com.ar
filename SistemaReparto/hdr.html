@@ -329,6 +329,45 @@
                 </div>
               </div>
 
+              <!-- Iniciar Recorrido / En ruta desde... -->
+              <div class="row mb-2">
+                <div class="col-12">
+                  <button
+                    type="button"
+                    id="btn-iniciar-recorrido"
+                    class="btn btn-lg w-100 text-white"
+                    style="display: none; background: var(--caddy-orange); border: none"
+                  >
+                    <i class="mdi mdi-rocket-launch-outline"></i> Iniciar Recorrido
+                  </button>
+                  <div id="banner-en-ruta" class="alert alert-light border text-center mb-0 fw-bold" style="display: none">
+                    <i class="mdi mdi-check-circle text-success"></i> <span id="en-ruta-texto"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Resumen del recorrido (pendientes / km / tiempo estimado) -->
+              <div class="row mb-2" id="card-resumen-recorrido" style="display: none">
+                <div class="col-12">
+                  <div class="card mb-0">
+                    <div class="card-body py-2 d-flex justify-content-around text-center">
+                      <div>
+                        <div class="fw-bold font-18" id="resumen-pendientes">-</div>
+                        <div class="text-muted font-12">Pendientes</div>
+                      </div>
+                      <div>
+                        <div class="fw-bold font-18" id="resumen-km">-</div>
+                        <div class="text-muted font-12">Km</div>
+                      </div>
+                      <div>
+                        <div class="fw-bold font-18" id="resumen-tiempo">-</div>
+                        <div class="text-muted font-12">Estimado</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- HASTA ACA CARD ENVIOS -->
               <div class="row" id="hdractivas"></div>
 

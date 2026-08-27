@@ -178,15 +178,19 @@ if (isset($_POST['Paneles'])) {
                    TransClientes.*,
                    IF(Retirado=0,RazonSocial,ClienteDestino) AS NombreCliente,
                    IF(Retirado=0,TransClientes.ingBrutosOrigen,TransClientes.idClienteDestino) AS idCliente,
-                   TransClientes.Cantidad 
-            FROM HojaDeRuta 
+                   TransClientes.Cantidad,
+                   HojaDeRuta.Hora AS ETAHora,
+                   Clientes.HorarioEntregaDesde,
+                   Clientes.HorarioEntregaHasta
+            FROM HojaDeRuta
             INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
-            WHERE HojaDeRuta.Estado='Abierto' 
-                  AND HojaDeRuta.Devuelto=0 
+            LEFT JOIN Clientes ON Clientes.id = HojaDeRuta.idCliente
+            WHERE HojaDeRuta.Estado='Abierto'
+                  AND HojaDeRuta.Devuelto=0
                   AND HojaDeRuta.Recorrido='$Recorrido'
-                  AND TransClientes.Eliminado='0' 
-                  AND HojaDeRuta.Eliminado=0 
-                  " . $Retirado_ . " 
+                  AND TransClientes.Eliminado='0'
+                  AND HojaDeRuta.Eliminado=0
+                  " . $Retirado_ . "
             ORDER BY IF(TransClientes.Retirado=1,HojaDeRuta.Posicion,HojaDeRuta.Posicion_retiro)
         ";
   } else {
@@ -198,16 +202,20 @@ if (isset($_POST['Paneles'])) {
                    TransClientes.*,
                    IF(Retirado=0,RazonSocial,ClienteDestino) AS NombreCliente,
                    IF(Retirado=0,TransClientes.ingBrutosOrigen,TransClientes.idClienteDestino) AS idCliente,
-                   TransClientes.Cantidad 
-            FROM HojaDeRuta 
+                   TransClientes.Cantidad,
+                   HojaDeRuta.Hora AS ETAHora,
+                   Clientes.HorarioEntregaDesde,
+                   Clientes.HorarioEntregaHasta
+            FROM HojaDeRuta
             INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
-            WHERE HojaDeRuta.Estado='Abierto' 
-                  AND HojaDeRuta.Devuelto=0 
+            LEFT JOIN Clientes ON Clientes.id = HojaDeRuta.idCliente
+            WHERE HojaDeRuta.Estado='Abierto'
+                  AND HojaDeRuta.Devuelto=0
                   AND HojaDeRuta.Recorrido='$Recorrido'
-                  AND TransClientes.Eliminado='0' 
+                  AND TransClientes.Eliminado='0'
                   AND HojaDeRuta.Eliminado=0
                   " . $Retirado_ . "
-                  AND HojaDeRuta.Cliente LIKE '%$search%' 
+                  AND HojaDeRuta.Cliente LIKE '%$search%'
             ORDER BY IF(TransClientes.Retirado=1,HojaDeRuta.Posicion,HojaDeRuta.Posicion_retiro)
         ";
   }
@@ -384,8 +392,35 @@ if (isset($_POST['Paneles'])) {
                   </li>
                 <?php endif; ?>
 
+                <?php
+                  // Horario real del cliente si está configurado; si no,
+                  // el estimado calculado por recalcularEtas() (eta.php) a
+                  // partir del arranque real del recorrido. Si no hay
+                  // ninguno de los dos todavía, no se muestra nada - antes
+                  // acá había un "14:00 AM - 21:00 PM" fijo, siempre igual
+                  // para cualquier cliente.
+                  $horarioDesde = trim((string) ($row['HorarioEntregaDesde'] ?? ''));
+                  $horarioHasta = trim((string) ($row['HorarioEntregaHasta'] ?? ''));
+                  $etaHora      = trim((string) ($row['ETAHora'] ?? ''));
+
+                  if ($horarioDesde !== '' && $horarioDesde !== '00:00:00' && $horarioHasta !== '' && $horarioHasta !== '00:00:00') {
+                    $horarioIcon  = 'mdi-calendar';
+                    $horarioTexto = substr($horarioDesde, 0, 5) . ' - ' . substr($horarioHasta, 0, 5);
+                  } elseif ($etaHora !== '' && $etaHora !== '00:00:00') {
+                    $horarioIcon  = 'mdi-clock-outline';
+                    $horarioTexto = 'Estimado: ' . substr($etaHora, 0, 5);
+                  } else {
+                    $horarioIcon  = '';
+                    $horarioTexto = '';
+                  }
+                ?>
+                <?php if ($horarioTexto !== ''): ?>
                 <li>
-                  <p class="text-muted mb-1 font-13"><i class="mdi mdi-calendar"></i> 14:00 AM - 21:00 PM</p>
+                  <p class="text-muted mb-1 font-13"><i class="mdi <?= $horarioIcon ?>"></i> <?= $horarioTexto ?></p>
+                </li>
+                <?php endif; ?>
+
+                <li>
                   <h5><i class="mdi mdi-map-marker"></i> <?php echo $direccion . ' ' . $row['PisoDeptoDestino'] ?></h5>
                   <small>Observaciones: <?php echo $row['Observaciones']; ?></small>
                 </li>

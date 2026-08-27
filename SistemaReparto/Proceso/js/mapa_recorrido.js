@@ -248,6 +248,7 @@
 
   function abrirMapa() {
     byId("mapaRecorridoOverlay").classList.add("show");
+    byId("fab-mapa-recorrido").style.display = "none"; // no tapar el botón "Cerrar" del mapa
     mostrarEstado("loading");
 
     $.ajax({
@@ -306,10 +307,22 @@
 
   function cerrarMapa() {
     byId("mapaRecorridoOverlay").classList.remove("show");
+    byId("fab-mapa-recorrido").style.display = "";
   }
 
   document.addEventListener("DOMContentLoaded", function () {
     byId("fab-mapa-recorrido").addEventListener("click", abrirMapa);
     byId("mapaRecorridoCerrar").addEventListener("click", cerrarMapa);
+
+    // El menú de abajo queda visible con el mapa abierto (ver CSS) - si el
+    // repartidor navega a otra pantalla desde ahí, cerramos el mapa para no
+    // dejarlo abierto "flotando" sobre la pantalla nueva.
+    document.querySelectorAll("#app-bottomnav .nav-item").forEach(function (item) {
+      item.addEventListener("click", function () {
+        if (byId("mapaRecorridoOverlay").classList.contains("show")) {
+          cerrarMapa();
+        }
+      });
+    });
   });
 })();

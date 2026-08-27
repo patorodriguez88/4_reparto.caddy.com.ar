@@ -11,6 +11,12 @@ if (!defined('ALLOW_NO_SESSION')) {
 
 require_once "../../Conexion/conexioni.php";
 require_once __DIR__ . '/../../Funciones/estados.php';
+require_once __DIR__ . '/eta.php';
+
+$googleConfigPath = __DIR__ . '/../../Conexion/google_config.php';
+if (file_exists($googleConfigPath)) {
+  require_once $googleConfigPath;
+}
 
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
@@ -48,6 +54,26 @@ function consultaOError(mysqli $mysqli, string $query, string $label)
   }
 
   return $res;
+}
+
+// Recalcula la ETA de las paradas que quedan pendientes después de una
+// entrega/no-entrega, partiendo de la última posición GPS conocida del
+// repartidor. Nunca debe romper el flujo de confirmación - recalcularEtas()
+// ya se traga sus propios errores, y acá además se verifica que haya key
+// y posición antes de intentar.
+function dispararRecalculoEta(mysqli $mysqli, string $recorrido, int $idUsuario): void
+{
+  if ($recorrido === '' || !defined('GOOGLE_API_KEY_SERVER')) {
+    return;
+  }
+  $res = $mysqli->query(
+    "SELECT Latitud, Longitud FROM UbicacionRepartidor WHERE idUsuario = {$idUsuario} LIMIT 1"
+  );
+  $pos = $res ? $res->fetch_assoc() : null;
+  if (!$pos) {
+    return; // todavía no mandó ningún ping GPS, no hay desde dónde recalcular
+  }
+  recalcularEtas($mysqli, $recorrido, (float) $pos['Latitud'], (float) $pos['Longitud'], new DateTime());
 }
 
 // Insert atómico "si no existe" (INSERT ... SELECT ... WHERE NOT EXISTS).
@@ -180,6 +206,46 @@ if (isset($_POST['Datos'])) {
     );
     $TotalEntregados = $sqlEntregados->fetch_array(MYSQLI_ASSOC);
 
+    // Km y minutos restantes (para el card resumen) - suma de lo que ya
+    // calculó recalcularEtas() sobre las paradas pendientes. Si todavía no
+    // se disparó ningún recálculo (recorrido recién armado, no arrancado),
+    // KmO/Tiempo están en 0 y se muestra vacío del lado del front.
+    $sqlPendiente = consultaOError(
+      $mysqli,
+      "SELECT SUM(HojaDeRuta.KmO) AS KmPendientes, SUM(HojaDeRuta.Tiempo) AS SegPendientes
+             FROM HojaDeRuta
+             INNER JOIN TransClientes
+                 ON HojaDeRuta.Seguimiento = TransClientes.CodigoSeguimiento
+             WHERE HojaDeRuta.Recorrido   = '{$Recorrido}'
+               AND HojaDeRuta.Eliminado   = 0
+               AND HojaDeRuta.NumerodeOrden = '{$nOrden}'
+               AND HojaDeRuta.Devuelto    = 0
+               AND TransClientes.Entregado = 0
+               AND TransClientes.Eliminado = 0",
+      'Pendiente Km/Tiempo HojaDeRuta'
+    );
+    $Pendiente = $sqlPendiente->fetch_array(MYSQLI_ASSOC);
+
+    $paradasPendientes = (int) $TotalNoEntregados['Cantidad'];
+    $timeDelivered = 5.0;
+    $sqlVar = $mysqli->query("SELECT Valor FROM Variables WHERE Nombre = 'TiempoPorParada' LIMIT 1");
+    $rowVar = $sqlVar ? $sqlVar->fetch_assoc() : null;
+    if ($rowVar && is_numeric($rowVar['Valor'])) {
+      $timeDelivered = (float) $rowVar['Valor'];
+    }
+    $minutosTravel = round(((float) ($Pendiente['SegPendientes'] ?? 0)) / 60);
+    $minutosDwell  = $paradasPendientes * $timeDelivered;
+    $tiempoPendienteMin = (int) ($minutosTravel + $minutosDwell);
+
+    // Hora real de inicio del recorrido (botón "Iniciar Recorrido" o
+    // auto-detección por GPS) - NULL si todavía no arrancó.
+    $sqlLog = $mysqli->query(
+      "SELECT HoraSalidaReal FROM Logistica
+       WHERE idUsuarioChofer = '{$idUsuario}' AND Estado = 'Cargada' AND Eliminado = 0
+       LIMIT 1"
+    );
+    $rowLog = $sqlLog ? $sqlLog->fetch_assoc() : null;
+
     // Ojo: 'Cerrados' alimenta el badge #badge-entregados (rojo) y 'Abiertos'
     // alimenta #badge-sinentregar (verde) en el frontend - antes estaban
     // invertidos y los dos badges mostraban el número del otro.
@@ -191,7 +257,10 @@ if (isset($_POST['Datos'])) {
       'Cerrados'   => (int) $TotalEntregados['Cantidad'],
       'Abiertos'   => (int) $TotalNoEntregados['Cantidad'],
       'Usuario'    => $Transportista,
-      'idUsuario'  => $idUsuario
+      'idUsuario'  => $idUsuario,
+      'HoraSalidaReal'     => $rowLog['HoraSalidaReal'] ?? null,
+      'KmPendientes'       => round((float) ($Pendiente['KmPendientes'] ?? 0), 1),
+      'TiempoPendienteMin' => $tiempoPendienteMin > 0 ? $tiempoPendienteMin : null,
     ]);
   } else {
     responder([
@@ -803,6 +872,8 @@ if (isset($_POST['ConfirmoEntrega'])) {
     'UPDATE TransClientes ConfirmoEntrega'
   );
 
+  dispararRecalculoEta($mysqli, (string) $Recorrido, (int) $idUsuario);
+
   responder([
     'success' => 1,
     'id'      => $id['id'] ?? null,
@@ -895,6 +966,11 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
   }
 
+  // Recorrido REAL del repartidor (antes de que $Recorrido se pise con '80'
+  // /Depósito unas líneas arriba) - hace falta para recalcular la ETA de
+  // las paradas que le quedan a ÉL, no al depósito.
+  $recorridoActivo = (string) ($datossqlTransClientes['Recorrido'] ?? '');
+
   // Insert Seguimiento (atómico: WHERE NOT EXISTS evita el duplicado del
   // doble-tap dentro de una ventana de 30s, pero sí permite una nueva
   // "No Entrega" legítima del mismo código en un intento posterior)
@@ -960,6 +1036,8 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
       'UPDATE TransClientes NoEntrega'
     );
   }
+
+  dispararRecalculoEta($mysqli, $recorridoActivo, (int) $idUsuario);
 
   responder([
     'success' => 1,

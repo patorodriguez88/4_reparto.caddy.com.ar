@@ -540,8 +540,13 @@ body.app-ready #fab-mapa-recorrido {
 #mapaRecorridoOverlay {
   display: none;
   position: fixed;
-  inset: 0;
-  z-index: 2100; /* por encima del login (2000) */
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Deja libre la franja del bottomnav para que siga usable con el mapa
+     abierto (antes tapaba todo, inset:0, y no se podía navegar sin cerrar). */
+  bottom: calc(65px + env(safe-area-inset-bottom));
+  z-index: 1045; /* debajo del bottomnav (1050), por encima del contenido */
   background: #111827;
   flex-direction: column;
 }
