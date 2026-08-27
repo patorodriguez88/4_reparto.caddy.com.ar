@@ -719,8 +719,15 @@ Dropzone.prototype.removeThumbnail = function () {
 // ==================================================
 // VER WRONG (NO ENTREGA)
 // ==================================================
+// Guarda contra respuestas fuera de orden: si el repartidor navega a otro
+// código antes de que responda un BuscoDatos anterior, esa respuesta tardía
+// no debe pintar datos viejos sobre el código nuevo (ver verok/verwrong).
+let idSolicitudActual = 0;
+
 function verwrong(i) {
   limpiarInputsEntrega();
+
+  const miSolicitud = ++idSolicitudActual;
 
   $.ajax({
     data: { BuscoDatos: 1, id: i },
@@ -728,6 +735,8 @@ function verwrong(i) {
     url: "Proceso/php/funciones.php",
     dataType: "json",
     success: function (jsonData) {
+      if (miSolicitud !== idSolicitudActual) return; // respuesta vieja, descartar
+
       const dato = jsonData?.data?.[0];
       if (!dato) return;
 
@@ -843,12 +852,16 @@ function initColectaExpected(colectaId, padreId) {
 function verok(i) {
   limpiarInputsEntrega();
 
+  const miSolicitud = ++idSolicitudActual;
+
   $.ajax({
     data: { BuscoDatos: 1, id: i },
     type: "POST",
     url: "Proceso/php/funciones.php",
     dataType: "json",
     success: function (jsonData) {
+      if (miSolicitud !== idSolicitudActual) return; // respuesta vieja, descartar
+
       const dato = jsonData?.data?.[0];
       if (!dato) {
         Swal.fire({

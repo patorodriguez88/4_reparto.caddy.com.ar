@@ -30,7 +30,16 @@ $(".multimediaFisica").dropzone({
 });
 var multimediaFisica = null;
 
+// Guardas contra doble-tap: bloquean un segundo envío mientras el primero
+// todavía está en curso (evita los registros duplicados por "se traba").
+var enviandoEntrega = false;
+var enviandoNoEntrega = false;
+
 $(".guardarProducto").click(function () {
+  if (enviandoEntrega) return;
+  enviandoEntrega = true;
+  $(".guardarProducto").prop("disabled", true).text("Guardando...");
+
   /*=============================================
 	PREGUNTAMOS SI LOS CAMPOS OBLIGATORIOS ESTÁN LLENOS
 	=============================================*/
@@ -170,11 +179,17 @@ $(".guardarProducto").click(function () {
     }
   }
 
+  function liberarGuardaEntrega() {
+    enviandoEntrega = false;
+    $(".guardarProducto").prop("disabled", false).text("Aceptar");
+  }
+
   function cargasistema() {
     // 1) codigo actual del card (puede venir con _1)
     let csRaw = ($("#card-seguimiento").html() || "").trim();
     if (!csRaw) {
       swalError("Falta código", "No hay CódigoSeguimiento en el card.");
+      liberarGuardaEntrega();
       return;
     }
 
@@ -208,6 +223,7 @@ $(".guardarProducto").click(function () {
             "Cantidad incompleta",
             `Confirmados ${conf}/${esperado}. Revisá los bultos antes de confirmar.`,
           );
+          liberarGuardaEntrega();
           return;
         }
 
@@ -222,6 +238,7 @@ $(".guardarProducto").click(function () {
             "Cantidad incompleta",
             `Cargados ${cargado}/${esperado}. Escaneá o cargá todos los bultos antes de confirmar.`,
           );
+          liberarGuardaEntrega();
           return;
         }
 
@@ -236,6 +253,7 @@ $(".guardarProducto").click(function () {
               malos.length > 3 ? "..." : ""
             }`,
           );
+          liberarGuardaEntrega();
           return;
         }
       }
@@ -297,12 +315,23 @@ $(".guardarProducto").click(function () {
           "Error de servidor",
           "El servidor devolvió HTML/WARNING o un 500. Revisá Network > Response.",
         );
+        // ✅ Limpieza también en error: que un fallo de red no deje
+        // datos del código actual pegados para el próximo escaneo.
+        limpiarInputsEntrega();
+      },
+      complete: function () {
+        enviandoEntrega = false;
+        $(".guardarProducto").prop("disabled", false).text("Guardar producto");
       },
     });
   }
 });
 //NO ENTREGADO
 $(".guardarNoEntrega").click(function () {
+  if (enviandoNoEntrega) return;
+  enviandoNoEntrega = true;
+  $(".guardarNoEntrega").prop("disabled", true).text("Guardando...");
+
   /*=============================================
 	PREGUNTAMOS SI LOS CAMPOS OBLIGATORIOS ESTÁN LLENOS
 	=============================================*/
@@ -355,13 +384,13 @@ $(".guardarNoEntrega").click(function () {
     var receptorname = $("#receptor-name").val();
     var receptordni = $("#receptor-dni").val();
     var receptorobservaciones = $("#receptor-observaciones").val();
-    var retirado = $("#card-servicio").html();
+    var retiradoTxt = ($("#card-servicio").html() || "").trim();
     var razones = $("#razones").val();
-    if (retirado == "RETIRO") {
-      retirado = 0;
-    } else {
-      retirado = 0;
-    }
+    // Igual criterio que cargasistema(): una Entrega fallida es Retirado=1
+    // (guarda datos de DESTINO), un Retiro/Colecta fallida es 0 (ORIGEN).
+    // Antes las dos ramas mandaban 0 siempre -> una entrega no-entregada
+    // quedaba mal guardada con domicilio de origen.
+    var retirado = retiradoTxt === "RETIRO" ? 0 : 1;
     $.ajax({
       data: {
         ConfirmoNoEntrega: 1,
@@ -385,10 +414,27 @@ $(".guardarNoEntrega").click(function () {
                 text: "El servidor no devolvió JSON",
               })
             : alert("Respuesta inválida del servidor");
+          liberarGuardaNoEntrega();
           return;
         }
 
-        $("#receptor-observaciones").val("");
+        if (jsonData.success === 0) {
+          Swal && Swal.fire
+            ? Swal.fire({
+                icon: "warning",
+                title: "No se guardó",
+                text: jsonData.error || "No se pudo registrar la no entrega.",
+              })
+            : alert(jsonData.error || "No se pudo registrar la no entrega.");
+          // ✅ Limpieza igual: que no quede pegado para el próximo código
+          limpiarInputsEntrega();
+          liberarGuardaNoEntrega();
+          return;
+        }
+
+        // ✅ Limpieza completa (antes sólo limpiaba Observaciones y quedaban
+        // pegados DNI/Nombre/Razones para el próximo código escaneado)
+        limpiarInputsEntrega();
         $("#card-envio").css("display", "none");
         $("#info-alert-modal-header").html("Cargando entrega..");
         // webhooks(jsonData.estado);
@@ -399,6 +445,7 @@ $(".guardarNoEntrega").click(function () {
 
         mail_status_notice(cs, jsonData.slug);
         paneles();
+        liberarGuardaNoEntrega();
       },
       error: function (xhr) {
         const txt = (
@@ -412,7 +459,16 @@ $(".guardarNoEntrega").click(function () {
               text: "El servidor devolvió un error (posible warning/HTML). Revisá Network > Response.",
             })
           : alert("Error de servidor. Revisá consola.");
+        // ✅ Limpieza también en error: que un fallo de red no deje
+        // datos del código actual pegados para el próximo escaneo.
+        limpiarInputsEntrega();
+        liberarGuardaNoEntrega();
       },
     });
+  }
+
+  function liberarGuardaNoEntrega() {
+    enviandoNoEntrega = false;
+    $(".guardarNoEntrega").prop("disabled", false).text("Aceptar");
   }
 });

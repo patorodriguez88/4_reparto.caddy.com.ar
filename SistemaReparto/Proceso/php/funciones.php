@@ -50,6 +50,38 @@ function consultaOError(mysqli $mysqli, string $query, string $label)
   return $res;
 }
 
+// Insert atómico "si no existe" (INSERT ... SELECT ... WHERE NOT EXISTS).
+// Bajo doble-tap real, InnoDB puede resolver la contienda entre dos INSERTs
+// casi simultáneos con un deadlock en el que "pierde" (en vez de simplemente
+// devolver 0 filas afectadas) - probado con requests concurrentes reales.
+// Si eso pasa, en vez de dejar que el deadlock reviente como fatal (pantalla
+// de warning para el repartidor), lo tratamos como corresponde: si para
+// cuando reconsultamos ya existe la fila (el otro request ganó la carrera),
+// es un duplicado bloqueado legítimo; si no existe, reintentamos una vez.
+function insertarSiNoExiste(mysqli $mysqli, string $sqlInsert, string $sqlExiste, string $label): bool
+{
+  for ($intento = 1; $intento <= 2; $intento++) {
+    try {
+      $mysqli->query($sqlInsert);
+      return $mysqli->affected_rows > 0;
+    } catch (mysqli_sql_exception $e) {
+      $res = $mysqli->query($sqlExiste);
+      if ($res && $res->num_rows > 0) {
+        // El otro request de la carrera ya lo insertó: duplicado bloqueado.
+        return false;
+      }
+      if ($intento === 2) {
+        responder([
+          'success' => 0,
+          'error'   => "Error SQL {$label}: " . $e->getMessage(),
+        ]);
+      }
+      // intento === 1 y no existe todavía -> no fue una carrera real, reintentar
+    }
+  }
+  return false;
+}
+
 // Variables base
 $Fecha = date("Y-m-d");
 $Hora  = date("H:i");
@@ -671,21 +703,6 @@ if (isset($_POST['ConfirmoEntrega'])) {
     $Estado_id = (int)($st['id'] ?? 0);
     $Estado    = (string)($st['Estado'] ?? '');
 
-    if ($Entregado === 1) {
-      $resultado = $mysqli->query(
-        "SELECT 1
-         FROM Seguimiento
-         WHERE CodigoSeguimiento = '{$csEsc}'
-           AND Entregado = 1
-           AND Estado = '{$Estado}'
-           AND (Eliminado IS NULL OR Eliminado = 0)
-         LIMIT 1"
-      );
-      if ($resultado && $resultado->num_rows > 0) {
-        responder(['success' => 0, 'error' => 'Este pedido ya fue marcado como entregado.']);
-      }
-    }
-
     $Retirado = 1; // ya estaba entregable
   } else {
     // RETIRO normal (sin etiquetas)
@@ -701,17 +718,47 @@ if (isset($_POST['ConfirmoEntrega'])) {
   }
 
   // Insert en Seguimiento (solo CS)
-  consultaOError(
-    $mysqli,
-    "INSERT INTO Seguimiento
-      (Eliminado,idCliente,Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
-       NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
-     VALUES
-      ('0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$csEsc}','{$obsEsc}',
-       '{$Entregado}','{$Estado}','{$nomEsc}','{$dniEsc}','{$Localizacion}','{$Visita}',
-       '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}')",
-    'INSERT Seguimiento ConfirmoEntrega'
-  );
+  if ($Entregado === 1) {
+    // INSERT atómico: el propio INSERT es la verificación (WHERE NOT EXISTS),
+    // así dos requests casi simultáneos (doble-tap) no pueden pasar los dos
+    // la comprobación antes de que cualquiera inserte, como sí podía pasar
+    // con el SELECT-y-después-INSERT en dos pasos de antes.
+    $sqlExisteEntregado = "SELECT 1 FROM Seguimiento
+         WHERE CodigoSeguimiento = '{$csEsc}'
+           AND Entregado = 1
+           AND (Eliminado IS NULL OR Eliminado = 0)";
+
+    $insertoNuevo = insertarSiNoExiste(
+      $mysqli,
+      "INSERT INTO Seguimiento
+        (Eliminado,idCliente,Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
+         NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
+       SELECT
+        '0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$csEsc}','{$obsEsc}',
+        '{$Entregado}','{$Estado}','{$nomEsc}','{$dniEsc}','{$Localizacion}','{$Visita}',
+        '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}'
+       FROM DUAL
+       WHERE NOT EXISTS ({$sqlExisteEntregado})",
+      $sqlExisteEntregado,
+      'INSERT Seguimiento ConfirmoEntrega'
+    );
+
+    if (!$insertoNuevo) {
+      responder(['success' => 0, 'error' => 'Este pedido ya fue marcado como entregado.']);
+    }
+  } else {
+    consultaOError(
+      $mysqli,
+      "INSERT INTO Seguimiento
+        (Eliminado,idCliente,Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
+         NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
+       VALUES
+        ('0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$csEsc}','{$obsEsc}',
+         '{$Entregado}','{$Estado}','{$nomEsc}','{$dniEsc}','{$Localizacion}','{$Visita}',
+         '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}')",
+      'INSERT Seguimiento ConfirmoEntrega'
+    );
+  }
 
   if (($Retirado == 1) || ($Entregado == 1)) {
     consultaOError(
@@ -844,18 +891,34 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
   }
 
-  // Insert Seguimiento
-  consultaOError(
+  // Insert Seguimiento (atómico: WHERE NOT EXISTS evita el duplicado del
+  // doble-tap dentro de una ventana de 30s, pero sí permite una nueva
+  // "No Entrega" legítima del mismo código en un intento posterior)
+  $csEscNoEntrega = $mysqli->real_escape_string($CodigoSeguimiento);
+  $sqlExisteNoEntrega = "SELECT 1 FROM Seguimiento
+           WHERE CodigoSeguimiento = '{$csEscNoEntrega}'
+             AND status = '1st_visit_fail'
+             AND (Eliminado IS NULL OR Eliminado = 0)
+             AND TimeStamp > (NOW() - INTERVAL 30 SECOND)";
+
+  $insertoNuevo = insertarSiNoExiste(
     $mysqli,
-    "INSERT IGNORE INTO Seguimiento
+    "INSERT INTO Seguimiento
             (Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
              NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
-         VALUES
-            ('{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
+         SELECT
+            '{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
              '{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
-             '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}')",
+             '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}'
+         FROM DUAL
+         WHERE NOT EXISTS ({$sqlExisteNoEntrega})",
+    $sqlExisteNoEntrega,
     'INSERT Seguimiento NoEntrega'
   );
+
+  if (!$insertoNuevo) {
+    responder(['success' => 0, 'error' => 'Esta no entrega ya fue registrada.']);
+  }
 
   if ($CodigoSeguimiento !== '') {
     // Cierro HojaDeRuta
