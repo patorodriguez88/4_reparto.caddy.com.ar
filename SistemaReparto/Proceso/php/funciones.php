@@ -246,6 +246,22 @@ if (isset($_POST['Datos'])) {
     );
     $rowLog = $sqlLog ? $sqlLog->fetch_assoc() : null;
 
+    // Pausa activa (si hay una fila en PausasRecorrido sin Fin) - bloquea la
+    // pantalla del repartidor hasta que reanude. Envuelto en try/catch: si
+    // la tabla todavía no existe (recién desplegado, falta el CREATE TABLE),
+    // que no rompa todo el endpoint Datos - simplemente no hay pausa.
+    $rowPausa = null;
+    try {
+      $sqlPausa = $mysqli->query(
+        "SELECT Motivo, Detalle, Inicio FROM PausasRecorrido
+         WHERE idUsuario = '{$idUsuario}' AND Fin IS NULL
+         LIMIT 1"
+      );
+      $rowPausa = $sqlPausa ? $sqlPausa->fetch_assoc() : null;
+    } catch (Throwable $e) {
+      error_log('Datos: PausasRecorrido no disponible: ' . $e->getMessage());
+    }
+
     // Ojo: 'Cerrados' alimenta el badge #badge-entregados (rojo) y 'Abiertos'
     // alimenta #badge-sinentregar (verde) en el frontend - antes estaban
     // invertidos y los dos badges mostraban el número del otro.
@@ -259,6 +275,7 @@ if (isset($_POST['Datos'])) {
       'Usuario'    => $Transportista,
       'idUsuario'  => $idUsuario,
       'HoraSalidaReal'     => $rowLog['HoraSalidaReal'] ?? null,
+      'PausaActiva'        => $rowPausa ?: null,
       // round() puede serializar con ruido binario (15.4000...552713...) según
       // el serialize_precision del servidor - se manda como string ya
       // formateado a un decimal; el JS lo castea igual con Number().

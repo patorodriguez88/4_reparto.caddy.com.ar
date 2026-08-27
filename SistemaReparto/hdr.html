@@ -341,8 +341,15 @@
                   >
                     <i class="mdi mdi-rocket-launch-outline"></i> Iniciar Recorrido
                   </button>
-                  <div id="banner-en-ruta" class="alert alert-light border text-center mb-0 fw-bold" style="display: none">
-                    <i class="mdi mdi-check-circle text-success"></i> <span id="en-ruta-texto"></span>
+                  <div
+                    id="banner-en-ruta"
+                    class="alert alert-light border mb-0 fw-bold d-flex align-items-center justify-content-between"
+                    style="display: none"
+                  >
+                    <span><i class="mdi mdi-check-circle text-success"></i> <span id="en-ruta-texto"></span></span>
+                    <button type="button" id="btn-parar-ruta" class="btn btn-sm btn-outline-danger">
+                      <i class="mdi mdi-pause-circle-outline"></i> Parar
+                    </button>
                   </div>
                 </div>
               </div>
@@ -461,9 +468,53 @@
         </div>
         <div id="mapaRecorrido"></div>
       </div>
+
+      <!-- Bloqueo mientras el recorrido está pausado -->
+      <div id="pausaOverlay">
+        <div id="pausaOverlayCard">
+          <i class="mdi mdi-pause-circle-outline"></i>
+          <h4>Recorrido pausado</h4>
+          <p id="pausaOverlayMotivo" class="fw-bold mb-1"></p>
+          <p id="pausaOverlayDetalle" class="text-muted"></p>
+          <p id="pausaOverlayDuracion" class="text-muted font-13"></p>
+          <button type="button" id="btn-reanudar-ruta" class="btn btn-lg text-white w-100" style="background: var(--caddy-orange); border: none">
+            <i class="mdi mdi-play-circle-outline"></i> Reanudar
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- MODALES (fuera del flujo) -->
+    <div class="modal" id="pararRutaModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">¿Por qué parás?</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <div class="d-grid gap-2">
+              <button type="button" class="btn btn-outline-secondary btn-motivo-pausa" data-motivo="mecanico">
+                <i class="mdi mdi-wrench"></i> Mecánico / Rotura
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-motivo-pausa" data-motivo="descanso">
+                <i class="mdi mdi-coffee-outline"></i> Descanso
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-motivo-pausa" data-motivo="transito">
+                <i class="mdi mdi-car-brake-alert"></i> Tránsito / Accidente
+              </button>
+            </div>
+            <hr />
+            <label class="form-label font-13 text-muted">Otro motivo:</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="pausa-otro-detalle" placeholder="Contanos qué pasó" />
+              <button type="button" class="btn btn-outline-secondary btn-motivo-pausa" data-motivo="otro">Parar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="modal" id="colectaScanModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-md">
         <div class="modal-content">

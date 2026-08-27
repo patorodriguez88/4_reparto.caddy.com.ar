@@ -1166,6 +1166,30 @@ function cargarHeader() {
   });
 }
 
+// Reloj de "tiempo en ruta" al lado de "En ruta desde HH:MM" - se actualiza
+// solo cada 30s a partir de la hora real de inicio, sin pedirle nada más al
+// servidor.
+let horaSalidaRealActual = null;
+let relojEnRutaIniciado = false;
+
+function formatearDuracion(ms) {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  const horas = Math.floor(totalMin / 60);
+  const minutos = totalMin % 60;
+  return String(horas).padStart(2, "0") + ":" + String(minutos).padStart(2, "0");
+}
+
+function actualizarRelojEnRuta() {
+  if (!horaSalidaRealActual) return;
+  const horaTxt = horaSalidaRealActual.toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const duracionTxt = formatearDuracion(Date.now() - horaSalidaRealActual.getTime());
+  $("#en-ruta-texto").text(`En ruta desde ${horaTxt} - ${duracionTxt} hs`);
+}
+
 // Banner "Iniciar Recorrido" / "En ruta desde..." + card resumen
 // (pendientes / km / tiempo estimado). Se alimenta de los campos que
 // agrega el handler Datos de funciones.php: HoraSalidaReal, KmPendientes,
@@ -1174,12 +1198,15 @@ function pintarEstadoRecorrido(jsonData) {
   if (jsonData.HoraSalidaReal) {
     $("#btn-iniciar-recorrido").hide();
     const fecha = new Date(jsonData.HoraSalidaReal.replace(" ", "T"));
-    const horaTxt = isNaN(fecha.getTime())
-      ? ""
-      : fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
-    $("#en-ruta-texto").text("En ruta" + (horaTxt ? " desde " + horaTxt : ""));
+    horaSalidaRealActual = isNaN(fecha.getTime()) ? null : fecha;
+    actualizarRelojEnRuta();
+    if (!relojEnRutaIniciado) {
+      relojEnRutaIniciado = true;
+      setInterval(actualizarRelojEnRuta, 30000);
+    }
     $("#banner-en-ruta").show();
   } else {
+    horaSalidaRealActual = null;
     $("#banner-en-ruta").hide();
     // Sólo tiene sentido ofrecer arrancar el recorrido si hay algo
     // pendiente - si ya está todo entregado, no mostramos el botón.
@@ -1207,7 +1234,138 @@ function pintarEstadoRecorrido(jsonData) {
   } else {
     $("#card-resumen-recorrido").hide();
   }
+
+  pintarPausa(jsonData.PausaActiva || null);
 }
+
+// ===== Parar / Reanudar recorrido =====
+const MOTIVOS_PAUSA_TEXTO = {
+  mecanico: "Mecánico / Rotura",
+  descanso: "Descanso",
+  transito: "Tránsito / Accidente",
+  otro: "Otro",
+};
+
+let pausaInicioActual = null;
+let relojPausaIniciado = false;
+
+function actualizarRelojPausa() {
+  if (!pausaInicioActual) return;
+  $("#pausaOverlayDuracion").text("Pausado hace " + formatearDuracion(Date.now() - pausaInicioActual.getTime()) + " hs");
+}
+
+function pintarPausa(pausaActiva) {
+  if (!pausaActiva) {
+    pausaInicioActual = null;
+    $("#pausaOverlay").removeClass("show");
+    return;
+  }
+
+  const fecha = new Date((pausaActiva.Inicio || "").replace(" ", "T"));
+  pausaInicioActual = isNaN(fecha.getTime()) ? new Date() : fecha;
+
+  const motivoTxt = MOTIVOS_PAUSA_TEXTO[pausaActiva.Motivo] || pausaActiva.Motivo || "";
+  $("#pausaOverlayMotivo").text(motivoTxt);
+  $("#pausaOverlayDetalle")
+    .text(pausaActiva.Detalle || "")
+    .toggle(!!pausaActiva.Detalle);
+
+  actualizarRelojPausa();
+  if (!relojPausaIniciado) {
+    relojPausaIniciado = true;
+    setInterval(actualizarRelojPausa, 30000);
+  }
+
+  $("#pausaOverlay").addClass("show");
+}
+
+// Botón "Parar" del banner: abre el modal para elegir motivo.
+$(document).on("click", "#btn-parar-ruta", function () {
+  $("#pausa-otro-detalle").val("");
+  const modal = new bootstrap.Modal(document.getElementById("pararRutaModal"));
+  modal.show();
+});
+
+// Cualquiera de los botones de motivo (los 3 predefinidos, o "Otro" con el
+// texto libre) dispara el mismo POST - solo cambia qué motivo/detalle manda.
+$(document).on("click", ".btn-motivo-pausa", function () {
+  const motivo = $(this).data("motivo");
+  const detalle = motivo === "otro" ? $("#pausa-otro-detalle").val() : "";
+
+  const modalEl = document.getElementById("pararRutaModal");
+  const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+  modal.hide();
+
+  function enviarPausa(lat, lng) {
+    $.ajax({
+      url: "Proceso/php/pausar_recorrido.php",
+      type: "POST",
+      dataType: "json",
+      data: { motivo, detalle, lat, lng },
+    })
+      .done(function (jsonData) {
+        if (!jsonData || jsonData.success !== 1) {
+          Swal.fire({
+            icon: "error",
+            title: "No se pudo parar la ruta",
+            text: (jsonData && jsonData.error) || "Reintentá en unos segundos.",
+          });
+          return;
+        }
+        cargarHeader();
+      })
+      .fail(function () {
+        Swal.fire({ icon: "error", title: "Error de servidor", text: "No se pudo parar la ruta." });
+      });
+  }
+
+  const ultima = window.CaddyGeo && window.CaddyGeo.getLastPosition ? window.CaddyGeo.getLastPosition() : null;
+  if (ultima && Date.now() - ultima.ts < 2 * 60 * 1000) {
+    enviarPausa(ultima.lat, ultima.lng);
+    return;
+  }
+  if ("geolocation" in navigator) {
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        enviarPausa(pos.coords.latitude, pos.coords.longitude);
+      },
+      function () {
+        enviarPausa(null, null); // sin posición igual se registra la pausa
+      },
+      { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 },
+    );
+  } else {
+    enviarPausa(null, null);
+  }
+});
+
+$(document).on("click", "#btn-reanudar-ruta", function () {
+  const $btn = $(this);
+  $btn.prop("disabled", true).html('<i class="mdi mdi-loading mdi-spin"></i> Reanudando...');
+
+  $.ajax({
+    url: "Proceso/php/reanudar_recorrido.php",
+    type: "POST",
+    dataType: "json",
+  })
+    .done(function (jsonData) {
+      if (!jsonData || jsonData.success !== 1) {
+        Swal.fire({
+          icon: "error",
+          title: "No se pudo reanudar",
+          text: (jsonData && jsonData.error) || "Reintentá en unos segundos.",
+        });
+        return;
+      }
+      cargarHeader();
+    })
+    .fail(function () {
+      Swal.fire({ icon: "error", title: "Error de servidor", text: "No se pudo reanudar." });
+    })
+    .always(function () {
+      $btn.prop("disabled", false).html('<i class="mdi mdi-play-circle-outline"></i> Reanudar');
+    });
+});
 
 // Click en "Iniciar Recorrido": toma la posición actual (reusa la del
 // tracker si es reciente, si no pide una nueva) y avisa al backend para
