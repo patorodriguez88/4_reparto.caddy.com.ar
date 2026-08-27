@@ -197,15 +197,24 @@
     // Trazado real (siguiendo calles) sólo si entra en el límite de la
     // Directions API. Con más paradas mostramos igual los números en orden,
     // pero sin la línea de ruta dibujada.
-    if (origen && paradas.length > 0 && paradas.length <= MAX_PARADAS_CON_RUTA) {
-      var destino = paradas[paradas.length - 1];
-      var waypoints = paradas.slice(0, -1).map(function (p) {
+    //
+    // Si no hay posición del repartidor (permiso denegado, sin fix de GPS
+    // todavía, etc.) igual dibujamos el trazado conectando las paradas entre
+    // sí (arrancando desde la parada 1) - antes, sin "origen", no se pedía
+    // ninguna ruta y el mapa quedaba sin ninguna línea aunque hubiera 2+
+    // paradas para conectar.
+    var puntosRuta = origen ? [origen].concat(paradas) : paradas;
+
+    if (puntosRuta.length > 1 && puntosRuta.length <= MAX_PARADAS_CON_RUTA + 2) {
+      var origenRuta = puntosRuta[0];
+      var destino = puntosRuta[puntosRuta.length - 1];
+      var waypoints = puntosRuta.slice(1, -1).map(function (p) {
         return { location: { lat: p.lat, lng: p.lng }, stopover: true };
       });
 
       directionsService.route(
         {
-          origin: origen,
+          origin: origenRuta,
           destination: { lat: destino.lat, lng: destino.lng },
           waypoints: waypoints,
           optimizeWaypoints: false, // preservar el orden ya planificado (HojaDeRuta.Posicion)
