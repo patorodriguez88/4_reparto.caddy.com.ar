@@ -9,7 +9,7 @@
   var directionsRenderer = null;
   var markers = [];
 
-  function $(id) {
+  function byId(id) {
     return document.getElementById(id);
   }
 
@@ -130,7 +130,7 @@
     var bounds = new google.maps.LatLngBounds();
 
     if (!map) {
-      map = new google.maps.Map($("mapaRecorrido"), {
+      map = new google.maps.Map(byId("mapaRecorrido"), {
         zoom: 13,
         center: origen || { lat: paradas[0].lat, lng: paradas[0].lng },
         disableDefaultUI: true,
@@ -232,13 +232,13 @@
 
   function mostrarEstado(estado) {
     // estado: 'loading' | 'vacio' | 'mapa'
-    $("mapaRecorridoLoading").style.display = estado === "loading" ? "flex" : "none";
-    $("mapaRecorridoVacio").style.display = estado === "vacio" ? "flex" : "none";
-    $("mapaRecorrido").style.display = estado === "mapa" ? "block" : "none";
+    byId("mapaRecorridoLoading").style.display = estado === "loading" ? "flex" : "none";
+    byId("mapaRecorridoVacio").style.display = estado === "vacio" ? "flex" : "none";
+    byId("mapaRecorrido").style.display = estado === "mapa" ? "block" : "none";
   }
 
   function abrirMapa() {
-    $("mapaRecorridoOverlay").classList.add("show");
+    byId("mapaRecorridoOverlay").classList.add("show");
     mostrarEstado("loading");
 
     $.ajax({
@@ -296,11 +296,11 @@
   }
 
   function cerrarMapa() {
-    $("mapaRecorridoOverlay").classList.remove("show");
+    byId("mapaRecorridoOverlay").classList.remove("show");
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    $("fab-mapa-recorrido").addEventListener("click", abrirMapa);
-    $("mapaRecorridoCerrar").addEventListener("click", cerrarMapa);
+    byId("fab-mapa-recorrido").addEventListener("click", abrirMapa);
+    byId("mapaRecorridoCerrar").addEventListener("click", cerrarMapa);
   });
 })();
