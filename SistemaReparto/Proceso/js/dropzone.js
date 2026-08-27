@@ -304,6 +304,9 @@ $(".guardarProducto").click(function () {
         mail_status_notice(csBase, jsonData.slug);
         console.log("Email de notificación enviado correctamente.");
 
+        // ✅ Refrescar los contadores de arriba (Total/Entregados/Sin entregar)
+        if (typeof cargarHeader === "function") cargarHeader();
+
         paneles();
       },
       error: function (xhr) {
@@ -444,6 +447,10 @@ $(".guardarNoEntrega").click(function () {
         );
 
         mail_status_notice(cs, jsonData.slug);
+
+        // ✅ Refrescar los contadores de arriba (Total/Entregados/Sin entregar)
+        if (typeof cargarHeader === "function") cargarHeader();
+
         paneles();
         liberarGuardaNoEntrega();
       },

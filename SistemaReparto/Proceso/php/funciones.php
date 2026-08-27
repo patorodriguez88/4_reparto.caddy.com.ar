@@ -166,26 +166,30 @@ if (isset($_POST['Datos'])) {
     // ENTREGADOS
     $sqlEntregados = consultaOError(
       $mysqli,
-      "SELECT COUNT(HojaDeRuta.id) AS Cantidad 
-             FROM HojaDeRuta 
-             INNER JOIN TransClientes 
-                 ON HojaDeRuta.Seguimiento = TransClientes.CodigoSeguimiento 
-             WHERE HojaDeRuta.Recorrido   = '{$Recorrido}' 
-               AND HojaDeRuta.Eliminado   = 0 
-               AND HojaDeRuta.NumerodeOrden = '{$nOrden}' 
+      "SELECT COUNT(HojaDeRuta.id) AS Cantidad
+             FROM HojaDeRuta
+             INNER JOIN TransClientes
+                 ON HojaDeRuta.Seguimiento = TransClientes.CodigoSeguimiento
+             WHERE HojaDeRuta.Recorrido   = '{$Recorrido}'
+               AND HojaDeRuta.Eliminado   = 0
+               AND HojaDeRuta.NumerodeOrden = '{$nOrden}'
                AND HojaDeRuta.Devuelto    = 0
-               AND TransClientes.Entregado = 1",
+               AND TransClientes.Entregado = 1
+               AND TransClientes.Eliminado = 0",
       'Entregados HojaDeRuta'
     );
     $TotalEntregados = $sqlEntregados->fetch_array(MYSQLI_ASSOC);
 
+    // Ojo: 'Cerrados' alimenta el badge #badge-entregados (rojo) y 'Abiertos'
+    // alimenta #badge-sinentregar (verde) en el frontend - antes estaban
+    // invertidos y los dos badges mostraban el número del otro.
     responder([
       'success'    => 1,
       'NOrden'       => $nOrden,
       'Recorrido'  => $Recorrido,
       'Total'      => (int) $TotalCantidad['Cantidad'],
-      'Cerrados'   => (int) $TotalNoEntregados['Cantidad'],
-      'Abiertos'   => (int) $TotalEntregados['Cantidad'],
+      'Cerrados'   => (int) $TotalEntregados['Cantidad'],
+      'Abiertos'   => (int) $TotalNoEntregados['Cantidad'],
       'Usuario'    => $Transportista,
       'idUsuario'  => $idUsuario
     ]);
