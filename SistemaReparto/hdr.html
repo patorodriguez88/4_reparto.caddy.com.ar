@@ -397,6 +397,30 @@
           </a>
         </nav>
       </footer>
+
+      <!-- FAB Mapa del recorrido -->
+      <button type="button" id="fab-mapa-recorrido" title="Ver mapa del recorrido">
+        <i class="mdi mdi-map-marker-radius"></i>
+      </button>
+
+      <!-- Mapa del recorrido (fullscreen) -->
+      <div id="mapaRecorridoOverlay">
+        <div id="mapaRecorridoHeader">
+          <span id="mapaRecorridoTitulo">Mi Recorrido</span>
+          <button type="button" id="mapaRecorridoCerrar" aria-label="Cerrar mapa">
+            <i class="mdi mdi-close"></i>
+          </button>
+        </div>
+        <div id="mapaRecorridoLoading">
+          <div class="spinner-border text-light" role="status"></div>
+          <span>Cargando recorrido...</span>
+        </div>
+        <div id="mapaRecorridoVacio" style="display: none">
+          <i class="mdi mdi-map-check-outline"></i>
+          <span>No tenés paradas pendientes para mostrar.</span>
+        </div>
+        <div id="mapaRecorrido"></div>
+      </div>
     </div>
 
     <!-- MODALES (fuera del flujo) -->
@@ -463,5 +487,6 @@
     <script src="Proceso/js/colecta_scan.js"></script>
     <script src="Proceso/js/app_status.js"></script>
     <script src="Proceso/js/geo_tracker.js"></script>
+    <script src="Proceso/js/mapa_recorrido.js"></script>
   </body>
 </html>

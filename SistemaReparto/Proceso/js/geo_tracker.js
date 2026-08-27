@@ -8,6 +8,15 @@
   var MIN_MS_ENTRE_ENVIOS = 35000;
   var ultimoEnvio = 0;
   var watchId = null;
+  var ultimaPosicion = null;
+
+  // Expuesto para que otras pantallas (mapa del recorrido) reusen la misma
+  // posición ya obtenida, sin pedir un nuevo permiso/fix de GPS.
+  window.CaddyGeo = {
+    getLastPosition: function () {
+      return ultimaPosicion;
+    },
+  };
 
   function mostrarBannerPermisoDenegado() {
     if (document.getElementById("geo-permiso-banner")) return;
@@ -61,6 +70,12 @@
     watchId = navigator.geolocation.watchPosition(
       function (position) {
         ocultarBannerPermisoDenegado();
+        ultimaPosicion = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          ts: Date.now(),
+        };
         enviarUbicacion(position);
       },
       function (error) {

@@ -4,3 +4,7 @@
 SistemaReparto/Conexion/config
 SistemaReparto/Conexion/config_local
 SistemaReparto/Conexion/config_sandbox
+
+# API key de Google Maps (browser) - mismo criterio, se edita directo en el
+# servidor, nunca se sube por git.
+SistemaReparto/Conexion/google_config.php

@@ -510,3 +510,90 @@ body.login-lock #app-footer {
   transform: scale(1.1);
   opacity: 0.85;
 }
+
+/* ===== FAB Mapa del recorrido ===== */
+#fab-mapa-recorrido {
+  display: none;
+  position: fixed;
+  right: 16px;
+  bottom: calc(65px + env(safe-area-inset-bottom) + 16px);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: var(--caddy-orange);
+  color: #fff;
+  font-size: 24px;
+  box-shadow: 0 4px 14px rgba(226, 79, 48, 0.45);
+  z-index: 1040; /* debajo del bottomnav (1050), arriba del contenido */
+  align-items: center;
+  justify-content: center;
+}
+body.app-ready #fab-mapa-recorrido {
+  display: flex;
+}
+#fab-mapa-recorrido:active {
+  transform: scale(0.93);
+}
+
+/* ===== Mapa del recorrido (fullscreen) ===== */
+#mapaRecorridoOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2100; /* por encima del login (2000) */
+  background: #111827;
+  flex-direction: column;
+}
+#mapaRecorridoOverlay.show {
+  display: flex;
+}
+#mapaRecorridoHeader {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top) + 12px) 16px 12px;
+  background: #111827;
+  color: #fff;
+}
+#mapaRecorridoTitulo {
+  font-weight: 600;
+  font-size: 16px;
+}
+#mapaRecorridoCerrar {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#mapaRecorridoCerrar:active {
+  transform: scale(0.93);
+}
+#mapaRecorrido {
+  flex: 1 1 auto;
+  width: 100%;
+}
+#mapaRecorridoLoading,
+#mapaRecorridoVacio {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  text-align: center;
+  padding: 24px;
+}
+#mapaRecorridoVacio i {
+  font-size: 42px;
+  opacity: 0.7;
+}

@@ -1,0 +1,266 @@
+(function () {
+  var MAX_PARADAS_CON_RUTA = 23; // límite de waypoints intermedios de Directions API (25 - origen - destino)
+  var POSICION_MAX_EDAD_MS = 2 * 60 * 1000; // 2 min: más vieja que eso, mejor pedir una nueva
+
+  var mapsCargado = false;
+  var mapsCargando = null; // Promise en curso, para no inyectar el <script> dos veces
+  var map = null;
+  var directionsService = null;
+  var directionsRenderer = null;
+  var markers = [];
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+  function cargarGoogleMaps(apiKey) {
+    if (mapsCargado) return Promise.resolve();
+    if (mapsCargando) return mapsCargando;
+
+    mapsCargando = new Promise(function (resolve, reject) {
+      window.__caddyInitMapaRecorrido = function () {
+        mapsCargado = true;
+        resolve();
+      };
+      var script = document.createElement("script");
+      script.src =
+        "https://maps.googleapis.com/maps/api/js?key=" +
+        encodeURIComponent(apiKey) +
+        "&callback=__caddyInitMapaRecorrido&loading=async";
+      script.async = true;
+      script.onerror = function () {
+        reject(new Error("No se pudo cargar Google Maps."));
+      };
+      document.head.appendChild(script);
+    });
+
+    return mapsCargando;
+  }
+
+  function obtenerPosicionActual() {
+    var ultima = window.CaddyGeo && window.CaddyGeo.getLastPosition ? window.CaddyGeo.getLastPosition() : null;
+    if (ultima && Date.now() - ultima.ts < POSICION_MAX_EDAD_MS) {
+      return Promise.resolve(ultima);
+    }
+
+    if (!("geolocation" in navigator)) {
+      return Promise.resolve(null);
+    }
+
+    return new Promise(function (resolve) {
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            ts: Date.now(),
+          });
+        },
+        function () {
+          resolve(null); // sin permiso/fix: seguimos mostrando las paradas igual
+        },
+        { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 },
+      );
+    });
+  }
+
+  function limpiarMarkers() {
+    markers.forEach(function (m) {
+      m.setMap(null);
+    });
+    markers = [];
+    if (directionsRenderer) {
+      directionsRenderer.setDirections({ routes: [] });
+    }
+  }
+
+  function pinNumerado(numero) {
+    return {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 16,
+      fillColor: "#e24f30",
+      fillOpacity: 1,
+      strokeColor: "#ffffff",
+      strokeWeight: 2,
+      labelOrigin: new google.maps.Point(0, 0),
+    };
+  }
+
+  function dibujarMapa(origen, paradas) {
+    var bounds = new google.maps.LatLngBounds();
+
+    if (!map) {
+      map = new google.maps.Map($("mapaRecorrido"), {
+        zoom: 13,
+        center: origen || { lat: paradas[0].lat, lng: paradas[0].lng },
+        disableDefaultUI: true,
+        zoomControl: true,
+        gestureHandling: "greedy",
+      });
+      directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: true,
+        preserveViewport: true,
+        polylineOptions: { strokeColor: "#1a73e8", strokeWeight: 5, strokeOpacity: 0.85 },
+      });
+      directionsService = new google.maps.DirectionsService();
+    }
+
+    limpiarMarkers();
+
+    if (origen) {
+      var marcadorYo = new google.maps.Marker({
+        position: origen,
+        map: map,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 9,
+          fillColor: "#1a73e8",
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 3,
+        },
+        title: "Tu ubicación",
+        zIndex: 999,
+      });
+      markers.push(marcadorYo);
+      bounds.extend(origen);
+    }
+
+    paradas.forEach(function (p) {
+      var pos = { lat: p.lat, lng: p.lng };
+      var marker = new google.maps.Marker({
+        position: pos,
+        map: map,
+        icon: pinNumerado(p.orden),
+        label: { text: String(p.orden), color: "#fff", fontSize: "13px", fontWeight: "bold" },
+        title: p.nombre + " - " + p.direccion,
+      });
+      var bultosTxt = p.bultos > 1 ? p.bultos + " bultos" : "1 bulto";
+      var info = new google.maps.InfoWindow({
+        content:
+          '<div style="font-size:13px;max-width:220px">' +
+          "<strong>" + p.orden + ". " + escapeHtml(p.nombre) + "</strong><br>" +
+          escapeHtml(p.direccion) + "<br>" +
+          '<span style="color:#666">' + bultosTxt + "</span>" +
+          "</div>",
+      });
+      marker.addListener("click", function () {
+        info.open(map, marker);
+      });
+      markers.push(marker);
+      bounds.extend(pos);
+    });
+
+    map.fitBounds(bounds, 60);
+
+    // Trazado real (siguiendo calles) sólo si entra en el límite de la
+    // Directions API. Con más paradas mostramos igual los números en orden,
+    // pero sin la línea de ruta dibujada.
+    if (origen && paradas.length > 0 && paradas.length <= MAX_PARADAS_CON_RUTA) {
+      var destino = paradas[paradas.length - 1];
+      var waypoints = paradas.slice(0, -1).map(function (p) {
+        return { location: { lat: p.lat, lng: p.lng }, stopover: true };
+      });
+
+      directionsService.route(
+        {
+          origin: origen,
+          destination: { lat: destino.lat, lng: destino.lng },
+          waypoints: waypoints,
+          optimizeWaypoints: false, // preservar el orden ya planificado (HojaDeRuta.Posicion)
+          travelMode: google.maps.TravelMode.DRIVING,
+        },
+        function (result, status) {
+          if (status === "OK") {
+            directionsRenderer.setDirections(result);
+          } else {
+            console.warn("⚠️ Directions falló:", status);
+          }
+        },
+      );
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function mostrarEstado(estado) {
+    // estado: 'loading' | 'vacio' | 'mapa'
+    $("mapaRecorridoLoading").style.display = estado === "loading" ? "flex" : "none";
+    $("mapaRecorridoVacio").style.display = estado === "vacio" ? "flex" : "none";
+    $("mapaRecorrido").style.display = estado === "mapa" ? "block" : "none";
+  }
+
+  function abrirMapa() {
+    $("mapaRecorridoOverlay").classList.add("show");
+    mostrarEstado("loading");
+
+    $.ajax({
+      url: "Proceso/php/ruta_mapa.php",
+      type: "POST",
+      dataType: "json",
+    })
+      .done(function (jsonData) {
+        if (!jsonData || jsonData.success !== 1) {
+          Swal.fire({
+            icon: "error",
+            title: "No se pudo cargar el recorrido",
+            text: jsonData && jsonData.error ? jsonData.error : "Reintentá en unos segundos.",
+          });
+          cerrarMapa();
+          return;
+        }
+
+        var paradas = jsonData.paradas || [];
+        if (!paradas.length) {
+          mostrarEstado("vacio");
+          return;
+        }
+
+        cargarGoogleMaps(jsonData.apiKey)
+          .then(function () {
+            return obtenerPosicionActual();
+          })
+          .then(function (origen) {
+            mostrarEstado("mapa");
+            dibujarMapa(origen, paradas);
+            // El mapa se crea con el contenedor recién visible - hay que
+            // avisarle que recalcule tamaño o queda con el tile gris.
+            google.maps.event.trigger(map, "resize");
+            if (origen) {
+              map.setCenter(origen);
+            }
+            var bounds = new google.maps.LatLngBounds();
+            markers.forEach(function (m) {
+              bounds.extend(m.getPosition());
+            });
+            map.fitBounds(bounds, 60);
+          })
+          .catch(function (err) {
+            console.error(err);
+            Swal.fire({ icon: "error", title: "No se pudo cargar el mapa", text: err.message || "" });
+            cerrarMapa();
+          });
+      })
+      .fail(function (xhr) {
+        console.error("Error ruta_mapa.php:", xhr.status, xhr.responseText);
+        Swal.fire({ icon: "error", title: "Error de servidor", text: "No se pudo consultar el recorrido." });
+        cerrarMapa();
+      });
+  }
+
+  function cerrarMapa() {
+    $("mapaRecorridoOverlay").classList.remove("show");
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    $("fab-mapa-recorrido").addEventListener("click", abrirMapa);
+    $("mapaRecorridoCerrar").addEventListener("click", cerrarMapa);
+  });
+})();
