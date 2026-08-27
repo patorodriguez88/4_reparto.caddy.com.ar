@@ -1,8 +1,8 @@
 [
   {
     "server": "localhost",
-    "user": "dinter6_prodrig",
-    "password": "pato@4986",
+    "user": "TU_USUARIO_AQUI",
+    "password": "TU_PASSWORD_AQUI",
     "database": "dinter6_triangularcopia",
     "port": 3306
   }

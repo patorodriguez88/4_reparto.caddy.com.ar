@@ -5,6 +5,6 @@
     "password" : "",
     "database" : "dinter6_triangular",
     "port": "",
-    "socket": "/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock"    
+    "socket": "/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock"
     }
 ]

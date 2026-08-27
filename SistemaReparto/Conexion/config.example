@@ -1,0 +1,9 @@
+[
+    {
+    "server" : "localhost",
+    "user" : "TU_USUARIO_AQUI",
+    "password" : "TU_PASSWORD_AQUI",
+    "database" : "dinter6_triangular",
+    "port": ""
+    }
+]

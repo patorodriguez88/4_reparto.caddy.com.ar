@@ -1,0 +1,6 @@
+# Credenciales reales de base de datos — nunca deben viajar por git.
+# Cada entorno (producción, sandbox, local) edita su propio archivo directo
+# en el servidor (cPanel/FTP), no a través de un push/deploy.
+SistemaReparto/Conexion/config
+SistemaReparto/Conexion/config_local
+SistemaReparto/Conexion/config_sandbox
