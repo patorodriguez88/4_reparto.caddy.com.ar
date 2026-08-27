@@ -1,0 +1,3 @@
+# Apagar el listado de directorios en todo el sitio (heredado por las
+# subcarpetas salvo que tengan su propio .htaccess que lo pise).
+Options -Indexes

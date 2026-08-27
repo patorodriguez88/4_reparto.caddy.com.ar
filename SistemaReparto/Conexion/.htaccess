@@ -1,0 +1,8 @@
+# admision.php (login) y out.php (logout) SÍ se llaman directo por AJAX desde
+# el front - no bloquear toda la carpeta. Lo que nunca debe pedirse por HTTP
+# son los archivos de conexión: config/config_local/config_sandbox tienen la
+# contraseña real de la base en texto plano, y conexioni.php es solo para
+# include() del propio PHP del servidor.
+<FilesMatch "^(config|config_local|config_sandbox|conexioni\.php)$">
+    Require all denied
+</FilesMatch>

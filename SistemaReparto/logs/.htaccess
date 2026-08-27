@@ -1,0 +1,4 @@
+# Logs internos (errores de escaneo, con códigos y usuarios reales) - el PHP
+# del servidor escribe acá con file_put_contents, nada del front los pide por
+# HTTP. No hay motivo para que sean navegables.
+Require all denied
