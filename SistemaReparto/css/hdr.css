@@ -645,3 +645,18 @@ body.app-ready #fab-mapa-recorrido {
 #btn-reanudar-ruta:active {
   transform: scale(0.98);
 }
+
+/* ===== Card resumen del recorrido (pendientes/km/tiempo) ===== */
+#card-resumen-recorrido-inner {
+  background: var(--caddy-orange);
+  border: none;
+}
+#card-resumen-recorrido-inner,
+#card-resumen-recorrido-inner #resumen-pendientes,
+#card-resumen-recorrido-inner #resumen-km,
+#card-resumen-recorrido-inner #resumen-tiempo {
+  color: #fff;
+}
+#card-resumen-recorrido-inner .resumen-label {
+  color: rgba(255, 255, 255, 0.85);
+}

@@ -1173,10 +1173,17 @@ let horaSalidaRealActual = null;
 let relojEnRutaIniciado = false;
 
 function formatearDuracion(ms) {
-  const totalMin = Math.max(0, Math.floor(ms / 60000));
-  const horas = Math.floor(totalMin / 60);
-  const minutos = totalMin % 60;
-  return String(horas).padStart(2, "0") + ":" + String(minutos).padStart(2, "0");
+  const totalSeg = Math.max(0, Math.floor(ms / 1000));
+  const horas = Math.floor(totalSeg / 3600);
+  const minutos = Math.floor((totalSeg % 3600) / 60);
+  const segundos = totalSeg % 60;
+  return (
+    String(horas).padStart(2, "0") +
+    ":" +
+    String(minutos).padStart(2, "0") +
+    ":" +
+    String(segundos).padStart(2, "0")
+  );
 }
 
 function actualizarRelojEnRuta() {
@@ -1202,7 +1209,7 @@ function pintarEstadoRecorrido(jsonData) {
     actualizarRelojEnRuta();
     if (!relojEnRutaIniciado) {
       relojEnRutaIniciado = true;
-      setInterval(actualizarRelojEnRuta, 30000);
+      setInterval(actualizarRelojEnRuta, 1000);
     }
     $("#banner-en-ruta").show();
   } else {
@@ -1273,7 +1280,7 @@ function pintarPausa(pausaActiva) {
   actualizarRelojPausa();
   if (!relojPausaIniciado) {
     relojPausaIniciado = true;
-    setInterval(actualizarRelojPausa, 30000);
+    setInterval(actualizarRelojPausa, 1000);
   }
 
   $("#pausaOverlay").addClass("show");
