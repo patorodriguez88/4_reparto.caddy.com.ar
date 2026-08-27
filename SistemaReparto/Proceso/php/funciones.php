@@ -259,7 +259,10 @@ if (isset($_POST['Datos'])) {
       'Usuario'    => $Transportista,
       'idUsuario'  => $idUsuario,
       'HoraSalidaReal'     => $rowLog['HoraSalidaReal'] ?? null,
-      'KmPendientes'       => round((float) ($Pendiente['KmPendientes'] ?? 0), 1),
+      // round() puede serializar con ruido binario (15.4000...552713...) según
+      // el serialize_precision del servidor - se manda como string ya
+      // formateado a un decimal; el JS lo castea igual con Number().
+      'KmPendientes'       => number_format((float) ($Pendiente['KmPendientes'] ?? 0), 1, '.', ''),
       'TiempoPendienteMin' => $tiempoPendienteMin > 0 ? $tiempoPendienteMin : null,
     ]);
   } else {

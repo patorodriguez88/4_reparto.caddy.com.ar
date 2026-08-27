@@ -1176,7 +1176,7 @@ function pintarEstadoRecorrido(jsonData) {
     const fecha = new Date(jsonData.HoraSalidaReal.replace(" ", "T"));
     const horaTxt = isNaN(fecha.getTime())
       ? ""
-      : fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+      : fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
     $("#en-ruta-texto").text("En ruta" + (horaTxt ? " desde " + horaTxt : ""));
     $("#banner-en-ruta").show();
   } else {

@@ -403,6 +403,7 @@ if (isset($_POST['Paneles'])) {
                   $horarioHasta = trim((string) ($row['HorarioEntregaHasta'] ?? ''));
                   $etaHora      = trim((string) ($row['ETAHora'] ?? ''));
 
+                  $horarioMuted = false;
                   if ($horarioDesde !== '' && $horarioDesde !== '00:00:00' && $horarioHasta !== '' && $horarioHasta !== '00:00:00') {
                     $horarioIcon  = 'mdi-calendar';
                     $horarioTexto = substr($horarioDesde, 0, 5) . ' - ' . substr($horarioHasta, 0, 5);
@@ -410,15 +411,18 @@ if (isset($_POST['Paneles'])) {
                     $horarioIcon  = 'mdi-clock-outline';
                     $horarioTexto = 'Estimado: ' . substr($etaHora, 0, 5);
                   } else {
-                    $horarioIcon  = '';
-                    $horarioTexto = '';
+                    // Todavía no hay horario real ni estimado calculado
+                    // (recorrido sin arrancar, o esperando el próximo
+                    // recálculo) - avisamos que está en camino en vez de
+                    // dejar el espacio vacío.
+                    $horarioIcon  = 'mdi-clock-outline';
+                    $horarioTexto = 'Estimando horario...';
+                    $horarioMuted = true;
                   }
                 ?>
-                <?php if ($horarioTexto !== ''): ?>
                 <li>
-                  <p class="text-muted mb-1 font-13"><i class="mdi <?= $horarioIcon ?>"></i> <?= $horarioTexto ?></p>
+                  <p class="text-muted mb-1 font-13<?= $horarioMuted ? ' opacity-50' : '' ?>"><i class="mdi <?= $horarioIcon ?>"></i> <?= $horarioTexto ?></p>
                 </li>
-                <?php endif; ?>
 
                 <li>
                   <h5><i class="mdi mdi-map-marker"></i> <?php echo $direccion . ' ' . $row['PisoDeptoDestino'] ?></h5>

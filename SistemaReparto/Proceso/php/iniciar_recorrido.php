@@ -3,6 +3,11 @@
 // el primer recálculo de ETA desde la posición actual del repartidor.
 declare(strict_types=1);
 
+// NOW() de MySQL depende del reloj/timezone del servidor de base de datos,
+// no de PHP - HoraSalidaReal se arma acá con PHP para que sea siempre hora
+// Argentina real, sin importar cómo esté configurado el servidor de la BD.
+date_default_timezone_set('America/Argentina/Buenos_Aires');
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
@@ -67,11 +72,13 @@ try {
 
   // Idempotente: si ya había arrancado (por botón o por auto-detección),
   // no pisa la hora real ya registrada.
+  $ahora = new DateTime();
+  $ahoraEsc = $mysqli->real_escape_string($ahora->format('Y-m-d H:i:s'));
   $latEsc = $mysqli->real_escape_string((string) $lat);
   $lngEsc = $mysqli->real_escape_string((string) $lng);
   $mysqli->query(
     "UPDATE Logistica
-     SET HoraSalidaReal = NOW(),
+     SET HoraSalidaReal = '{$ahoraEsc}',
          LatInicio = COALESCE(LatInicio, {$latEsc}),
          LngInicio = COALESCE(LngInicio, {$lngEsc})
      WHERE id = {$log['id']} AND HoraSalidaReal IS NULL
@@ -80,7 +87,7 @@ try {
 
   $recalculado = false;
   if (defined('GOOGLE_API_KEY_SERVER')) {
-    $recalculado = recalcularEtas($mysqli, $recorrido, $lat, $lng, new DateTime());
+    $recalculado = recalcularEtas($mysqli, $recorrido, $lat, $lng, $ahora);
   }
 
   responder([

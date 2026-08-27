@@ -4,6 +4,12 @@
 // para saber "dónde anda ahora" y evita que la tabla crezca sin límite).
 declare(strict_types=1);
 
+// NOW() de MySQL depende del reloj/timezone del SERVIDOR DE BASE DE DATOS,
+// no de PHP - puede no estar en hora Argentina. Todo lo que sea "hora real"
+// (HoraSalidaReal, la hora de arranque que usa el cálculo de ETA) se arma
+// acá con PHP, nunca con NOW() de SQL.
+date_default_timezone_set('America/Argentina/Buenos_Aires');
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
@@ -136,12 +142,14 @@ function detectarInicioRecorrido(mysqli $mysqli, int $userId, string $recorrido,
         return;
     }
 
+    $ahora = new DateTime();
+    $ahoraEsc = $mysqli->real_escape_string($ahora->format('Y-m-d H:i:s'));
     $mysqli->query(
-        "UPDATE Logistica SET HoraSalidaReal = NOW()
+        "UPDATE Logistica SET HoraSalidaReal = '{$ahoraEsc}'
          WHERE id = {$log['id']} AND HoraSalidaReal IS NULL LIMIT 1"
     );
 
     if (defined('GOOGLE_API_KEY_SERVER')) {
-        recalcularEtas($mysqli, $recorrido, $lat, $lng, new DateTime());
+        recalcularEtas($mysqli, $recorrido, $lat, $lng, $ahora);
     }
 }
