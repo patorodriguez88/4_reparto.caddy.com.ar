@@ -162,6 +162,52 @@
           <main id="app-main" class="app-main">
             <!-- SCREEN: Operación -->
             <section class="container-fluid mt-2 app-screen" id="screen-operacion" style="display: none">
+              <!-- Iniciar Recorrido / En ruta desde... -->
+              <div class="row mb-2">
+                <div class="col-12">
+                  <button
+                    type="button"
+                    id="btn-iniciar-recorrido"
+                    class="btn btn-lg w-100 text-white"
+                    style="display: none; background: var(--caddy-orange); border: none"
+                  >
+                    <i class="mdi mdi-rocket-launch-outline"></i> Iniciar Recorrido
+                  </button>
+                  <div
+                    id="banner-en-ruta"
+                    class="alert alert-light border mb-0 fw-bold d-flex align-items-center justify-content-between"
+                    style="display: none"
+                  >
+                    <span><i class="mdi mdi-check-circle text-success"></i> <span id="en-ruta-texto"></span></span>
+                    <button type="button" id="btn-parar-ruta" class="btn btn-sm btn-outline-danger">
+                      <i class="mdi mdi-pause-circle-outline"></i> Parar
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Resumen del recorrido (pendientes / km / tiempo estimado) -->
+              <div class="row mb-2" id="card-resumen-recorrido" style="display: none">
+                <div class="col-12">
+                  <div class="card mb-0">
+                    <div class="card-body py-2 d-flex justify-content-around text-center">
+                      <div>
+                        <div class="fw-bold font-18" id="resumen-pendientes">-</div>
+                        <div class="text-muted font-12">Pendientes</div>
+                      </div>
+                      <div>
+                        <div class="fw-bold font-18" id="resumen-km">-</div>
+                        <div class="text-muted font-12">Km</div>
+                      </div>
+                      <div>
+                        <div class="fw-bold font-18" id="resumen-tiempo">-</div>
+                        <div class="text-muted font-12">Estimado</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- DESDE ACA CARD ENVIOS -->
               <div class="row">
                 <div class="col-12 col-xl-7" id="card-envio">
@@ -325,52 +371,6 @@
                         <!-- end card body-->
                       </div>
                       <!-- end card -->
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Iniciar Recorrido / En ruta desde... -->
-              <div class="row mb-2">
-                <div class="col-12">
-                  <button
-                    type="button"
-                    id="btn-iniciar-recorrido"
-                    class="btn btn-lg w-100 text-white"
-                    style="display: none; background: var(--caddy-orange); border: none"
-                  >
-                    <i class="mdi mdi-rocket-launch-outline"></i> Iniciar Recorrido
-                  </button>
-                  <div
-                    id="banner-en-ruta"
-                    class="alert alert-light border mb-0 fw-bold d-flex align-items-center justify-content-between"
-                    style="display: none"
-                  >
-                    <span><i class="mdi mdi-check-circle text-success"></i> <span id="en-ruta-texto"></span></span>
-                    <button type="button" id="btn-parar-ruta" class="btn btn-sm btn-outline-danger">
-                      <i class="mdi mdi-pause-circle-outline"></i> Parar
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Resumen del recorrido (pendientes / km / tiempo estimado) -->
-              <div class="row mb-2" id="card-resumen-recorrido" style="display: none">
-                <div class="col-12">
-                  <div class="card mb-0">
-                    <div class="card-body py-2 d-flex justify-content-around text-center">
-                      <div>
-                        <div class="fw-bold font-18" id="resumen-pendientes">-</div>
-                        <div class="text-muted font-12">Pendientes</div>
-                      </div>
-                      <div>
-                        <div class="fw-bold font-18" id="resumen-km">-</div>
-                        <div class="text-muted font-12">Km</div>
-                      </div>
-                      <div>
-                        <div class="fw-bold font-18" id="resumen-tiempo">-</div>
-                        <div class="text-muted font-12">Estimado</div>
-                      </div>
                     </div>
                   </div>
                 </div>

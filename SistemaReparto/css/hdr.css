@@ -634,5 +634,14 @@ body.app-ready #fab-mapa-recorrido {
   margin: 8px 0 16px;
 }
 #pausaOverlayDuracion {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+}
+#btn-reanudar-ruta {
+  border-radius: 12px;
+  padding: 14px;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(226, 79, 48, 0.35);
+}
+#btn-reanudar-ruta:active {
+  transform: scale(0.98);
 }
