@@ -11,6 +11,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// Este endpoint tiene que funcionar aunque no haya sesión (se llama muy
+// temprano, antes de loguearse, para registrar el device) - sin esto,
+// conexioni.php redirige (302) a hdr.html cuando la sesión todavía no está
+// lista, y el fetch() del JS recibe el HTML del shell en vez de JSON.
+if (!defined('ALLOW_NO_SESSION')) {
+    define('ALLOW_NO_SESSION', true);
+}
+
 // session_start() la hace conexioni.php, con el nombre de cookie propio del sistema.
 require_once __DIR__ . "/../../Conexion/conexioni.php";
 
