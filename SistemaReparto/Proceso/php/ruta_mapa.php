@@ -106,8 +106,8 @@ if ($res) {
       'idCliente'    => (int) $row['idCliente'],
       'nombre'       => (string) $row['nombre'],
       'direccion'    => (string) $row['direccion'],
-      'lat'          => $lat,
-      'lng'          => $lng,
+      'lat'          => round($lat, 7),
+      'lng'          => round($lng, 7),
       'bultos'       => (int) $row['bultos'],
       'seguimientos' => (string) $row['seguimientos'],
     ];
