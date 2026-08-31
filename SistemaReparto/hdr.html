@@ -185,6 +185,16 @@
                       <i class="mdi mdi-pause-circle-outline"></i> Parar
                     </button>
                   </div>
+
+                  <!-- Aparece solo cuando no quedan paquetes pendientes -->
+                  <button
+                    type="button"
+                    id="btn-finalizar-recorrido"
+                    class="btn btn-lg w-100 text-white mt-2"
+                    style="display: none; background: #1c8f61; border: none"
+                  >
+                    <i class="mdi mdi-flag-checkered"></i> Finalizar Recorrido
+                  </button>
                 </div>
               </div>
 
@@ -447,8 +457,8 @@
         </nav>
       </footer>
 
-      <!-- FAB Mapa del recorrido -->
-      <button type="button" id="fab-mapa-recorrido" title="Ver mapa del recorrido">
+      <!-- FAB Mapa del recorrido (solo visible en la pantalla Recorrido) -->
+      <button type="button" id="fab-mapa-recorrido" title="Ver mapa del recorrido" style="display: none">
         <i class="mdi mdi-map-marker-radius"></i>
       </button>
 

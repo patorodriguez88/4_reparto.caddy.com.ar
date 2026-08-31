@@ -345,6 +345,9 @@ $(document).on("click", ".mc-order .mc-oh", function () {
     $(`.app-bottomnav .nav-item[data-screen="${realKey}"]`).addClass("active");
 
     // 6) Acciones por screen
+    // El FAB del mapa es exclusivo de Recorrido.
+    $("#fab-mapa-recorrido").toggle(realKey === "operacion");
+
     if (realKey === "operacion") {
       $("#hdractivas").show(); // ✅ solo acá se ven paneles
 
@@ -1529,6 +1532,14 @@ function pintarEstadoRecorrido(jsonData) {
     }
   }
 
+  // "Finalizar Recorrido": solo cuando el recorrido tiene paradas y ya no
+  // queda ninguna pendiente (entregada o no).
+  const sinPendientes = (jsonData.Abiertos || 0) === 0 && (jsonData.Total || 0) > 0;
+  $("#btn-finalizar-recorrido").toggle(sinPendientes);
+  if (sinPendientes) {
+    $("#btn-iniciar-recorrido").hide();
+  }
+
   const pendientes = jsonData.Abiertos || 0;
   if (pendientes > 0) {
     $("#resumen-pendientes").text(pendientes);
@@ -1682,6 +1693,66 @@ $(document).on("click", "#btn-reanudar-ruta", function () {
 // Click en "Iniciar Recorrido": toma la posición actual (reusa la del
 // tracker si es reciente, si no pide una nueva) y avisa al backend para
 // que marque el inicio real y dispare el primer recálculo de ETA.
+// ===== Finalizar Recorrido =====
+$(document).on("click", "#btn-finalizar-recorrido", function () {
+  const $btn = $(this);
+
+  Swal.fire({
+    icon: "question",
+    title: "¿Finalizar el recorrido?",
+    text: "Ya no quedan paquetes pendientes.",
+    showCancelButton: true,
+    confirmButtonText: "Sí, finalizar",
+    cancelButtonText: "Todavía no",
+  }).then(function (r) {
+    if (!r.isConfirmed) return;
+
+    $btn.prop("disabled", true).html('<i class="mdi mdi-loading mdi-spin"></i> Cerrando...');
+
+    $.ajax({
+      url: "Proceso/php/finalizar_recorrido.php",
+      type: "POST",
+      dataType: "json",
+      data: { Finalizar: 1 },
+    })
+      .done(function (res) {
+        if (!res || res.success !== 1) {
+          Swal.fire({
+            icon: "error",
+            title: "No se pudo finalizar",
+            text: (res && (res.msg || res.error)) || "Reintentá en unos segundos.",
+          });
+          $btn.prop("disabled", false).html('<i class="mdi mdi-flag-checkered"></i> Finalizar Recorrido');
+          return;
+        }
+
+        const rr = res.resumen || {};
+        Swal.fire({
+          icon: "success",
+          title: "¡Felicitaciones! 🎉",
+          html:
+            "Terminaste el recorrido.<br><br>" +
+            '<b>Tiempo total:</b> ' + (rr.tiempo_texto || "sin registrar") + "<br>" +
+            '<b>Paradas:</b> ' + (rr.paradas || 0) +
+            (rr.hora_inicio ? "<br><small class='text-muted'>" + rr.hora_inicio + " → " + (rr.hora_fin || "") + "</small>" : ""),
+          confirmButtonText: "Fin",
+          allowOutsideClick: false,
+          customClass: { container: "caddy-login-swal" },
+        }).then(function () {
+          location.reload();
+        });
+      })
+      .fail(function (xhr) {
+        if (xhr.status === 401) {
+          cerrarSesionForzada("SESSION_EXPIRED");
+          return;
+        }
+        Swal.fire({ icon: "error", title: "Error", text: "No se pudo finalizar el recorrido." });
+        $btn.prop("disabled", false).html('<i class="mdi mdi-flag-checkered"></i> Finalizar Recorrido');
+      });
+  });
+});
+
 $(document).on("click", "#btn-iniciar-recorrido", function () {
   const $btn = $(this);
   $btn.prop("disabled", true).html('<i class="mdi mdi-loading mdi-spin"></i> Iniciando...');

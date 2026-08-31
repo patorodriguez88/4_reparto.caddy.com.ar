@@ -14,6 +14,9 @@ if (isset($_POST['GetLista'])) {
         exit;
     }
 
+    // Las COLECTAS no se cargan en el depósito: el chofer las retira en el
+    // cliente durante el recorrido y las entrega en el warehouse como una
+    // parada más. Por eso quedan fuera de esta lista de carga pre-salida.
     $st = $mysqli->prepare("
         SELECT t.Retirado, t.CodigoSeguimiento, t.Cantidad, t.shipments_id
         FROM HojaDeRuta h
@@ -22,6 +25,7 @@ if (isset($_POST['GetLista'])) {
             AND h.Estado = 'Abierto'
             AND h.Eliminado = 0
             AND t.Eliminado = 0
+            AND (t.idColecta IS NULL OR t.idColecta = 0)
         ORDER BY t.CodigoSeguimiento ASC
         ");
 

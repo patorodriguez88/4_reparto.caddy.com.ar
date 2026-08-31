@@ -417,6 +417,9 @@ if (isset($_POST['Paneles'])) {
   //           LIMIT 1
   //       )
   // ";
+  // Las COLECTAS no entran en el gate de validación pre-salida del warehouse:
+  // se retiran en el cliente durante el recorrido y se entregan al warehouse
+  // como una parada de entrega más.
   $sqlChkTxt = "SELECT COUNT(*) AS faltan
   FROM HojaDeRuta
   INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
@@ -426,6 +429,7 @@ if (isset($_POST['Paneles'])) {
     AND TransClientes.Eliminado='0'
     AND HojaDeRuta.Eliminado=0
     AND TransClientes.Retirado = 1
+    AND (TransClientes.idColecta IS NULL OR TransClientes.idColecta = 0)
     AND NOT EXISTS (
         SELECT 1
         FROM Seguimiento s
