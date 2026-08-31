@@ -180,8 +180,8 @@
                     class="alert alert-light border mb-0 fw-bold d-flex align-items-center justify-content-between"
                     style="display: none"
                   >
-                    <span><i class="mdi mdi-check-circle text-success"></i> <span id="en-ruta-texto"></span></span>
-                    <button type="button" id="btn-parar-ruta" class="btn btn-sm btn-outline-danger">
+                    <span><i id="en-ruta-icon" class="mdi mdi-stop-circle-outline text-danger"></i> <span id="en-ruta-texto"></span></span>
+                    <button type="button" id="btn-parar-ruta" class="btn btn-sm btn-outline-danger" style="display: none">
                       <i class="mdi mdi-pause-circle-outline"></i> Parar
                     </button>
                   </div>
@@ -392,7 +392,7 @@
 
             <!-- SCREEN: Cuenta -->
             <section class="container-fluid mt-2 app-screen" id="screen-cuenta" style="display: none">
-              <div class="row" id="mis_envios_cuenta"></div>
+              <div id="mis_envios_cuenta"></div>
             </section>
           </main>
 

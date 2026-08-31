@@ -95,6 +95,290 @@ if (isset($_POST['MisEnviosHTML'])) {
 }
 
 // ==================================================
+// ========  BLOQUE MI CUENTA (resumen JSON)  =======
+// ==================================================
+// Alineado con el control del operador en sistema.caddy.com.ar
+// (Externos > Envios): mismos montos (Logistica.Costo_rendicion),
+// mismo desempeño (entregados / total) y los 3 estados por orden:
+//   - revision   : Rendicion=0 y Costo_rendicion=0  (el operador no controló todavía)
+//   - controlada : Rendicion=0 y Costo_rendicion>0  (tarifas fijadas, falta facturar)
+//   - facturada  : Rendicion=1                      (comprobante emitido = lo que se paga)
+if (isset($_POST['CuentaResumen'])) {
+  header('Content-Type: application/json; charset=utf-8');
+
+  if (empty($_SESSION['idusuario'])) {
+    http_response_code(401);
+    echo json_encode(['success' => 0, 'error' => 'Sesión perdida. Volvé a ingresar.']);
+    exit;
+  }
+
+  $idUsuario = (int) $_SESSION['idusuario'];
+
+  // Mes a mostrar: por default el actual. Acepta ?mes=YYYY-MM para pruebas.
+  $mes = isset($_POST['mes']) && preg_match('/^\d{4}-\d{2}$/', $_POST['mes'])
+    ? $_POST['mes']
+    : date('Y-m');
+  $iniMes = $mes . '-01';
+  $finMes = date('Y-m-t', strtotime($iniMes));
+  $iniMesPrev = date('Y-m-01', strtotime($iniMes . ' -1 month'));
+  $finMesPrev = date('Y-m-t', strtotime($iniMesPrev));
+
+  // Mapa de respaldo de tarifas por si falta la tabla Externos_tarifas.
+  $tarifaFallback = [
+    1 => 'Dentro anillo',
+    2 => 'Fuera anillo',
+    3 => '> 25 km',
+    4 => '> 50 km',
+    6 => 'Colecta',
+  ];
+
+  /**
+   * Clasifica el tipo de liquidación de un envío para el badge del front.
+   */
+  $tipoEnvio = function (array $e): string {
+    $ret = (int) ($e['Retirado'] ?? 0);
+    $entregado = (int) ($e['Entregado'] ?? 0);
+    $cobranza = (float) ($e['CobranzaIntegrada'] ?? 0);
+    $idDest = (int) ($e['idClienteDestino'] ?? 0);
+
+    if ($ret === 0 && $idDest === 18587) return 'COLECTA';
+    if ($ret === 0) return 'RETIRO';
+    if ($entregado === 1 && $cobranza > 0) return 'ENTREGA_CON_COBRANZA';
+    if ($entregado === 1) return 'ENTREGA';
+    return 'NO_ENTREGA';
+  };
+
+  /**
+   * Entregados / no entregados de una orden. Prioriza Seguimiento (igual que
+   * el operador); si no hay registros de seguimiento, cae a TransClientes.
+   */
+  $conteoOrden = function (int $nOrden) use ($mysqli): array {
+    $e = 0;
+    $n = 0;
+    $stmt = $mysqli->prepare("
+      SELECT SUM(Entregado = 1) AS e, SUM(Entregado = 0) AS n, COUNT(*) AS c
+      FROM Seguimiento
+      WHERE NumerodeOrden = ? AND Eliminado = 0
+        AND Visitas <> 0 AND Estado <> 'Retirado del Cliente'
+    ");
+    $stmt->bind_param('i', $nOrden);
+    $stmt->execute();
+    $r = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($r && (int) $r['c'] > 0) {
+      return ['entregados' => (int) $r['e'], 'no_entregados' => (int) $r['n']];
+    }
+
+    $stmt = $mysqli->prepare("
+      SELECT SUM(Entregado = 1) AS e, SUM(Entregado = 0) AS n
+      FROM TransClientes
+      WHERE NumerodeOrden = ? AND Eliminado = 0 AND Devuelto = 0
+    ");
+    $stmt->bind_param('i', $nOrden);
+    $stmt->execute();
+    $r = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    return ['entregados' => (int) ($r['e'] ?? 0), 'no_entregados' => (int) ($r['n'] ?? 0)];
+  };
+
+  try {
+    // --------- Órdenes del mes ---------
+    $stmt = $mysqli->prepare("
+      SELECT L.NumerodeOrden, L.Recorrido, L.Fecha, L.Estado,
+             L.Rendicion, L.Costo_rendicion, L.Observaciones_rendicion,
+             R.Nombre AS RecorridoNombre
+      FROM Logistica L
+      LEFT JOIN Recorridos R ON R.Numero = L.Recorrido
+      WHERE L.idUsuarioChofer = ? AND L.Eliminado = 0
+        AND L.Fecha BETWEEN ? AND ?
+      GROUP BY L.NumerodeOrden
+      ORDER BY L.Fecha DESC, L.NumerodeOrden DESC
+    ");
+    $stmt->bind_param('iss', $idUsuario, $iniMes, $finMes);
+    $stmt->execute();
+    $ordenesRaw = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    // Statement reutilizable para el detalle de envíos de cada orden.
+    $stmtDet = $mysqli->prepare("
+      SELECT er.CodigoSeguimiento, er.PrecioPagado, er.CobranzaIntegrada,
+             er.idExternos_tarifas, er.Rendido, er.PrecioAnterior,
+             er.TarifaAnteriorId, er.Observaciones, er.Kilometros,
+             et.Nombre AS NombreTarifa,
+             tc.Entregado, tc.Retirado, tc.idClienteDestino,
+             tc.ClienteDestino, tc.LocalidadDestino, tc.DomicilioDestino
+      FROM Externos_rendicion er
+      LEFT JOIN Externos_tarifas et ON et.id = er.idExternos_tarifas
+      LEFT JOIN TransClientes tc
+        ON tc.CodigoSeguimiento = er.CodigoSeguimiento AND tc.Eliminado = 0
+      WHERE er.idRendicion = ?
+      ORDER BY er.id ASC
+    ");
+
+    $stmtComp = $mysqli->prepare("
+      SELECT MAX(NumeroComprobante) AS NumeroComprobante,
+             MAX(TipoComprobante)   AS TipoComprobante,
+             MAX(FechaComprobante)  AS FechaComprobante
+      FROM Externos_rendicion
+      WHERE idRendicion = ? AND NumeroComprobante IS NOT NULL AND NumeroComprobante <> ''
+    ");
+
+    $ordenes = [];
+    $mesEntregados = 0;
+    $mesNoEntregados = 0;
+    $mesKm = 0.0;
+    $totFacturado = 0.0;
+    $totControlado = 0.0;
+    $nFacturado = 0;
+    $nControlado = 0;
+    $nRevision = 0;
+
+    foreach ($ordenesRaw as $o) {
+      $nOrden = (int) $o['NumerodeOrden'];
+      $rendicion = (int) $o['Rendicion'];
+      $costo = (float) $o['Costo_rendicion'];
+
+      if ($rendicion === 1) {
+        $estado = 'facturada';
+        $totFacturado += $costo;
+        $nFacturado++;
+      } elseif ($costo > 0) {
+        $estado = 'controlada';
+        $totControlado += $costo;
+        $nControlado++;
+      } else {
+        $estado = 'revision';
+        $nRevision++;
+      }
+
+      // Detalle de envíos (solo si ya hay rendición cargada)
+      $envios = [];
+      $ajustados = 0;
+      $stmtDet->bind_param('i', $nOrden);
+      $stmtDet->execute();
+      $det = $stmtDet->get_result()->fetch_all(MYSQLI_ASSOC);
+
+      foreach ($det as $d) {
+        $precio = (float) $d['PrecioPagado'];
+        $cobranza = (float) $d['CobranzaIntegrada'];
+        $tarifaId = (int) $d['idExternos_tarifas'];
+        $nombreTarifa = $d['NombreTarifa'] ?: ($tarifaFallback[$tarifaId] ?? ('Tarifa ' . $tarifaId));
+        $ajustado = $d['PrecioAnterior'] !== null && (float) $d['PrecioAnterior'] !== $precio;
+        if ($ajustado) $ajustados++;
+
+        $destino = trim((string) ($d['ClienteDestino'] ?? ''));
+        $loc = trim((string) ($d['LocalidadDestino'] ?? ''));
+        $dom = trim((string) ($d['DomicilioDestino'] ?? ''));
+        $destTxt = $destino;
+        $subTxt = trim($dom . ($dom && $loc ? ', ' : '') . $loc, ', ');
+
+        $envios[] = [
+          'codigo'        => $d['CodigoSeguimiento'],
+          'destino'       => $destTxt,
+          'domicilio'     => $subTxt,
+          'tipo'          => $tipoEnvio($d),
+          'tarifa'        => $nombreTarifa,
+          'precio'        => round($precio, 2),
+          'cobranza'      => round($cobranza, 2),
+          'total'         => round($precio + $cobranza, 2),
+          'km'            => round((float) $d['Kilometros'], 1),
+          'ajustado'      => $ajustado,
+          'precio_anterior' => $ajustado ? round((float) $d['PrecioAnterior'], 2) : null,
+          'obs'           => $d['Observaciones'] ?: null,
+        ];
+      }
+
+      $cnt = $conteoOrden($nOrden);
+      $mesEntregados   += $cnt['entregados'];
+      $mesNoEntregados += $cnt['no_entregados'];
+      foreach ($envios as $e) $mesKm += $e['km'];
+
+      $totalOrden = $costo;
+      if ($totalOrden <= 0 && $envios) {
+        $totalOrden = array_sum(array_column($envios, 'total'));
+      }
+
+      // Comprobante (si está facturada)
+      $comprobante = null;
+      if ($estado === 'facturada') {
+        $stmtComp->bind_param('i', $nOrden);
+        $stmtComp->execute();
+        $c = $stmtComp->get_result()->fetch_assoc();
+        if ($c && $c['NumeroComprobante']) {
+          $comprobante = [
+            'numero' => $c['NumeroComprobante'],
+            'fecha'  => $c['FechaComprobante'],
+          ];
+        }
+      }
+
+      $totOrdEnvios = $cnt['entregados'] + $cnt['no_entregados'];
+      $ordenes[] = [
+        'norden'        => $nOrden,
+        'recorrido'     => $o['Recorrido'],
+        'recorrido_nombre' => $o['RecorridoNombre'] ?: null,
+        'fecha'         => $o['Fecha'],
+        'estado'        => $estado,
+        'entregados'    => $cnt['entregados'],
+        'no_entregados' => $cnt['no_entregados'],
+        'desempeno'     => $totOrdEnvios > 0 ? round($cnt['entregados'] / $totOrdEnvios * 100) : null,
+        'total'         => round($totalOrden, 2),
+        'total_confirmado' => $estado !== 'revision',
+        'ajustados'     => $ajustados,
+        'observacion'   => $o['Observaciones_rendicion'] ?: null,
+        'comprobante'   => $comprobante,
+        'envios'        => $envios,
+      ];
+    }
+    $stmtDet->close();
+    $stmtComp->close();
+
+    // --------- Total mes anterior (para el delta) ---------
+    $stmt = $mysqli->prepare("
+      SELECT COALESCE(SUM(Costo_rendicion), 0) AS total
+      FROM Logistica
+      WHERE idUsuarioChofer = ? AND Eliminado = 0
+        AND Fecha BETWEEN ? AND ? AND (Rendicion = 1 OR Costo_rendicion > 0)
+    ");
+    $stmt->bind_param('iss', $idUsuario, $iniMesPrev, $finMesPrev);
+    $stmt->execute();
+    $prev = (float) $stmt->get_result()->fetch_assoc()['total'];
+    $stmt->close();
+
+    $aCobrar = $totFacturado + $totControlado;
+    $mesTotEnvios = $mesEntregados + $mesNoEntregados;
+
+    echo json_encode([
+      'success' => 1,
+      'mes'     => $mes,
+      'resumen' => [
+        'a_cobrar'       => round($aCobrar, 2),
+        'facturado'      => round($totFacturado, 2),
+        'controlado'     => round($totControlado, 2),
+        'n_facturado'    => $nFacturado,
+        'n_controlado'   => $nControlado,
+        'n_revision'     => $nRevision,
+        'entregas'       => $mesEntregados,
+        'no_entregas'    => $mesNoEntregados,
+        'desempeno'      => $mesTotEnvios > 0 ? round($mesEntregados / $mesTotEnvios * 100) : null,
+        'km'             => round($mesKm),
+        'delta_vs_prev'  => round($aCobrar - $prev, 2),
+        'total_prev'     => round($prev, 2),
+      ],
+      'ordenes' => $ordenes,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+  } catch (Throwable $e) {
+    error_log('CuentaResumen: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    http_response_code(500);
+    echo json_encode(['success' => 0, 'error' => 'No se pudo cargar tu cuenta. Reintentá en un rato.']);
+    exit;
+  }
+}
+
+// ==================================================
 // ===================  PANEL DE RUTAS  ==============
 // ==================================================
 if (isset($_POST['Paneles'])) {
@@ -291,7 +575,7 @@ if (isset($_POST['Paneles'])) {
       $lat = isset($row['Latitud']) ? (float)$row['Latitud'] : null;
       $lng = isset($row['Longitud']) ? (float)$row['Longitud'] : null;
 
-      if ($idProveedor['ActivarCoordenadas'] == 1) {
+      if (($idProveedor['ActivarCoordenadas'] ?? 0) == 1) {
         $Direccion_mapa = $lat . ',' . $lng;
       } else {
         $Direccion_mapa = $row['DomicilioOrigen'];
@@ -339,8 +623,8 @@ if (isset($_POST['Paneles'])) {
       $icon = 'up-bold';
       $Serviciowp = "entregar";
       $Direccion = $row['DomicilioDestino'];
-      $Direccion_mapa = ($idProveedor['ActivarCoordenadas'] == 1)
-        ? $idProveedor['Latitud'] . ',' . $idProveedor['Longitud']
+      $Direccion_mapa = (($idProveedor['ActivarCoordenadas'] ?? 0) == 1)
+        ? ($idProveedor['Latitud'] ?? '') . ',' . ($idProveedor['Longitud'] ?? '')
         : $row['DomicilioDestino'];
 
       $NombreCliente = $row['ClienteDestino'];

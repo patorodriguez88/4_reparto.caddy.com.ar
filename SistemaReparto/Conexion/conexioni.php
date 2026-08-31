@@ -74,25 +74,21 @@ class Conexion
         $password = $datos['password'] ?? '';
         $database = $datos['database'] ?? '';
         $port     = isset($datos['port']) ? intval($datos['port']) : 3306;
-        $socket   = $datos['socket'] ?? null;
+        $socket   = !empty($datos['socket']) ? $datos['socket'] : null;
 
-        if ($_SERVER['SERVER_NAME'] === 'localhost') {
-            $this->conexion = new mysqli(
-                $server,
-                $user,
-                $password,
-                $database,
-                $port,
-                $socket
-            );
+        // El socket se usa SOLO en entorno local (dev por XAMPP) cuando el
+        // config lo define. En producción el flujo es igual que siempre:
+        // conexión TCP, sin socket.
+        $sn = strtolower($_SERVER['SERVER_NAME'] ?? '');
+        $esLocal = in_array($sn, ['localhost', '127.0.0.1', '::1'], true)
+            || preg_match('/\.(local|test)$/', $sn)
+            || php_sapi_name() === 'cli'
+            || $sn === '';
+
+        if ($esLocal && $socket !== null) {
+            $this->conexion = new mysqli($server, $user, $password, $database, $port, $socket);
         } else {
-            $this->conexion = new mysqli(
-                $server,
-                $user,
-                $password,
-                $database,
-                $port
-            );
+            $this->conexion = new mysqli($server, $user, $password, $database, $port);
         }
         // ❌ Error de conexión
         if ($this->conexion->connect_error) {
@@ -107,12 +103,21 @@ class Conexion
 
     private function cargarDatosConexion(): array
     {
-        $serverName = $_SERVER['SERVER_NAME'] ?? '';
+        $serverName = strtolower($_SERVER['SERVER_NAME'] ?? '');
         $host       = strtolower($_SERVER['HTTP_HOST'] ?? '');
         $host       = preg_replace('/:\d+$/', '', $host);
         $host       = preg_replace('/^www\./', '', $host);
 
-        if ($serverName === 'localhost') {
+        // Entorno local: localhost / 127.0.0.1 / ::1 / *.local / *.test,
+        // o ejecución por CLI (tests). Usa config_local (XAMPP).
+        $esLocal = in_array($serverName, ['localhost', '127.0.0.1', '::1'], true)
+            || in_array($host, ['localhost', '127.0.0.1', '::1'], true)
+            || preg_match('/\.(local|test)$/', $serverName)
+            || preg_match('/\.(local|test)$/', $host)
+            || php_sapi_name() === 'cli'
+            || $serverName === '';
+
+        if ($esLocal) {
             $archivo = "config_local";
             define('ENTORNO', 'local');
             // } elseif ($host === 'sandbox.reparto.caddy.com.ar') {

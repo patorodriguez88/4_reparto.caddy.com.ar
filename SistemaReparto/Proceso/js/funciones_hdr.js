@@ -32,25 +32,293 @@ function doLogout() {
   });
 }
 
-function cargarCuentaHTML() {
+// ============================================================
+// MI CUENTA — resumen de rendición del repartidor.
+// Consume Proceso/php/funciones_hdr.php?CuentaResumen=1 (JSON) y
+// renderiza la pantalla #screen-cuenta. Los montos, el % de
+// desempeño y los estados salen de los mismos datos que ve el
+// operador en sistema.caddy.com.ar (Externos > Envios).
+// ============================================================
+const MC_META_DESEMPENO = 95;
+const MC_MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+const MC_TIPO = {
+  ENTREGA: { cls: "ok", txt: "Entrega" },
+  ENTREGA_CON_COBRANZA: { cls: "ok", txt: "Entrega" },
+  NO_ENTREGA: { cls: "no", txt: "No entrega" },
+  RETIRO: { cls: "", txt: "Retiro" },
+  COLECTA: { cls: "col", txt: "Colecta" },
+};
+const MC_ESTADO = {
+  revision: { cls: "rev", txt: "En revisión" },
+  controlada: { cls: "ctl", txt: "Controlada" },
+  facturada: { cls: "fac", txt: "Facturada" },
+};
+
+function mcMoney(n) {
+  const v = Math.round(Number(n) || 0);
+  return "$" + v.toLocaleString("es-AR");
+}
+function mcFechaCorta(iso) {
+  if (!iso) return "";
+  const p = String(iso).slice(0, 10).split("-");
+  if (p.length !== 3) return iso;
+  return parseInt(p[2], 10) + "." + (MC_MESES[parseInt(p[1], 10) - 1] || p[1]);
+}
+function mcEsc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+function cargarCuentaHTML(mes) {
+  const $dst = $("#mis_envios_cuenta");
+  $dst.html('<div class="mc"><div class="mc-skel"></div></div>');
+
   return $.ajax({
-    data: { MisEnviosHTML: 1 },
-    type: "POST",
     url: "Proceso/php/funciones_hdr.php",
-    dataType: "text",
-    success: function (html) {
-      $("#mis_envios_cuenta").html(html);
-    },
-    error: function (xhr) {
+    type: "POST",
+    dataType: "json",
+    data: mes ? { CuentaResumen: 1, mes: mes } : { CuentaResumen: 1 },
+  })
+    .done(function (data) {
+      if (!data || data.success !== 1) {
+        $dst.html('<div class="mc"><div class="mc-alert">' + mcEsc((data && data.error) || "No se pudo cargar tu cuenta.") + "</div></div>");
+        return;
+      }
+      mcRender($dst, data);
+    })
+    .fail(function (xhr) {
       if (xhr.status === 401) {
         cerrarSesionForzada("SESSION_EXPIRED");
         return;
       }
-      $("#mis_envios_cuenta").html(`<div class="alert alert-danger">No se pudo cargar Cuenta.</div>`);
-      console.error("CuentaHTML error:", xhr.status, xhr.responseText);
-    },
-  });
+      $dst.html('<div class="mc"><div class="mc-alert">No se pudo cargar tu cuenta. Reintentá en un rato.</div></div>');
+      console.error("CuentaResumen error:", xhr.status, xhr.responseText);
+    });
 }
+
+function mcRender($dst, data) {
+  const r = data.resumen || {};
+  const desemp = r.desempeno;
+  const ringCls = desemp == null ? "" : desemp >= MC_META_DESEMPENO ? "" : desemp >= 75 ? "warn" : "crit";
+  const dash = desemp == null ? 0 : Math.max(0, Math.min(100, desemp));
+  const delta = Number(r.delta_vs_prev) || 0;
+
+  const mesTxt = (function () {
+    const p = String(data.mes || "").split("-");
+    if (p.length !== 2) return "";
+    return (MC_MESES[parseInt(p[1], 10) - 1] || p[1]) + " " + p[0];
+  })();
+
+  let deltaHtml = "";
+  if (delta !== 0) {
+    deltaHtml =
+      '<span class="mc-delta ' +
+      (delta < 0 ? "neg" : "") +
+      '">' +
+      (delta < 0 ? "▼ " : "▲ ") +
+      mcMoney(Math.abs(delta)) +
+      " vs mes pasado</span>";
+  }
+
+  let html = '<div class="mc">';
+  html +=
+    '<div class="mc-head"><h2>Mi cuenta</h2><span class="mc-mes">' + mcEsc(mesTxt) + "</span></div>";
+
+  // hero
+  html += '<div class="mc-hero"><div class="mc-hero-row">';
+  html +=
+    '<div class="mc-earn"><div class="mc-label">A cobrar este mes</div>' +
+    '<div class="mc-amount mc-num">' + mcMoney(r.a_cobrar) + "</div>" + deltaHtml + "</div>";
+  html +=
+    '<div class="mc-ring-wrap"><svg class="mc-ring ' + ringCls + '" viewBox="0 0 96 96" role="img" aria-label="Desempeño ' +
+    (desemp == null ? "sin datos" : desemp + " por ciento") +
+    '"><circle class="bg" cx="48" cy="48" r="40"></circle>' +
+    '<circle class="fg" cx="48" cy="48" r="40" pathLength="100" stroke-dasharray="0 100"></circle>' +
+    '<text x="48" y="49" text-anchor="middle" dominant-baseline="middle" font-size="21">' +
+    (desemp == null ? "—" : desemp + "%") +
+    "</text></svg>" +
+    '<div class="mc-ring-cap">Desempeño · meta ' + MC_META_DESEMPENO + "%</div></div>";
+  html += "</div>"; // hero-row
+
+  html += '<div class="mc-split">';
+  html +=
+    '<div class="fac"><span class="k">Facturado</span><span class="v mc-num">' + mcMoney(r.facturado) +
+    '</span><span class="sub">' + (r.n_facturado || 0) + " órden" + ((r.n_facturado || 0) === 1 ? "" : "es") + "</span></div>";
+  html +=
+    '<div class="ctl"><span class="k">Controlado</span><span class="v mc-num">' + mcMoney(r.controlado) +
+    '</span><span class="sub">' + (r.n_controlado || 0) + " órden" + ((r.n_controlado || 0) === 1 ? "" : "es") + "</span></div>";
+  html +=
+    '<div class="rev"><span class="k">En revisión</span><span class="v mc-num">' + (r.n_revision || 0) +
+    '</span><span class="sub">órden' + ((r.n_revision || 0) === 1 ? "" : "es") + "</span></div>";
+  html += "</div></div>"; // split + hero
+
+  // chips
+  html += '<div class="mc-chips">';
+  html += '<div class="mc-chip good"><div class="cv mc-num">' + (r.entregas || 0) + '</div><div class="ck">Entregas</div></div>';
+  html += '<div class="mc-chip bad"><div class="cv mc-num">' + (r.no_entregas || 0) + '</div><div class="ck">No entreg.</div></div>';
+  html += '<div class="mc-chip"><div class="cv mc-num">' + (r.km || 0).toLocaleString("es-AR") + '</div><div class="ck">Km</div></div>';
+  html += "</div>";
+
+  // orders
+  const ordenes = data.ordenes || [];
+  html += '<div class="mc-sec"><h3>Tus órdenes</h3><span class="upd">' + ordenes.length + " este mes</span></div>";
+
+  if (!ordenes.length) {
+    html += '<div class="mc-empty">Todavía no tenés órdenes este mes.</div>';
+  } else {
+    // Abrimos por default la primera orden con detalle de envíos (controlada
+    // o facturada); si no hay ninguna, la primera de la lista.
+    var idxAbrir = ordenes.findIndex(function (o) {
+      return o.envios && o.envios.length;
+    });
+    if (idxAbrir < 0) idxAbrir = 0;
+    html += '<div class="mc-orders">';
+    ordenes.forEach(function (o, i) {
+      html += mcRenderOrden(o, i === idxAbrir);
+    });
+    html += "</div>";
+  }
+
+  html +=
+    '<p class="mc-foot">Los montos se confirman cuando el operador controla y factura cada orden. ' +
+    "Deslizá para actualizar.</p>";
+  html += "</div>";
+
+  $dst.html(html);
+
+  // animar el anillo
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const $fg = $dst.find(".mc-ring .fg");
+  if ($fg.length) {
+    if (reduce) {
+      $fg.attr("stroke-dasharray", dash + " 100");
+    } else {
+      setTimeout(function () {
+        $fg.attr("stroke-dasharray", dash + " 100");
+      }, 120);
+    }
+  }
+}
+
+function mcRenderOrden(o, abrir) {
+  const est = MC_ESTADO[o.estado] || MC_ESTADO.revision;
+  const ruta = o.recorrido_nombre
+    ? "R." + mcEsc(o.recorrido) + " " + mcEsc(o.recorrido_nombre)
+    : "R." + mcEsc(o.recorrido);
+  const pct = o.desempeno == null ? "—" : o.desempeno + "%";
+
+  let head = '<button class="mc-oh" aria-expanded="' + (abrir ? "true" : "false") + '">';
+  head += '<div class="mc-oh-top">';
+  head += '<span class="mc-oh-order">#' + mcEsc(o.norden) + "</span>";
+  head += '<span class="mc-oh-date">' + mcEsc(mcFechaCorta(o.fecha)) + "</span>";
+  head += '<span class="mc-oh-route">' + ruta + "</span>";
+  head +=
+    '<span class="mc-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></span>';
+  head += "</div>";
+  head += '<span class="mc-badge ' + est.cls + '">' + est.txt + "</span>";
+
+  if (o.comprobante && o.comprobante.numero) {
+    head +=
+      '<div class="mc-comp">Comprobante ' +
+      mcEsc(o.comprobante.numero) +
+      (o.comprobante.fecha ? " · " + mcEsc(mcFechaCorta(o.comprobante.fecha)) : "") +
+      "</div>";
+  }
+
+  head += '<div class="mc-oh-bot"><div class="mc-oh-stats">';
+  head += '<span class="e">' + (o.entregados || 0) + " ✓</span>";
+  head += '<span class="n">' + (o.no_entregados || 0) + " ✕</span>";
+  head += '<span class="p">' + pct + "</span></div>";
+  if (o.total_confirmado) {
+    head += '<div class="mc-oh-total mc-num">' + mcMoney(o.total) + "</div>";
+  } else {
+    head += '<div class="mc-oh-total pend">Monto a confirmar</div>';
+  }
+  head += "</div>";
+
+  if (o.ajustados > 0) {
+    head +=
+      '<span class="mc-flag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>' +
+      o.ajustados +
+      " envío" +
+      (o.ajustados === 1 ? "" : "s") +
+      " ajustado" +
+      (o.ajustados === 1 ? "" : "s") +
+      " por el operador</span>";
+  }
+  head += "</button>";
+
+  // body
+  let body = '<div class="mc-body"><div class="mc-body-inner">';
+  if (o.estado === "revision" || !o.envios || !o.envios.length) {
+    body +=
+      '<div class="mc-rev-note">El operador todavía no controló esta orden. Cuando revise las tarifas ' +
+      "vas a ver acá el detalle envío por envío y el total a cobrar.</div>";
+  } else {
+    o.envios.forEach(function (e) {
+      body += mcRenderEnvio(e);
+    });
+  }
+  const footTxt =
+    o.estado === "facturada"
+      ? "Facturada · " + (o.envios ? o.envios.length : o.entregados + o.no_entregados) + " envíos"
+      : o.estado === "controlada"
+        ? "Controlada · pendiente de facturar"
+        : "Entregada · " + (o.entregados + o.no_entregados) + " envíos";
+  body +=
+    '<div class="mc-order-foot"><span>' +
+    mcEsc(footTxt) +
+    "</span><b>" +
+    (o.total_confirmado ? mcMoney(o.total) : "—") +
+    "</b></div>";
+  body += "</div></div>";
+
+  return '<div class="mc-order' + (abrir ? " open" : "") + '">' + head + body + "</div>";
+}
+
+function mcRenderEnvio(e) {
+  const t = MC_TIPO[e.tipo] || MC_TIPO.ENTREGA;
+  let h = '<div class="mc-env">';
+  h +=
+    '<div class="mc-env-top"><span class="mc-env-code">' +
+    mcEsc(e.codigo) +
+    '</span><span class="mc-env-amt mc-num">' +
+    mcMoney(e.total) +
+    "</span></div>";
+  if (e.destino || e.domicilio) {
+    h +=
+      '<div class="mc-env-dest">' +
+      mcEsc([e.destino, e.domicilio].filter(Boolean).join(" · ")) +
+      "</div>";
+  }
+  h += '<div class="mc-env-tags"><span class="mc-tag ' + t.cls + '">' + t.txt + "</span>";
+  if (e.tipo === "ENTREGA_CON_COBRANZA") h += '<span class="mc-tag cob">+ cobranza</span>';
+  h += '<span class="mc-tag">' + mcEsc(e.tarifa) + "</span>";
+  if (e.km > 0) h += '<span class="mc-tag">' + e.km + " km</span>";
+  h += "</div>";
+  if (e.cobranza > 0) {
+    h += '<div class="mc-env-break">' + mcMoney(e.precio) + " tarifa + " + mcMoney(e.cobranza) + " cobranza</div>";
+  }
+  if (e.ajustado) {
+    h +=
+      '<div class="mc-env-adj">Ajustado: <s>' +
+      mcMoney(e.precio_anterior) +
+      "</s> → " +
+      mcMoney(e.precio) +
+      (e.obs ? ' · «' + mcEsc(e.obs) + "»" : "") +
+      "</div>";
+  }
+  h += "</div>";
+  return h;
+}
+
+// Acordeón de órdenes (delegado)
+$(document).on("click", ".mc-order .mc-oh", function () {
+  const $o = $(this).closest(".mc-order");
+  const open = $o.toggleClass("open").hasClass("open");
+  $(this).attr("aria-expanded", open ? "true" : "false");
+});
 (function () {
   const screenMap = {
     operacion: "#screen-operacion",
@@ -481,7 +749,11 @@ function initApp() {
       // ✅ Hay sesión -> arrancamos
       if (jsonData && jsonData.success == 1) {
         showBottomnav();
-        $("#screen-operacion,#navbar,#topnav").show();
+        // OJO: no forzar #screen-operacion acá. initApp() resuelve async y si
+        // el usuario cargó/recargó la app en #cuenta o #totales, mostrar
+        // Operación además de esa screen deja "todo visible a la vez".
+        // La visibilidad de las .app-screen la maneja showScreen() (abajo).
+        $("#navbar,#topnav").show();
         $("#login").hide();
 
         $("#app-footer").removeClass("d-none");
@@ -510,7 +782,22 @@ function initApp() {
         if (window.AppStatus) {
           AppStatus.postStatus({ stage: "session_ok" });
         }
-        paneles(null, false); // ✅ recién ahora
+
+        // La app siempre arranca en Recorrido. showScreen() deja UNA sola
+        // .app-screen visible y con .active (evita el "se ve todo junto"
+        // cuando initApp resuelve después de que el usuario tocó una tab).
+        if (location.hash && location.hash !== "#operacion") {
+          location.hash = "operacion";
+        }
+        if (typeof window.showScreen === "function") {
+          window.showScreen("operacion");
+        } else {
+          $(".app-screen").removeClass("active").hide();
+          $("#screen-operacion").addClass("active").show();
+          $("#hdractivas").show();
+        }
+
+        paneles(null, false); // ✅ recién ahora (paneles() ya chequea que operacion este .active)
         asegurarMenuWarehouse(); // ✅ recién ahora
       } else {
         hideBottomnav();
@@ -1194,7 +1481,21 @@ function actualizarRelojEnRuta() {
     hour12: false,
   });
   const duracionTxt = formatearDuracion(Date.now() - horaSalidaRealActual.getTime());
-  $("#en-ruta-texto").text(`En ruta desde ${horaTxt} - ${duracionTxt} hs`);
+  $("#en-ruta-texto").text(`En ruta desde ${horaTxt} · ${duracionTxt}`);
+}
+
+// Estado "detenido" del banner (recorrido todavía no iniciado):
+// icono de stop + hora actual + contador en 00:00:00.
+function pintarBannerDetenido() {
+  const ahora = new Date().toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  $("#en-ruta-icon").attr("class", "mdi mdi-stop-circle-outline text-danger");
+  $("#en-ruta-texto").text(`${ahora} · 00:00:00`);
+  $("#btn-parar-ruta").hide();
+  $("#banner-en-ruta").show();
 }
 
 // Banner "Iniciar Recorrido" / "En ruta desde..." + card resumen
@@ -1206,6 +1507,8 @@ function pintarEstadoRecorrido(jsonData) {
     $("#btn-iniciar-recorrido").hide();
     const fecha = new Date(jsonData.HoraSalidaReal.replace(" ", "T"));
     horaSalidaRealActual = isNaN(fecha.getTime()) ? null : fecha;
+    $("#en-ruta-icon").attr("class", "mdi mdi-check-circle text-success");
+    $("#btn-parar-ruta").show();
     actualizarRelojEnRuta();
     if (!relojEnRutaIniciado) {
       relojEnRutaIniciado = true;
@@ -1214,7 +1517,9 @@ function pintarEstadoRecorrido(jsonData) {
     $("#banner-en-ruta").show();
   } else {
     horaSalidaRealActual = null;
-    $("#banner-en-ruta").hide();
+    // Recorrido no iniciado: banner "detenido" (stop + hora actual + 00:00:00)
+    // junto al botón de arrancar.
+    pintarBannerDetenido();
     // Sólo tiene sentido ofrecer arrancar el recorrido si hay algo
     // pendiente - si ya está todo entregado, no mostramos el botón.
     if ((jsonData.Abiertos || 0) > 0) {
@@ -1461,16 +1766,26 @@ $(document).on("click", "#ingreso", function (e) {
         showBottomnav();
         $("#login").hide();
         $("#app-footer").removeClass("d-none");
-        // $("#hdr,#navbar,#topnav").show();
-        $("#screen-operacion,#navbar,#topnav").show();
+        $("#navbar,#topnav").show();
         $("body").removeClass("login-lock");
-        $("#hdractivas").show();
         $("#mis_envios").hide();
         $("#card-envio").hide();
         // 🔓 habilitar scroll (mobile fix)
         document.body.classList.remove("loading");
         document.body.style.overflowY = "auto";
         document.body.style.webkitOverflowScrolling = "touch";
+
+        // Un login siempre arranca en Recorrido, sin importar el hash que
+        // haya quedado de una sesión anterior en esta pestaña.
+        if (typeof window.showScreen === "function") {
+          window.showScreen("operacion");
+        } else {
+          $("#screen-operacion").addClass("active").show();
+          $("#hdractivas").show();
+        }
+        if (location.hash && location.hash !== "#operacion") {
+          location.hash = "operacion";
+        }
 
         cargarHeader().done(() => {
           paneles(null, false);
