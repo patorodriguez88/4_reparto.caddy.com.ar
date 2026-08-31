@@ -2,11 +2,46 @@
 
 declare(strict_types=1);
 
+// Este endpoint SIEMPRE tiene que responder JSON. Si PHP imprime un
+// Warning/Notice/Deprecated en el body (o una página de error HTML), el
+// front lo recibe como "El servidor devolvió HTML/Warning y no JSON".
+// Por eso: nunca mostrar errores en pantalla, sí loguearlos al error_log,
+// y bufferear toda la salida para poder tirarla si algo se ensucia.
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
 
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 header('Content-Type: application/json; charset=utf-8');
+
+ob_start();
+
+// Cualquier warning/notice se loguea pero NO se imprime (ya está en '0',
+// esto es por si algún include lo vuelve a prender).
+set_error_handler(function ($severity, $message, $file, $line) {
+    error_log("admision.php warning: $message en $file:$line");
+    return true; // no seguir con el handler interno (no imprime)
+});
+
+// Fatal que igual mate el script -> devolvemos JSON, no la pantalla blanca/HTML.
+register_shutdown_function(function () {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        if (ob_get_length() !== false) {
+            ob_end_clean();
+        }
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode([
+            'success'  => 0,
+            'error'    => 'Error interno en admisión',
+            'error_id' => date('YmdHis') . '-fatal',
+        ], JSON_UNESCAPED_UNICODE);
+        error_log("admision.php FATAL: {$e['message']} en {$e['file']}:{$e['line']}");
+    }
+});
 
 define('ALLOW_NO_SESSION', true);
 
@@ -18,6 +53,9 @@ require_once __DIR__ . "/conexioni.php";
 
 if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
     http_response_code(500);
+    if (ob_get_length() !== false) {
+        ob_clean();
+    }
     echo json_encode([
         "success" => 0,
         "error"   => "No se pudo inicializar mysqli. Revisar conexioni.php"
@@ -31,23 +69,50 @@ if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
  */
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+/**
+ * Emite JSON y corta. Antes de imprimir tira cualquier basura que se haya
+ * colado en el buffer (warnings, whitespace de algún include, etc.) para
+ * que el body sea SOLO el JSON.
+ */
+function jsonSend(array $payload, int $http = 200): void
+{
+    if (!headers_sent()) {
+        http_response_code($http);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    if (ob_get_length() !== false) {
+        ob_clean();
+    }
+
+    // JSON_INVALID_UTF8_SUBSTITUTE: si algún campo de la DB viene en Latin-1
+    // o con bytes rotos, json_encode NO devuelve false (devolvía body vacío).
+    $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($json === false) {
+        error_log('admision.php json_encode fallo: ' . json_last_error_msg());
+        $json = json_encode([
+            'success'  => 0,
+            'error'    => 'No se pudo serializar la respuesta',
+            'error_id' => date('YmdHis') . '-jsonerr',
+        ], JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+    }
+    echo $json;
+    exit;
+}
+
 function jsonOk(array $data): void
 {
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
-    exit;
+    jsonSend($data, 200);
 }
 
 function jsonFail(string $msg, array $extra = [], int $http = 200): void
 {
-    http_response_code($http);
     $payload = array_merge([
         'success'  => 0,
         'error'    => $msg,
         'error_id' => date('YmdHis') . '-' . substr(bin2hex(random_bytes(4)), 0, 8),
     ], $extra);
 
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
-    exit;
+    jsonSend($payload, $http);
 }
 
 try {
@@ -153,11 +218,6 @@ try {
     // -----------------------
     $recorridoAsignado = '';
     $numeroOrden = '';
-    // DEBUG: confirmar el id que se usa para buscar Logistica
-    $debug = [
-        'login_idUsuario' => $idUsuario,
-        'login_usuario'   => $row['Usuario'] ?? '',
-    ];
     try {
         $stmtLog = $mysqli->prepare("SELECT Recorrido, NumerodeOrden
             FROM Logistica
@@ -175,30 +235,10 @@ try {
         $recorridoAsignado = $dato['Recorrido'] ?? '';
         $numeroOrden       = $dato['NumerodeOrden'] ?? '';
     } catch (Throwable $e) {
+        error_log('admision.php Logistica: ' . $e->getMessage());
         $recorridoAsignado = '';
         $numeroOrden = '';
     }
-    $dbRow = $mysqli->query("SELECT DATABASE() AS db, @@hostname AS host, @@port AS port")->fetch_assoc();
-
-    $debug['db'] = $dbRow;
-    $debug['mysqli_host_info'] = $mysqli->host_info;
-
-    // DEBUG: ver si existe la fila con un SELECT relajado
-    $test = $mysqli->prepare("
-  SELECT id, idUsuarioChofer, Estado, Eliminado, Recorrido, NumerodeOrden
-  FROM Logistica
-  WHERE idUsuarioChofer = ?
-  ORDER BY id DESC
-  LIMIT 5
-");
-    $test->bind_param("i", $idUsuario);
-    $test->execute();
-    $rtest = $test->get_result();
-    $rowsTest = [];
-    while ($x = $rtest->fetch_assoc()) $rowsTest[] = $x;
-    $test->close();
-    $debug['logistica_rows_para_ese_id'] = $rowsTest;
-
 
     // -----------------------
     // SESIÓN
@@ -247,14 +287,15 @@ try {
         'recorrido' => $recorridoAsignado,
         'norden'    => $numeroOrden,
         'usuario'   => $nombreCompleto,
-        'debug'     => $debug
     ]);
 } catch (Throwable $e) {
-    // ✅ Si algo explota, devolvemos JSON y no HTML
-    jsonFail("Error en admisión", [
-        'where'   => 'catch-all',
-        'detail'  => $e->getMessage(),
-        'file'    => basename($e->getFile()),
-        'line'    => $e->getLine(),
-    ], 500);
+    // ✅ Si algo explota, devolvemos JSON y no HTML. El detalle va al
+    // error_log del servidor, NO al front (no filtrar rutas/SQL al cliente).
+    error_log(sprintf(
+        'admision.php catch-all: %s en %s:%d',
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine()
+    ));
+    jsonFail("Error en admisión", ['where' => 'catch-all'], 500);
 }
