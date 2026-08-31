@@ -201,21 +201,33 @@ if (isset($_POST['CuentaResumen'])) {
     $ordenesRaw = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
+    // Algunos entornos (copias/sandbox) no tienen la tabla Externos_tarifas.
+    // Si falta, resolvemos el nombre de la tarifa con $tarifaFallback y no
+    // hacemos el JOIN (así el endpoint no revienta).
+    $hayTarifas = false;
+    try {
+      $chkT = $mysqli->query("SHOW TABLES LIKE 'Externos_tarifas'");
+      $hayTarifas = ($chkT && $chkT->num_rows > 0);
+    } catch (Throwable $e) {
+      $hayTarifas = false;
+    }
+
     // Statement reutilizable para el detalle de envíos de cada orden.
-    $stmtDet = $mysqli->prepare("
+    $sqlDet = "
       SELECT er.CodigoSeguimiento, er.PrecioPagado, er.CobranzaIntegrada,
              er.idExternos_tarifas, er.Rendido, er.PrecioAnterior,
              er.TarifaAnteriorId, er.Observaciones, er.Kilometros,
-             et.Nombre AS NombreTarifa,
+             " . ($hayTarifas ? "et.Nombre" : "NULL") . " AS NombreTarifa,
              tc.Entregado, tc.Retirado, tc.idClienteDestino,
              tc.ClienteDestino, tc.LocalidadDestino, tc.DomicilioDestino
       FROM Externos_rendicion er
-      LEFT JOIN Externos_tarifas et ON et.id = er.idExternos_tarifas
+      " . ($hayTarifas ? "LEFT JOIN Externos_tarifas et ON et.id = er.idExternos_tarifas" : "") . "
       LEFT JOIN TransClientes tc
         ON tc.CodigoSeguimiento = er.CodigoSeguimiento AND tc.Eliminado = 0
       WHERE er.idRendicion = ?
       ORDER BY er.id ASC
-    ");
+    ";
+    $stmtDet = $mysqli->prepare($sqlDet);
 
     $stmtComp = $mysqli->prepare("
       SELECT MAX(NumeroComprobante) AS NumeroComprobante,
