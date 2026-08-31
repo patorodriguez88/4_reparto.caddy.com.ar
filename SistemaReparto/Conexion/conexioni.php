@@ -62,6 +62,38 @@ function redirigirAlLogin($motivo = 'sesion')
     exit;
 }
 
+/**
+ * ¿Estamos corriendo en un entorno de desarrollo local?
+ * true para: localhost / 127.0.0.1 / ::1, hostnames *.local / *.test
+ * (Bonjour), IPs de LAN privada (para abrir la PWA desde el celular en la
+ * misma red) y ejecución por CLI. Producción y sandbox (*.caddy.com.ar)
+ * siempre devuelven false.
+ */
+function esEntornoLocalCaddy(): bool
+{
+    $sn   = strtolower($_SERVER['SERVER_NAME'] ?? '');
+    $host = strtolower(preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''));
+
+    // Producción / sandbox: nunca local.
+    if (preg_match('/caddy\.com\.ar$/', $sn) || preg_match('/caddy\.com\.ar$/', $host)) {
+        return false;
+    }
+    if (php_sapi_name() === 'cli') {
+        return true;
+    }
+    foreach ([$sn, $host] as $h) {
+        if ($h === '') continue;
+        if (in_array($h, ['localhost', '127.0.0.1', '::1'], true)) return true;
+        if (preg_match('/\.(local|test|lan)$/', $h)) return true;
+        // Rangos IPv4 privados (RFC 1918) - probar desde el teléfono en la LAN.
+        if (preg_match('/^127\./', $h)) return true;
+        if (preg_match('/^10\./', $h)) return true;
+        if (preg_match('/^192\.168\./', $h)) return true;
+        if (preg_match('/^172\.(1[6-9]|2[0-9]|3[01])\./', $h)) return true;
+    }
+    return ($sn === '' && $host === '');
+}
+
 class Conexion
 {
     private $conexion;
@@ -79,13 +111,7 @@ class Conexion
         // El socket se usa SOLO en entorno local (dev por XAMPP) cuando el
         // config lo define. En producción el flujo es igual que siempre:
         // conexión TCP, sin socket.
-        $sn = strtolower($_SERVER['SERVER_NAME'] ?? '');
-        $esLocal = in_array($sn, ['localhost', '127.0.0.1', '::1'], true)
-            || preg_match('/\.(local|test)$/', $sn)
-            || php_sapi_name() === 'cli'
-            || $sn === '';
-
-        if ($esLocal && $socket !== null) {
+        if (esEntornoLocalCaddy() && $socket !== null) {
             $this->conexion = new mysqli($server, $user, $password, $database, $port, $socket);
         } else {
             $this->conexion = new mysqli($server, $user, $password, $database, $port);
@@ -103,21 +129,11 @@ class Conexion
 
     private function cargarDatosConexion(): array
     {
-        $serverName = strtolower($_SERVER['SERVER_NAME'] ?? '');
-        $host       = strtolower($_SERVER['HTTP_HOST'] ?? '');
-        $host       = preg_replace('/:\d+$/', '', $host);
-        $host       = preg_replace('/^www\./', '', $host);
+        $host = strtolower($_SERVER['HTTP_HOST'] ?? '');
+        $host = preg_replace('/:\d+$/', '', $host);
+        $host = preg_replace('/^www\./', '', $host);
 
-        // Entorno local: localhost / 127.0.0.1 / ::1 / *.local / *.test,
-        // o ejecución por CLI (tests). Usa config_local (XAMPP).
-        $esLocal = in_array($serverName, ['localhost', '127.0.0.1', '::1'], true)
-            || in_array($host, ['localhost', '127.0.0.1', '::1'], true)
-            || preg_match('/\.(local|test)$/', $serverName)
-            || preg_match('/\.(local|test)$/', $host)
-            || php_sapi_name() === 'cli'
-            || $serverName === '';
-
-        if ($esLocal) {
+        if (esEntornoLocalCaddy()) {
             $archivo = "config_local";
             define('ENTORNO', 'local');
             // } elseif ($host === 'sandbox.reparto.caddy.com.ar') {
