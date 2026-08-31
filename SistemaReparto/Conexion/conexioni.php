@@ -30,15 +30,30 @@ function destruirSesionSegura()
     }
 }
 
-function redirigirAlLogin()
+function redirigirAlLogin($motivo = 'sesion')
 {
-    // Si es AJAX → 401
+    // Queda en el error_log del servidor para saber POR QUÉ se cortó
+    // (config-missing / config-invalid / db-connect / sesion / sesion-expirada).
+    error_log('conexioni.php redirigirAlLogin: ' . $motivo . ' - ' . ($_SERVER['REQUEST_URI'] ?? ''));
+
+    // Si es AJAX → 401 con cuerpo JSON (antes iba vacío y el front lo veía
+    // como "El servidor devolvió HTML/Warning y no JSON").
     if (
         !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
         strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
     ) {
-        header('X-Session-Expired: 1');
-        http_response_code(401);
+        if (!headers_sent()) {
+            header('X-Session-Expired: 1');
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(401);
+        }
+        echo json_encode([
+            'success' => 0,
+            'error'   => ($motivo === 'sesion' || $motivo === 'sesion-expirada')
+                ? 'Sesión no válida. Volvé a ingresar.'
+                : 'No se pudo conectar con la base (' . $motivo . '). Avisá a soporte.',
+            'motivo'  => $motivo,
+        ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -81,8 +96,9 @@ class Conexion
         }
         // ❌ Error de conexión
         if ($this->conexion->connect_error) {
+            error_log('conexioni.php DB connect_error: ' . $this->conexion->connect_error . ' (server=' . $server . ' db=' . $database . ')');
             destruirSesionSegura();
-            redirigirAlLogin();
+            redirigirAlLogin('db-connect');
         }
 
         $this->conexion->set_charset("utf8");
@@ -111,16 +127,18 @@ class Conexion
         $path = __DIR__ . "/" . $archivo;
 
         if (!file_exists($path)) {
+            error_log('conexioni.php config FALTA: ' . $path);
             destruirSesionSegura();
-            redirigirAlLogin();
+            redirigirAlLogin('config-missing');
         }
 
         $json  = file_get_contents($path);
         $datos = json_decode($json, true);
 
         if (!$datos || !isset($datos[0])) {
+            error_log('conexioni.php config INVÁLIDO (json_decode): ' . $path . ' - ' . json_last_error_msg());
             destruirSesionSegura();
-            redirigirAlLogin();
+            redirigirAlLogin('config-invalid');
         }
 
         return $datos[0];
@@ -152,13 +170,13 @@ if (!defined('ALLOW_NO_SESSION') || ALLOW_NO_SESSION !== true) {
         // Expiración por inactividad
         if (isset($_SESSION['tiempo']) && (time() - $_SESSION['tiempo']) > $tiempoMaximo) {
             destruirSesionSegura();
-            redirigirAlLogin();
+            redirigirAlLogin('sesion-expirada');
         }
 
         // Sin sesión válida
         if (empty($_SESSION['Usuario'])) {
             destruirSesionSegura();
-            redirigirAlLogin();
+            redirigirAlLogin('sesion');
         }
 
         // Sesión OK → refresco tiempo
