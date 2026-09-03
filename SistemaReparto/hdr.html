@@ -25,7 +25,10 @@
     <!-- Dropzone -->
     <link href="../hyper/dist/saas/assets/css/vendor/dropzone.css" rel="stylesheet" />
     <!-- Custom -->
-    <link href="css/hdr.css" rel="stylesheet" type="text/css" />
+    <!-- ?v=YYYYMMDD: el proxy/cache (nginx) del hosting ignora el no-cache del
+         .htaccess para js/css y sirve la version vieja despues de deployar.
+         Bumpear la fecha en cada cambio de hdr.css / funciones_hdr.js. -->
+    <link href="css/hdr.css?v=20260903" rel="stylesheet" type="text/css" />
   </head>
 
   <body class="loading" data-layout="topnav">
@@ -583,13 +586,15 @@
     <script src="../hyper/dist/saas/assets/js/vendor/dropzone.min.js"></script>
     <script src="../hyper/dist/saas/assets/js/ui/component.fileupload.js"></script>
 
-    <script src="pwa/js/pwa.js"></script>
-    <script src="Proceso/js/funciones_hdr.js"></script>
-    <script src="Proceso/js/mail.js"></script>
-    <script src="Proceso/js/dropzone.js"></script>
-    <script src="Proceso/js/colecta_scan.js"></script>
-    <script src="Proceso/js/app_status.js"></script>
-    <script src="Proceso/js/geo_tracker.js"></script>
-    <script src="Proceso/js/mapa_recorrido.js"></script>
+    <!-- ?v=YYYYMMDD: ver comentario en el <link> de hdr.css. Bumpear al tocar
+         cualquiera de estos JS para saltear la cache vieja del proxy. -->
+    <script src="pwa/js/pwa.js?v=20260903"></script>
+    <script src="Proceso/js/funciones_hdr.js?v=20260903"></script>
+    <script src="Proceso/js/mail.js?v=20260903"></script>
+    <script src="Proceso/js/dropzone.js?v=20260903"></script>
+    <script src="Proceso/js/colecta_scan.js?v=20260903"></script>
+    <script src="Proceso/js/app_status.js?v=20260903"></script>
+    <script src="Proceso/js/geo_tracker.js?v=20260903"></script>
+    <script src="Proceso/js/mapa_recorrido.js?v=20260903"></script>
   </body>
 </html>
