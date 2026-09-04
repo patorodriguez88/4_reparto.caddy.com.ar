@@ -28,7 +28,11 @@
     <!-- ?v=YYYYMMDD: el proxy/cache (nginx) del hosting ignora el no-cache del
          .htaccess para js/css y sirve la version vieja despues de deployar.
          Bumpear la fecha en cada cambio de hdr.css / funciones_hdr.js. -->
-    <link href="css/hdr.css?v=20260903" rel="stylesheet" type="text/css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="css/hdr.css?v=20260904" rel="stylesheet" type="text/css" />
+    <link href="css/reparto-ui.css?v=20260904" rel="stylesheet" type="text/css" />
   </head>
 
   <body class="loading" data-layout="topnav">
@@ -589,7 +593,7 @@
     <!-- ?v=YYYYMMDD: ver comentario en el <link> de hdr.css. Bumpear al tocar
          cualquiera de estos JS para saltear la cache vieja del proxy. -->
     <script src="pwa/js/pwa.js?v=20260903"></script>
-    <script src="Proceso/js/funciones_hdr.js?v=20260903"></script>
+    <script src="Proceso/js/funciones_hdr.js?v=20260904"></script>
     <script src="Proceso/js/mail.js?v=20260903"></script>
     <script src="Proceso/js/dropzone.js?v=20260903"></script>
     <script src="Proceso/js/colecta_scan.js?v=20260903"></script>

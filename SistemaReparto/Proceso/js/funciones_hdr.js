@@ -866,19 +866,8 @@ $("#btn-search").click(function () {
 });
 function renderPanelesSkeleton() {
   return `
-    <div class="col-12">
-      <div class="card mb-2">
-        <div class="card-body">
-          <div class="skeleton sk-title" style="width:60%"></div>
-          <div class="skeleton sk-line" style="width:85%"></div>
-          <div class="skeleton sk-line" style="width:70%"></div>
-          <div class="d-flex gap-2 mt-3">
-            <div class="skeleton sk-btn" style="width:33%"></div>
-            <div class="skeleton sk-btn" style="width:33%"></div>
-            <div class="skeleton sk-btn" style="width:33%"></div>
-          </div>
-        </div>
-      </div>
+    <div class="col-12 rp">
+      <div class="rp-skel" style="margin-bottom:12px"></div>
     </div>
   `;
 }
@@ -927,15 +916,12 @@ function paneles(a, refrescarTotales = false) {
         $("#hdractivas")
           .html(
             `
-            <div class="empty-state text-center p-4">
-              <div class="mb-3">
-                <i class="mdi mdi-car-wrench mdi-48px text-muted"></i>
-              </div>
-              <h4 class="text-muted mb-2">Sin envíos por ahora</h4>
-              <p class="text-muted">
+            <div class="col-12 rp">
+              <div class="rp-empty">
+                <span class="rp-empty-t">Sin envíos por ahora</span>
                 Todavía no tenés paquetes para retirar ni entregar.<br>
-                Cuando se asignen, van a aparecer automáticamente acá.
-              </p>
+                Cuando se asignen, aparecen automáticamente acá.
+              </div>
             </div>
           `,
           )

@@ -1,0 +1,370 @@
+/* =============================================================
+   reparto-ui.css  -  sistema visual unificado de la app de reparto
+   Deriva de las clases .mc-* de Mi Cuenta (hdr.css). Prefijo .rp-*
+   para no chocar con Bootstrap/Hyper ni con .mc-*.
+   ============================================================= */
+
+:root {
+  --rp-surface: #ffffff;
+  --rp-surface-2: #fbf7f5;
+  --rp-surface-3: #f4ede9;
+  --rp-ink: #2a2230;
+  --rp-soft: #6c6070;
+  --rp-mute: #9a8f98;
+  --rp-line: #ece2dd;
+  --rp-rust: #e24f30;
+  --rp-rust-ink: #ffffff;
+  --rp-ok: #1c8f61;
+  --rp-ok-bg: #e4f2ea;
+  --rp-warn: #b97d16;
+  --rp-warn-bg: #f6ecd7;
+  --rp-crit: #c5402f;
+  --rp-crit-bg: #f7e5e1;
+  --rp-info: #326a95;
+  --rp-info-bg: #e2ecf3;
+  --rp-shadow: 0 1px 2px rgba(42, 34, 48, 0.06), 0 8px 22px -12px rgba(42, 34, 48, 0.16);
+  --rp-font: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rp-surface: #221c26;
+    --rp-surface-2: #1c171f;
+    --rp-surface-3: #2a222e;
+    --rp-ink: #f0eaee;
+    --rp-soft: #b6aab3;
+    --rp-mute: #897e8f;
+    --rp-line: #332b38;
+    --rp-rust: #f26a4d;
+    --rp-rust-ink: #1a1016;
+    --rp-ok: #34b382;
+    --rp-ok-bg: #16302a;
+    --rp-warn: #d9a03f;
+    --rp-warn-bg: #322815;
+    --rp-crit: #e06052;
+    --rp-crit-bg: #34211f;
+    --rp-info: #5a95c2;
+    --rp-info-bg: #172a37;
+    --rp-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 24px -14px rgba(0, 0, 0, 0.6);
+  }
+}
+:root[data-theme="dark"] {
+  --rp-surface: #221c26;
+  --rp-surface-2: #1c171f;
+  --rp-surface-3: #2a222e;
+  --rp-ink: #f0eaee;
+  --rp-soft: #b6aab3;
+  --rp-mute: #897e8f;
+  --rp-line: #332b38;
+  --rp-rust: #f26a4d;
+  --rp-rust-ink: #1a1016;
+  --rp-ok: #34b382;
+  --rp-ok-bg: #16302a;
+  --rp-warn: #d9a03f;
+  --rp-warn-bg: #322815;
+  --rp-crit: #e06052;
+  --rp-crit-bg: #34211f;
+  --rp-info: #5a95c2;
+  --rp-info-bg: #172a37;
+  --rp-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 24px -14px rgba(0, 0, 0, 0.6);
+}
+
+.rp { font-family: var(--rp-font); color: var(--rp-ink); }
+.rp *, .rp *::before, .rp *::after { box-sizing: border-box; }
+.rp-num { font-variant-numeric: tabular-nums; }
+
+/* ---- section head ---- */
+.rp-sechead {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin: 4px 4px 10px;
+}
+.rp-sechead h3 {
+  margin: 0; font-size: 13px; font-weight: 900;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--rp-ink);
+}
+.rp-sechead .rp-upd { font-size: 11px; font-weight: 700; color: var(--rp-mute); }
+
+/* ---- banner "en ruta" ---- */
+.rp-banner {
+  background: var(--rp-surface);
+  border: 1px solid var(--rp-line);
+  border-radius: 14px;
+  padding: 11px 13px;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: var(--rp-shadow);
+  margin-bottom: 14px;
+}
+.rp-banner .rp-banner-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--rp-ok-bg); color: var(--rp-ok);
+  display: grid; place-items: center; flex-shrink: 0;
+  font-weight: 900; font-size: 13px;
+}
+.rp-banner.stopped .rp-banner-dot { background: var(--rp-crit-bg); color: var(--rp-crit); }
+.rp-banner .rp-banner-txt { flex: 1; min-width: 0; }
+.rp-banner .rp-banner-k {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--rp-mute);
+}
+.rp-banner .rp-banner-v { font-size: 13px; font-weight: 800; display: block; }
+
+/* ---- progreso del recorrido ---- */
+.rp-progress {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  background: var(--rp-surface);
+  border: 1px solid var(--rp-line);
+  border-radius: 16px;
+  padding: 13px;
+  box-shadow: var(--rp-shadow);
+  margin-bottom: 16px;
+}
+.rp-progress > div { display: flex; flex-direction: column; gap: 3px; }
+.rp-progress .rp-k {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--rp-mute);
+}
+.rp-progress .rp-k::before { content: ""; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.rp-progress .done .rp-k::before { background: var(--rp-ok); }
+.rp-progress .pend .rp-k::before { background: var(--rp-warn); }
+.rp-progress .km .rp-k::before { background: var(--rp-info); }
+.rp-progress .rp-v { font-size: 17px; font-weight: 900; letter-spacing: -0.02em; }
+
+/* ---- tarjeta de parada ---- */
+.rp-stops { display: flex; flex-direction: column; gap: 12px; }
+.rp-stop {
+  background: var(--rp-surface);
+  border: 1px solid var(--rp-line);
+  border-radius: 18px;
+  box-shadow: var(--rp-shadow);
+  overflow: hidden;
+}
+.rp-stop.next { border-color: color-mix(in srgb, var(--rp-rust) 55%, var(--rp-line)); }
+.rp-stop-main { padding: 13px 14px 12px; }
+.rp-stop-top { display: flex; align-items: center; gap: 8px; }
+.rp-seq {
+  width: 26px; height: 26px; border-radius: 9px;
+  background: var(--rp-surface-3); color: var(--rp-soft);
+  font-size: 13px; font-weight: 900;
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.rp-stop.next .rp-seq { background: var(--rp-rust); color: var(--rp-rust-ink); }
+.rp-svc {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em;
+  text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.rp-svc::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.rp-svc.entrega { color: var(--rp-ok); background: var(--rp-ok-bg); }
+.rp-svc.retiro { color: var(--rp-warn); background: var(--rp-warn-bg); }
+.rp-svc.colecta { color: var(--rp-rust); background: color-mix(in srgb, var(--rp-rust) 14%, transparent); }
+.rp-stop-client {
+  margin-left: auto; font-size: 12px; font-weight: 800;
+  color: var(--rp-ink); text-align: right;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 45%;
+}
+.rp-stop-org { font-size: 11px; font-weight: 700; color: var(--rp-mute); margin: 8px 0 0; }
+.rp-stop-addr {
+  font-size: 13px; font-weight: 700; color: var(--rp-soft);
+  line-height: 1.4; margin: 4px 0 0;
+  display: flex; gap: 6px;
+}
+.rp-stop-addr .rp-pin { flex-shrink: 0; margin-top: 2px; color: var(--rp-mute); }
+.rp-stop-obs { font-size: 11.5px; font-weight: 600; color: var(--rp-mute); margin: 6px 0 0; line-height: 1.45; }
+.rp-stop-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.rp-chip {
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 3px 8px; border-radius: 7px;
+  background: var(--rp-surface-3); color: var(--rp-soft);
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.rp-chip.eta { background: var(--rp-info-bg); color: var(--rp-info); }
+.rp-chip.eta.muted { opacity: 0.65; }
+.rp-chip.cobranza { background: var(--rp-warn-bg); color: var(--rp-warn); }
+
+.rp-stop-contact {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 11px; padding-top: 11px;
+  border-top: 1px solid var(--rp-line);
+  font-size: 12.5px; font-weight: 800; color: var(--rp-soft);
+}
+.rp-stop-contact .rp-tel { display: inline-flex; align-items: center; gap: 6px; }
+.rp-stop-contact .rp-tel svg { color: var(--rp-mute); flex-shrink: 0; }
+.rp-stop-contact .rp-btn.wa { padding: 7px 14px; }
+
+.rp-stop-actions {
+  display: grid;
+  grid-template-columns: 44px 1fr 1.25fr;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--rp-line);
+  background: var(--rp-surface-2);
+}
+.rp-btn {
+  -webkit-appearance: none; appearance: none;
+  border: 0; margin: 0;
+  font-family: var(--rp-font);
+  text-decoration: none; text-align: center;
+  font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
+  padding: 10px 8px; border-radius: 11px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.rp-btn:focus-visible { outline: 2px solid var(--rp-rust); outline-offset: 2px; }
+.rp-btn.no { background: var(--rp-crit-bg); color: var(--rp-crit); }
+.rp-btn.map { background: var(--rp-surface); border: 1px solid var(--rp-line); color: var(--rp-soft); }
+.rp-btn.primary { background: var(--rp-rust); color: var(--rp-rust-ink); }
+.rp-btn.icon { padding: 10px 0; }
+.rp-btn.wa { background: var(--rp-ok-bg); color: var(--rp-ok); }
+
+/* ---- warehouse: hero de carga ---- */
+.rp-wh-hero {
+  background: var(--rp-surface);
+  border: 1px solid var(--rp-line);
+  border-radius: 18px;
+  padding: 15px;
+  box-shadow: var(--rp-shadow);
+  margin-bottom: 14px;
+}
+.rp-wh-hero-top {
+  display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px;
+}
+.rp-wh-hero-top .rp-k {
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--rp-mute);
+}
+.rp-wh-hero-top .rp-r { font-size: 13px; font-weight: 900; }
+.rp-wh-count { display: flex; align-items: baseline; gap: 8px; }
+.rp-wh-count .rp-big { font-size: 40px; font-weight: 900; letter-spacing: -0.03em; line-height: 1; }
+.rp-wh-count .rp-of { font-size: 16px; font-weight: 800; color: var(--rp-mute); }
+.rp-wh-count .rp-lbl {
+  margin-left: auto; align-self: center;
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 4px 10px; border-radius: 999px;
+  color: var(--rp-warn); background: var(--rp-warn-bg);
+}
+.rp-wh-count .rp-lbl.done { color: var(--rp-ok); background: var(--rp-ok-bg); }
+.rp-wh-bar { margin-top: 12px; height: 8px; border-radius: 999px; background: var(--rp-surface-3); overflow: hidden; }
+.rp-wh-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--rp-ok); width: 0; }
+.rp-wh-split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--rp-line);
+}
+.rp-wh-split > div { display: flex; flex-direction: column; gap: 2px; }
+.rp-wh-split .rp-k {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; color: var(--rp-mute);
+}
+.rp-wh-split .rp-k::before { content: ""; width: 7px; height: 7px; border-radius: 50%; }
+.rp-wh-split .esc .rp-k::before { background: var(--rp-ok); }
+.rp-wh-split .fal .rp-k::before { background: var(--rp-crit); }
+.rp-wh-split .rp-v { font-size: 15px; font-weight: 900; }
+
+.rp-scan {
+  -webkit-appearance: none; appearance: none; border: 0; margin: 0 0 8px;
+  width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  background: var(--rp-rust); color: var(--rp-rust-ink);
+  font-family: var(--rp-font);
+  font-size: 14px; font-weight: 900; letter-spacing: 0.02em;
+  padding: 14px; border-radius: 14px;
+  cursor: pointer;
+  box-shadow: var(--rp-shadow);
+}
+.rp-scan:focus-visible { outline: 2px solid var(--rp-ink); outline-offset: 2px; }
+.rp-scan.stop { background: var(--rp-crit-bg); color: var(--rp-crit); box-shadow: none; }
+
+.rp-manual { display: flex; gap: 8px; margin-bottom: 16px; }
+.rp-manual input {
+  flex: 1; min-width: 0;
+  font-family: var(--rp-font);
+  font-size: 14px; font-weight: 800; text-transform: uppercase;
+  color: var(--rp-ink);
+  background: var(--rp-surface);
+  border: 1px solid var(--rp-line);
+  border-radius: 11px;
+  padding: 10px 12px;
+}
+.rp-manual input::placeholder { color: var(--rp-mute); font-weight: 700; text-transform: none; }
+.rp-manual input:focus-visible { outline: 2px solid var(--rp-rust); outline-offset: 1px; }
+.rp-manual button {
+  -webkit-appearance: none; appearance: none;
+  cursor: pointer;
+  font-family: var(--rp-font);
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--rp-soft);
+  border: 1px solid var(--rp-line); border-radius: 11px;
+  padding: 10px 14px; background: var(--rp-surface);
+}
+
+.rp-wh-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; padding: 0; list-style: none; }
+.rp-wh-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--rp-surface);
+  border: 1px solid var(--rp-line);
+  border-radius: 12px;
+  padding: 11px 12px;
+}
+.rp-wh-row .rp-st {
+  width: 20px; height: 20px; border-radius: 50%;
+  flex-shrink: 0; display: grid; place-items: center;
+  font-size: 12px; font-weight: 900;
+  background: var(--rp-surface-3); color: var(--rp-mute);
+  border: 1.5px dashed var(--rp-mute);
+}
+.rp-wh-row.ok .rp-st { background: var(--rp-ok); color: var(--rp-surface); border: 0; }
+.rp-wh-row .rp-code { font-size: 13px; font-weight: 800; letter-spacing: 0.02em; }
+.rp-wh-row:not(.ok) .rp-code { color: var(--rp-soft); }
+.rp-wh-row .rp-who {
+  margin-left: auto; font-size: 11px; font-weight: 700; color: var(--rp-mute);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42%;
+}
+.rp-wh-row .rp-mb {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--rp-info); background: var(--rp-info-bg);
+  padding: 2px 6px; border-radius: 6px; flex-shrink: 0;
+}
+
+.rp-confirm {
+  -webkit-appearance: none; appearance: none; border: 0; margin: 0;
+  width: 100%; text-align: center;
+  font-family: var(--rp-font);
+  font-size: 14px; font-weight: 900; letter-spacing: 0.02em;
+  padding: 14px; border-radius: 14px;
+  cursor: not-allowed;
+  background: var(--rp-surface-3); color: var(--rp-mute);
+}
+.rp-confirm.ready { background: var(--rp-ok); color: var(--rp-surface); cursor: pointer; }
+.rp-confirm.ready:focus-visible { outline: 2px solid var(--rp-ink); outline-offset: 2px; }
+
+/* ---- estados varios ---- */
+.rp-alert {
+  border-radius: 12px; padding: 12px 14px;
+  font-weight: 700; font-size: 13px; line-height: 1.45;
+  background: var(--rp-warn-bg); color: var(--rp-warn);
+}
+.rp-alert.crit { background: var(--rp-crit-bg); color: var(--rp-crit); }
+.rp-empty {
+  padding: 34px 18px; text-align: center;
+  color: var(--rp-mute); font-weight: 700; font-size: 13px; line-height: 1.6;
+}
+.rp-empty .rp-empty-t { display: block; color: var(--rp-soft); font-size: 15px; font-weight: 900; margin-bottom: 6px; }
+.rp-note {
+  margin-top: 16px;
+  font-size: 12px; line-height: 1.6; color: var(--rp-mute);
+  border-left: 2px solid var(--rp-line);
+  padding-left: 12px;
+}
+
+.rp-skel {
+  height: 118px; border-radius: 18px;
+  background: var(--rp-surface-3);
+  animation: rpPulse 1.2s ease-in-out infinite;
+}
+@keyframes rpPulse { 50% { opacity: 0.55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rp *, .rp-wh-bar > i { transition: none !important; animation: none !important; }
+}

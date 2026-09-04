@@ -469,18 +469,18 @@ if (isset($_POST['Paneles'])) {
   $overrideGate  = overrideEscaneo($mysqli, $idUsuarioGate);
 
   if ($faltan > 0 && !$overrideGate) {
-    echo "<div class='alert alert-warning mb-0'>"
+    echo "<div class='col-12 rp'><div class='rp-alert crit'>"
       . "⚠️ Faltan escanear <b>{$faltan}</b> bulto" . ($faltan === 1 ? '' : 's') . " en <b>Warehouse</b>. "
       . "Andá a <b>Warehouse</b>, escaneá todo y volvé a <b>Recorrido</b>."
-      . "</div>";
+      . "</div></div>";
     exit;
   }
 
   if ($faltan > 0 && $overrideGate) {
-    echo "<div class='alert alert-warning mb-0'>"
+    echo "<div class='col-12 rp'><div class='rp-alert'>"
       . "⚠️ Recorrido con <b>control de escaneo omitido</b>: faltan {$faltan} bulto" . ($faltan === 1 ? '' : 's')
       . " sin validar en Warehouse."
-      . "</div>";
+      . "</div></div>";
     logBypassEscaneo([
       'usuario'   => $_SESSION['Usuario'] ?? '',
       'recorrido' => $Recorrido,
@@ -552,8 +552,10 @@ if (isset($_POST['Paneles'])) {
   }
 
   // ==================================================
-  // RENDER HTML COMPLETO (MISMO FORMATO QUE TENÍAS)
+  // RENDER HTML COMPLETO
   // ==================================================
+
+  $esPrimeraParada = true; // la primera de la lista se resalta como "próxima"
 
   while ($row = $BuscarRecorridos->fetch_array(MYSQLI_ASSOC)) {
 
@@ -692,142 +694,132 @@ if (isset($_POST['Paneles'])) {
     $codSeguimiento = $row['CodigoSeguimiento'] ?? $row['Seguimiento'] ?? '';
     $idProv        = $idP ?? '';
     $usuario       = $_SESSION['Transportista'] ?? '';
+    $serviciowp    = $Serviciowp ?? '';
+
+    // --- Datos para el template unificado (.rp-*) ---
+    $rpSvcClass = strtolower($servicio);                 // entrega | retiro | colecta
+    if ($servicio === 'Colecta') {
+      $rpVerbo   = 'Escanear colecta';
+      $rpNoLabel = 'Cancelar colecta';
+    } elseif ($servicio === 'Retiro') {
+      $rpVerbo   = 'Retirar';
+      $rpNoLabel = 'No se pudo retirar';
+    } else {
+      $rpVerbo   = 'Entregar';
+      $rpNoLabel = 'No entregado';
+    }
+    // Para una ENTREGA el dato útil es de dónde salió (proveedor);
+    // para un RETIRO/COLECTA, a dónde va.
+    if ($servicio === 'Entrega') {
+      $rpOrgLabel = 'Origen · ' . ($row['RazonSocial'] ?? '');
+    } else {
+      $rpOrgLabel = 'Destino · ' . ($row['ClienteDestino'] ?? '');
+    }
+    $rpPiso = trim((string)($row['PisoDeptoDestino'] ?? ''));
+    $rpObs  = trim((string)($row['Observaciones'] ?? ''));
+
+    // Horario real del cliente si está configurado; si no, el estimado de
+    // recalcularEtas() (eta.php); si no hay ninguno, "estimando".
+    $horarioDesde = trim((string) ($row['HorarioEntregaDesde'] ?? ''));
+    $horarioHasta = trim((string) ($row['HorarioEntregaHasta'] ?? ''));
+    $etaHora      = trim((string) ($row['ETAHora'] ?? ''));
+    $horarioMuted = false;
+    if ($horarioDesde !== '' && $horarioDesde !== '00:00:00' && $horarioHasta !== '' && $horarioHasta !== '00:00:00') {
+      $horarioTexto = substr($horarioDesde, 0, 5) . ' - ' . substr($horarioHasta, 0, 5);
+    } elseif ($etaHora !== '' && $etaHora !== '00:00:00') {
+      $horarioTexto = 'Estimado ' . substr($etaHora, 0, 5);
+    } else {
+      $horarioTexto = 'Estimando horario…';
+      $horarioMuted = true;
+    }
+
+    // Cobranza (misma query de siempre, ahora se muestra como chip)
+    $rpCobrar = '';
+    if (isset($row['CobrarEnvio'])) {
+      $sqlCobranza = $mysqli->query("SELECT SUM(CobrarEnvio) AS Cobrar FROM Ventas WHERE NumPedido='$codSeguimiento' AND Eliminado=0");
+      if ($sqlCobranza) { $sqlCobranza->fetch_assoc(); }
+      if ((float)($row['CobrarEnvio'] ?? 0) > 0) {
+        $rpCobrar = number_format((float)($row['Importe'] ?? 0), 2);
+      }
+    }
+
+    $rpWaHref = 'https://api.whatsapp.com/send?phone=' . rawurlencode($contacto)
+      . '&text=' . rawurlencode('Hola ' . $nombreCliente . ' !, soy ' . $usuario
+        . ' de Caddy Logística. Estoy en camino para ' . ($serviciowp ?: 'entregar') . ' tu pedido...');
+
+    $rpEsProxima = $esPrimeraParada;
+    $esPrimeraParada = false;
   ?>
 
-    <!-- === TARJETA === -->
-    <div class="col-xl-7">
-      <div class="card">
-        <div class="card-body border border-<?= $color ?>">
-          <h2 class="header-title mb-1 text-<?= $color ?>">
-            <?= $row['Posicion'] ?> <i class="mdi mdi-arrow-<?= $icon ?>"></i> <?= $servicio ?> | <?= $nombreCliente ?>
-          </h2>
-          <small class="mb-2"><b><?php echo $retirado ? 'Origen: ' . $row['RazonSocial'] : 'Destino: ' . $row['ClienteDestino'] ?></b></small>
-
-          <div class="row">
-            <div class="col-md-7">
-              <div data-provide="datepicker-inline" data-date-today-highlight="true" class="calendar-widget"></div>
-            </div>
-            <div class="col-md-5">
-              <ul class="list-unstyled">
-                <?php if ($idProv): ?>
-                  <li>
-                    <p class="text-muted mb-1 font-13"><i class="mdi mdi-account"></i> ID PROVEEDOR</p>
-                    <h5>[<?php echo $idProv; ?>]</h5>
-                  </li>
-                <?php endif; ?>
-
-                <?php
-                  // Horario real del cliente si está configurado; si no,
-                  // el estimado calculado por recalcularEtas() (eta.php) a
-                  // partir del arranque real del recorrido. Si no hay
-                  // ninguno de los dos todavía, no se muestra nada - antes
-                  // acá había un "14:00 AM - 21:00 PM" fijo, siempre igual
-                  // para cualquier cliente.
-                  $horarioDesde = trim((string) ($row['HorarioEntregaDesde'] ?? ''));
-                  $horarioHasta = trim((string) ($row['HorarioEntregaHasta'] ?? ''));
-                  $etaHora      = trim((string) ($row['ETAHora'] ?? ''));
-
-                  $horarioMuted = false;
-                  if ($horarioDesde !== '' && $horarioDesde !== '00:00:00' && $horarioHasta !== '' && $horarioHasta !== '00:00:00') {
-                    $horarioIcon  = 'mdi-calendar';
-                    $horarioTexto = substr($horarioDesde, 0, 5) . ' - ' . substr($horarioHasta, 0, 5);
-                  } elseif ($etaHora !== '' && $etaHora !== '00:00:00') {
-                    $horarioIcon  = 'mdi-clock-outline';
-                    $horarioTexto = 'Estimado: ' . substr($etaHora, 0, 5);
-                  } else {
-                    // Todavía no hay horario real ni estimado calculado
-                    // (recorrido sin arrancar, o esperando el próximo
-                    // recálculo) - avisamos que está en camino en vez de
-                    // dejar el espacio vacío.
-                    $horarioIcon  = 'mdi-clock-outline';
-                    $horarioTexto = 'Estimando horario...';
-                    $horarioMuted = true;
-                  }
-                ?>
-                <li>
-                  <p class="text-muted mb-1 font-13<?= $horarioMuted ? ' opacity-50' : '' ?>"><i class="mdi <?= $horarioIcon ?>"></i> <?= $horarioTexto ?></p>
-                </li>
-
-                <li>
-                  <h5><i class="mdi mdi-map-marker"></i> <?php echo $direccion . ' ' . $row['PisoDeptoDestino'] ?></h5>
-                  <small>Observaciones: <?php echo $row['Observaciones']; ?></small>
-                </li>
-                <?php if ($veocel): ?>
-                  <li>
-                    <p class="text-muted mb-1 font-13"><i class="mdi mdi-card-account-phone-outline"></i> CONTACTO</p>
-
-                    <h5><?php echo $contacto; ?>
-                      <a style="float:right;margin-right:14%;" href="https://api.whatsapp.com/send?phone=<?= $contacto ?>&text=Hola <?= $nombreCliente ?> !,%20soy <?= $usuario ?>%20de%20Caddy%20Logística%20!%20Estoy%20en%20camino%20para <?= $serviciowp ?>%20tu%20pedido...">
-                        <img src='images/wp.png' width='30' height='30' />
-                      </a>
-                    </h5>
-
-                  </li>
-                <?php endif; ?>
-                <li>
-                  <p class="text-muted mb-1 font-13"><i class="mdi mdi-card-search-outline"></i> SEGUIMIENTO</p>
-                  <h5><?php echo $codSeguimiento; ?></i>
-                  </h5>
-                </li>
-
-                <li>
-                  <p class="text-muted mb-1 font-13"><i class="mdi mdi-package-variant"></i> CANTIDAD DE BULTOS</p>
-                  <h5><?php echo $Cantidad; ?></h5>
-                </li>
-
-
-                <?php if (!empty($listaAsignaciones)): ?>
-                  <li>
-                    <table class="table table-hover table-centered mb-0">
-                      <thead>
-                        <tr>
-                          <th>Nombre</th>
-                          <th>Edicion</th>
-                          <th>Cantidad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <?php foreach ($listaAsignaciones as $asig):
-                          // $prod = $asigProductos[$asig['CodigoProducto']][$relacion] ?? [];
-                          $codigo = $asig['CodigoProducto'] ?? '';
-                          $prod = $asigProductos[$codigo][$relacion] ?? [];
-                        ?>
-                          <tr>
-                            <td><?= $prod['Nombre'] ?? 'Sin nombre' ?></td>
-                            <td><?= $asig['Edicion'] ?></td>
-                            <td><?= $asig['Cantidad'] ?></td>
-                          </tr>
-                        <?php endforeach; ?>
-                      </tbody>
-                    </table>
-                  </li>
-                <?php endif; ?>
-
-                <?php
-                if (isset($row['CobrarEnvio'])) {
-                  $sqlCobranza = $mysqli->query("SELECT SUM(CobrarEnvio) AS Cobrar FROM Ventas WHERE NumPedido='$codSeguimiento' AND Eliminado=0");
-                  $datos = $sqlCobranza->fetch_assoc();
-                  $cobrar = number_format((float)($row['Importe'] ?? 0), 2);
-                  if ($row['CobrarEnvio'] > 0) {
-                    echo "<span class='badge badge-outline-warning'>Atención! Requiere Cobranza de $ " . $cobrar . "</span>";
-                  }
-                }
-                ?>
-              </ul>
-            </div>
+    <!-- === PARADA (rp-*) === -->
+    <div class="col-xl-7 rp">
+      <div class="rp-stop<?= $rpEsProxima ? ' next' : '' ?>">
+        <div class="rp-stop-main">
+          <div class="rp-stop-top">
+            <span class="rp-seq rp-num"><?= htmlspecialchars((string)$row['Posicion']) ?></span>
+            <span class="rp-svc <?= $rpSvcClass ?>"><?= htmlspecialchars($servicio) ?></span>
+            <span class="rp-stop-client"><?= htmlspecialchars($nombreCliente) ?></span>
           </div>
 
-          <div class="row">
-            <div class="col-md-12">
-              <a style='margin-left:15%;'><img src='images/wrong.png' width='60' height='60' onclick="verwrong(<?php echo $row['hdrid'] ?>)" /></a>
-              <a style='margin-left:3%;' href="https://www.google.com/maps/search/?api=1&query=<?php echo urlencode($direccionMapa) ?>" target="_blank"><img src="images/goto.png" width="70" height="70" /></a>
-              <a style='margin-left:6%;'><img src='images/ok.png' width='60' height='60' onclick="verok(<?= $row['hdrid'] ?>)" /></a>
-            </div>
+          <p class="rp-stop-org"><?= htmlspecialchars($rpOrgLabel) ?></p>
+
+          <p class="rp-stop-addr">
+            <svg class="rp-pin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span><?= htmlspecialchars(trim($direccion . ' ' . $rpPiso)) ?></span>
+          </p>
+
+          <?php if ($rpObs !== ''): ?>
+            <p class="rp-stop-obs">Obs: <?= htmlspecialchars($rpObs) ?></p>
+          <?php endif; ?>
+
+          <div class="rp-stop-meta">
+            <span class="rp-chip eta<?= $horarioMuted ? ' muted' : '' ?>"><?= htmlspecialchars($horarioTexto) ?></span>
+            <span class="rp-chip rp-num"><?= (int)$Cantidad ?> bulto<?= (int)$Cantidad === 1 ? '' : 's' ?></span>
+            <span class="rp-chip rp-num"><?= htmlspecialchars($codSeguimiento) ?></span>
+            <?php if ($idProv): ?><span class="rp-chip">ID <?= htmlspecialchars($idProv) ?></span><?php endif; ?>
+            <?php if ($rpCobrar !== ''): ?><span class="rp-chip cobranza rp-num">Cobrar $ <?= $rpCobrar ?></span><?php endif; ?>
           </div>
 
+          <?php if (!empty($listaAsignaciones)): ?>
+            <table class="table table-sm table-borderless mb-0 mt-2" style="font-size:12px">
+              <thead><tr><th>Producto</th><th>Ed.</th><th class="text-end">Cant.</th></tr></thead>
+              <tbody>
+                <?php foreach ($listaAsignaciones as $asig):
+                  $codigo = $asig['CodigoProducto'] ?? '';
+                  $prod = $asigProductos[$codigo][$relacion] ?? []; ?>
+                  <tr>
+                    <td><?= htmlspecialchars($prod['Nombre'] ?? 'Sin nombre') ?></td>
+                    <td><?= htmlspecialchars((string)($asig['Edicion'] ?? '')) ?></td>
+                    <td class="text-end"><?= htmlspecialchars((string)($asig['Cantidad'] ?? '')) ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          <?php endif; ?>
+
+          <?php if ($veocel): ?>
+            <div class="rp-stop-contact">
+              <span class="rp-tel rp-num">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+                <?= htmlspecialchars($contacto) ?>
+              </span>
+              <a class="rp-btn wa" href="<?= htmlspecialchars($rpWaHref) ?>" target="_blank" rel="noopener">
+                <img src="images/wp.png" width="16" height="16" alt="" /> WhatsApp
+              </a>
+            </div>
+          <?php endif; ?>
+        </div>
+
+        <div class="rp-stop-actions">
+          <button type="button" class="rp-btn no icon" aria-label="<?= htmlspecialchars($rpNoLabel) ?>" title="<?= htmlspecialchars($rpNoLabel) ?>" onclick="verwrong(<?= (int)$row['hdrid'] ?>)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+          <a class="rp-btn map" href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($direccionMapa) ?>" target="_blank" rel="noopener">Cómo llegar</a>
+          <button type="button" class="rp-btn primary" onclick="verok(<?= (int)$row['hdrid'] ?>)"><?= htmlspecialchars($rpVerbo) ?></button>
         </div>
       </div>
     </div>
+
 <?php
   }
   exit; // 👈 por prolijidad, cortamos también
