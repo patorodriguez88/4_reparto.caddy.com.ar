@@ -2,7 +2,7 @@
   "name": "Caddy Reparto",
   "short_name": "Reparto",
   "description": "Panel de reparto y entregas Caddy",
-  "start_url": "/SistemaReparto/hdr.html#operacion",
+  "start_url": "/SistemaReparto/hdr.html?b=20260904d",
   "scope": "/SistemaReparto/",
   "display": "standalone",
   "background_color": "#0b1220",

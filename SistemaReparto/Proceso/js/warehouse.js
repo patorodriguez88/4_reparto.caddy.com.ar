@@ -53,7 +53,7 @@ function borrarEscaneoBase(base, callback) {
 
 $(document).on("click", '.app-bottomnav .nav-item[data-action="warehouse"]', function (e) {
   e.preventDefault();
-  window.location.href = "warehouse.html";
+  window.location.href = "warehouse.html?b=20260904d";
 });
 // puente simple: botón salir dentro de Cuenta
 $(document).on("click", "#btnCuentaSalir", function () {
@@ -67,7 +67,7 @@ $(document).on("click", "#wh-salir", function (e) {
     type: "POST",
     url: "../../SistemaReparto/Conexion/admision.php",
     success: function () {
-      window.location.href = "hdr.html";
+      window.location.href = "hdr.html?b=20260904d";
     },
     error: function (xhr) {
       console.error("Error cerrar sesión:", xhr.responseText);
@@ -208,7 +208,7 @@ function validarCacheConBackend(done) {
       success: function (res) {
         if (!res || res.success !== 1) {
           if (res && (res.logged === 0 || res.reason === "NO_IDUSUARIO")) {
-            window.location.href = "hdr.html";
+            window.location.href = "hdr.html?b=20260904d";
             return;
           }
           done(true);
@@ -276,7 +276,7 @@ function cargarRecorridoLocal() {
 }
 function manejar401(xhr) {
   if (xhr && xhr.status === 401) {
-    window.location.href = "hdr.html";
+    window.location.href = "hdr.html?b=20260904d";
     return true;
   }
   return false;
@@ -686,7 +686,7 @@ $("#mi_recorrido").on("click", function (e) {
 
     // Todo validado (ENTREGAS) → volvemos a HDR
     saToast("success", "Entregas validadas. Volviendo a HDR…", 900);
-    window.location.href = "hdr.html";
+    window.location.href = "hdr.html?b=20260904d";
   };
 });
 $(document).on("click", ".wh-trash-btn", function () {

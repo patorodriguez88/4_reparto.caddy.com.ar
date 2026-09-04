@@ -643,7 +643,7 @@ function irAWarehouse() {
   } catch (e) {}
 
   // ajustá la ruta si warehouse.html está en otra carpeta
-  window.location.href = "warehouse.html";
+  window.location.href = "warehouse.html?b=20260904d";
 }
 
 // Inyecta un item "Escanear" en el menú si no existe en el HTML
@@ -803,9 +803,13 @@ function initApp() {
           typeof window.rpStartScreen === "function" ? window.rpStartScreen() : "operacion";
 
         // Dejo el hash acorde y saco el ?go= de la URL (para que un reload
-        // posterior no repita la navegación).
+        // posterior no repita la navegación). El ?b= (build, anti-cache del
+        // proxy) SE MANTIENE, así un reload sigue pegándole a la URL nueva.
         try {
-          history.replaceState(null, "", location.pathname + "#" + startKey);
+          const sp = new URLSearchParams(location.search);
+          sp.delete("go");
+          const qs = sp.toString();
+          history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + "#" + startKey);
         } catch (e) {
           location.hash = startKey;
         }
