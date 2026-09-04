@@ -399,11 +399,20 @@ $(document).on("click", ".mc-order .mc-oh", function () {
     showScreen(screenMap[h] ? h : "operacion");
   });
 
+  // Pantalla inicial: ?go=<screen> (navegación explícita desde warehouse.html)
+  // tiene prioridad sobre el #hash (que puede haber quedado viejo en la
+  // pestaña). Si no hay ninguno válido -> operacion.
+  window.rpStartScreen = function () {
+    const go = (new URLSearchParams(location.search).get("go") || "").toLowerCase();
+    if (screenMap[go]) return go;
+    const h = (location.hash || "").replace("#", "");
+    return screenMap[h] ? h : "operacion";
+  };
+
   // init
   $(function () {
-    const h = (location.hash || "").replace("#", "");
-    showScreen(screenMap[h] ? h : "operacion");
     window.showScreen = showScreen;
+    showScreen(window.rpStartScreen());
   });
 })();
 function msgReason(reason) {
@@ -786,18 +795,27 @@ function initApp() {
           AppStatus.postStatus({ stage: "session_ok" });
         }
 
-        // La app siempre arranca en Recorrido. showScreen() deja UNA sola
-        // .app-screen visible y con .active (evita el "se ve todo junto"
-        // cuando initApp resuelve después de que el usuario tocó una tab).
-        if (location.hash && location.hash !== "#operacion") {
-          location.hash = "operacion";
+        // Pantalla inicial: normalmente Recorrido, salvo que se haya pedido
+        // otra explícitamente con ?go= (p.ej. "Cuenta" desde warehouse.html).
+        // showScreen() deja UNA sola .app-screen visible y con .active
+        // (evita el "se ve todo junto" cuando initApp resuelve async).
+        const startKey =
+          typeof window.rpStartScreen === "function" ? window.rpStartScreen() : "operacion";
+
+        // Dejo el hash acorde y saco el ?go= de la URL (para que un reload
+        // posterior no repita la navegación).
+        try {
+          history.replaceState(null, "", location.pathname + "#" + startKey);
+        } catch (e) {
+          location.hash = startKey;
         }
+
         if (typeof window.showScreen === "function") {
-          window.showScreen("operacion");
+          window.showScreen(startKey);
         } else {
           $(".app-screen").removeClass("active").hide();
-          $("#screen-operacion").addClass("active").show();
-          $("#hdractivas").show();
+          $("#screen-" + startKey).addClass("active").show();
+          if (startKey === "operacion") $("#hdractivas").show();
         }
 
         paneles(null, false); // ✅ recién ahora (paneles() ya chequea que operacion este .active)
