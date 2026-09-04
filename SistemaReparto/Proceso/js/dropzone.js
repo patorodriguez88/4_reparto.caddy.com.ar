@@ -280,12 +280,18 @@ $(".guardarProducto").click(function () {
 
         if (jsonData.success === 1) {
           swalToastOk(jsonData.estado || "Confirmado");
+        } else if (jsonData.error === "ENVIO_SIN_ESCANEO") {
+          swalError(
+            "Falta escanear",
+            jsonData.msg ||
+              "Este paquete no fue escaneado. Escanealo antes de entregar.",
+          );
         } else {
           swalToastError(
             "Error para el Código " +
               csBase +
               " " +
-              (jsonData.error || "No se pudo confirmar la entrega"),
+              (jsonData.msg || jsonData.error || "No se pudo confirmar la entrega"),
           );
         }
 

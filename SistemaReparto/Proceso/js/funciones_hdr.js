@@ -1769,7 +1769,7 @@ $(document).on("click", "#btn-iniciar-recorrido", function () {
           Swal.fire({
             icon: "error",
             title: "No se pudo iniciar el recorrido",
-            text: (jsonData && jsonData.error) || "Reintentá en unos segundos.",
+            text: (jsonData && (jsonData.msg || jsonData.error)) || "Reintentá en unos segundos.",
           });
         }
         cargarHeader();

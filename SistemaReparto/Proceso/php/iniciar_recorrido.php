@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // session_start() la hace conexioni.php, con el nombre de cookie propio del sistema.
 require_once __DIR__ . "/../../Conexion/conexioni.php";
+require_once __DIR__ . "/../../Funciones/control_escaneo.php";
 require_once __DIR__ . "/eta.php";
 
 $googleConfigPath = __DIR__ . "/../../Conexion/google_config.php";
@@ -53,6 +54,26 @@ if ($lat === null || $lng === null || ($lat === 0.0 && $lng === 0.0)) {
 $recorrido = (string) ($_SESSION['RecorridoAsignado'] ?? '');
 if ($recorrido === '') {
   responder(['success' => 0, 'error' => 'SIN_RECORRIDO']);
+}
+
+// GATE DURO: no se arranca el recorrido si faltan escanear bultos en Warehouse,
+// salvo override por recorrido (Logistica.OmitirControlEscaneo=1).
+$faltanBultos = bultosSinEscaneoWarehouse($mysqli, $recorrido);
+if ($faltanBultos > 0) {
+  if (!overrideEscaneo($mysqli, $userId)) {
+    responder([
+      'success' => 0,
+      'error'   => 'FALTAN_BULTOS_WAREHOUSE',
+      'faltan'  => $faltanBultos,
+      'msg'     => "Faltan escanear {$faltanBultos} bulto" . ($faltanBultos === 1 ? '' : 's') . " en Warehouse. Escaneá todo antes de iniciar el recorrido.",
+    ]);
+  }
+  logBypassEscaneo([
+    'usuario'   => $_SESSION['Usuario'] ?? '',
+    'recorrido' => $recorrido,
+    'cs'        => '',
+    'contexto'  => 'iniciar_recorrido',
+  ]);
 }
 
 try {

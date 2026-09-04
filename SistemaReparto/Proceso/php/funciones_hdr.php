@@ -7,6 +7,7 @@ ini_set('display_errors', 1);
 define('ALLOW_NO_SESSION', true);
 
 require_once "../../Conexion/conexioni.php";
+require_once __DIR__ . '/../../Funciones/control_escaneo.php';
 
 // --------------------------------------------------
 // FUNCIÓN PARA RESPONDER SIEMPRE JSON Y CORTAR
@@ -459,13 +460,36 @@ if (isset($_POST['Paneles'])) {
   $chkRow = $sqlChk->fetch_assoc();
   $faltan = (int)($chkRow['faltan'] ?? 0);
 
-  if ($faltan > 0) {
-    // echo "<div class='alert alert-warning'>⚠️ Faltan validar <b>{$faltan}</b> bultos en warehouse. Volvé a <b>Warehouse</b>, escaneá todo y recién ahí iniciá el recorrido.</div>";
-    //   exit;
-    $Retirado_ = 'AND TransClientes.Retirado = 0';
-  } else {
-    $Retirado_ = '';
+  // ==================================================
+  // GATE DURO: no se puede operar el recorrido si faltan escanear bultos
+  // de entrega-desde-depósito en Warehouse. Override por recorrido
+  // (Logistica.OmitirControlEscaneo=1) => sólo advierte, deja pasar.
+  // ==================================================
+  $idUsuarioGate = (int)($_SESSION['idusuario'] ?? 0);
+  $overrideGate  = overrideEscaneo($mysqli, $idUsuarioGate);
+
+  if ($faltan > 0 && !$overrideGate) {
+    echo "<div class='alert alert-warning mb-0'>"
+      . "⚠️ Faltan escanear <b>{$faltan}</b> bulto" . ($faltan === 1 ? '' : 's') . " en <b>Warehouse</b>. "
+      . "Andá a <b>Warehouse</b>, escaneá todo y volvé a <b>Recorrido</b>."
+      . "</div>";
+    exit;
   }
+
+  if ($faltan > 0 && $overrideGate) {
+    echo "<div class='alert alert-warning mb-0'>"
+      . "⚠️ Recorrido con <b>control de escaneo omitido</b>: faltan {$faltan} bulto" . ($faltan === 1 ? '' : 's')
+      . " sin validar en Warehouse."
+      . "</div>";
+    logBypassEscaneo([
+      'usuario'   => $_SESSION['Usuario'] ?? '',
+      'recorrido' => $Recorrido,
+      'cs'        => '',
+      'contexto'  => 'panel',
+    ]);
+  }
+
+  $Retirado_ = '';
 
   $search    = isset($_POST['search']) ? $_POST['search'] : '';
 

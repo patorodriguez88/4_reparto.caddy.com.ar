@@ -11,6 +11,7 @@ if (!defined('ALLOW_NO_SESSION')) {
 
 require_once "../../Conexion/conexioni.php";
 require_once __DIR__ . '/../../Funciones/estados.php';
+require_once __DIR__ . '/../../Funciones/control_escaneo.php';
 require_once __DIR__ . '/eta.php';
 
 $googleConfigPath = __DIR__ . '/../../Conexion/google_config.php';
@@ -782,6 +783,25 @@ if (isset($_POST['ConfirmoEntrega'])) {
   // ✅ MODO NORMAL (tu lógica original)
   // ==========================================================
   if ($RetiradoDB == 1) {
+    // GATE: no se entrega un paquete que no fue escaneado (en depósito, al
+    // retirarlo o en la colecta). Override por recorrido => deja pasar y loguea.
+    if (!escaneoOk($mysqli, $csEsc)) {
+      if (!overrideEscaneo($mysqli, (int)$idUsuario)) {
+        responder([
+          'success' => 0,
+          'error'   => 'ENVIO_SIN_ESCANEO',
+          'msg'     => 'Este paquete no fue escaneado (ni en depósito ni al retirarlo). Escanealo antes de entregar.',
+          'cs'      => $CodigoSeguimiento,
+        ]);
+      }
+      logBypassEscaneo([
+        'usuario'   => $Usuario,
+        'recorrido' => $Recorrido,
+        'cs'        => $CodigoSeguimiento,
+        'contexto'  => 'confirmo_entrega',
+      ]);
+    }
+
     // ENTREGA
     if ($Redespacho === 0) {
       $Entregado = 1;
