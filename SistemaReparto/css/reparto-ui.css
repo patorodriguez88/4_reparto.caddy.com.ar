@@ -315,8 +315,17 @@
   border: 1.5px dashed var(--rp-mute);
 }
 .rp-wh-row.ok .rp-st { background: var(--rp-ok); color: var(--rp-surface); border: 0; }
+.rp-wh-row.partial .rp-st { background: var(--rp-warn-bg); color: var(--rp-warn); border: 0; }
 .rp-wh-row .rp-code { font-size: 13px; font-weight: 800; letter-spacing: 0.02em; }
 .rp-wh-row:not(.ok) .rp-code { color: var(--rp-soft); }
+.rp-wh-row .wh-trash-btn {
+  -webkit-appearance: none; appearance: none;
+  border: 0; background: transparent; padding: 4px; margin: 0 0 0 auto;
+  color: var(--rp-mute); cursor: pointer;
+  display: inline-flex; align-items: center;
+}
+.rp-wh-row .wh-trash-btn:hover, .rp-wh-row .wh-trash-btn:focus-visible { color: var(--rp-crit); }
+.rp-wh-row .rp-mb + .wh-trash-btn { margin-left: 8px; }
 .rp-wh-row .rp-who {
   margin-left: auto; font-size: 11px; font-weight: 700; color: var(--rp-mute);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42%;

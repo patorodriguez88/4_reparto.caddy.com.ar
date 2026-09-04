@@ -24,9 +24,12 @@
     <!-- Dropzone -->
     <link href="../hyper/dist/saas/assets/css/vendor/dropzone.css" rel="stylesheet" />
     <!-- Custom -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
     <link href="css/hdr.css" rel="stylesheet" type="text/css" />
-    <!-- Custom -->
     <link href="css/warehouse.css" rel="stylesheet" type="text/css" />
+    <link href="css/reparto-ui.css?v=20260904" rel="stylesheet" type="text/css" />
   </head>
   <body class="loading" data-layout="topnav">
     <!-- Install banner -->
@@ -160,106 +163,41 @@
           <!-- /.modal -->
 
           <!-- DESDE ACA -->
-          <div class="row">
-            <div class="col-12 px-2">
-              <!-- en vez de ms-2 para no romper el ancho -->
+          <div class="rp" style="max-width: 520px; margin: 0 auto; padding: 14px 12px 20px">
 
-              <!-- CARD: Badges -->
-              <div class="card tilebox-one">
-                <div class="card-body">
-                  <div class="row g-2 text-center">
-                    <div class="col-3">
-                      <div class="badge bg-primary w-100 py-3 fs-3">
-                        <div class="small">Recorrido</div>
-                        <b id="wh-recorrido">–</b>
-                      </div>
-                    </div>
-
-                    <div class="col-3">
-                      <div class="badge bg-secondary w-100 py-3 fs-3">
-                        <div class="small">Esperados</div>
-                        <b id="wh-esperados">0</b>
-                      </div>
-                    </div>
-
-                    <div class="col-3">
-                      <div class="badge bg-success w-100 py-3 fs-3">
-                        <div class="small">Escaneados</div>
-                        <b id="wh-ok">0</b>
-                      </div>
-                    </div>
-
-                    <div class="col-3">
-                      <div class="badge bg-danger w-100 py-3 fs-3">
-                        <div class="small">Faltantes</div>
-                        <b id="wh-faltantes">0</b>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <!-- Hero de carga -->
+            <div class="rp-wh-hero">
+              <div class="rp-wh-hero-top">
+                <span class="rp-k">Carga del recorrido</span>
+                <span class="rp-r rp-num">R. <span id="wh-recorrido">–</span></span>
               </div>
-
-              <!-- BOTÓN SCAN centrado -->
-              <div class="row mt-3">
-                <div class="col-12 d-flex justify-content-center">
-                  <button
-                    type="button"
-                    class="btn btn-warning btn-lg d-flex align-items-center justify-content-center gap-2"
-                    style="width: 90%; max-width: 500px"
-                    onclick="irAScan()"
-                  >
-                    <i class="mdi mdi-qrcode-scan fs-3"></i>
-                    <span>Iniciar Escaneo de Bultos</span>
-                  </button>
-                </div>
+              <div class="rp-wh-count rp-num">
+                <span class="rp-big" id="wh-ok">0</span>
+                <span class="rp-of">/ <span id="wh-esperados">0</span></span>
+                <span class="rp-lbl" id="wh-lbl">Faltan <span id="wh-faltantes">0</span></span>
               </div>
-
-              <!-- STOP + SCANNER -->
-              <div class="row mt-2">
-                <div class="col-12 d-flex justify-content-center">
-                  <button
-                    id="btn-stop"
-                    type="button"
-                    class="btn btn-danger"
-                    style="display: none; max-width: 500px; width: 90%"
-                  >
-                    Detener
-                  </button>
-                </div>
-
-                <div class="col-12 d-flex justify-content-center">
-                  <div
-                    id="scanner"
-                    style="width: 90%; max-width: 520px; height: 320px; margin-top: 12px; display: none"
-                  ></div>
-                </div>
-              </div>
-
-              <!-- LISTA -->
-              <div class="row mt-3">
-                <div class="col-12">
-                  <div class="card">
-                    <div class="card-body">
-                      <h5 class="mb-2">Lista de bultos</h5>
-                      <ul id="wh-lista" class="list-group"></ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- CONFIRMAR -->
-              <div class="row mt-2">
-                <div class="col-12 d-flex justify-content-center"></div>
-                <button
-                  id="btn-confirmar"
-                  type="button"
-                  class="btn btn-success btn-lg d-flex align-items-center justify-content-center gap-2"
-                  disabled
-                >
-                  Confirmar carga
-                </button>
-              </div>
+              <div class="rp-wh-bar" aria-hidden="true"><i id="wh-bar"></i></div>
             </div>
+
+            <!-- Scan -->
+            <button id="btn-scan" type="button" class="rp-scan" onclick="irAScan()">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+              Iniciar escaneo de bultos
+            </button>
+            <button id="btn-stop" type="button" class="rp-scan stop" style="display: none">Detener</button>
+            <div id="scanner" style="display: none; margin: 4px 0 16px; border-radius: 14px; overflow: hidden; max-height: 340px"></div>
+
+            <!-- Lista -->
+            <div class="rp-sechead" style="margin-top: 16px">
+              <h3>Lista de bultos</h3>
+              <span class="rp-upd rp-num"><span id="wh-esperados-lbl">0</span> esperados</span>
+            </div>
+            <ul id="wh-lista" class="rp-wh-list"></ul>
+
+            <!-- Confirmar -->
+            <button id="btn-confirmar" type="button" class="rp-confirm" disabled>
+              Escaneá todos para confirmar
+            </button>
           </div>
         </div>
 
@@ -320,7 +258,7 @@
 
     <!-- Tus scripts -->
     <script src="Proceso/js/db.js"></script>
-    <script src="Proceso/js/warehouse.js?v=1.12"></script>
+    <script src="Proceso/js/warehouse.js?v=20260904"></script>
 
     <!-- 8) Lector de códigos de barra -->
     <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>

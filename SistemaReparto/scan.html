@@ -4,48 +4,42 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link href="../hyper/dist/saas/assets/css/app.min.css" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="css/reparto-ui.css?v=20260904" rel="stylesheet" />
     <link href="style.css?v=20260904" rel="stylesheet" />
   </head>
   <body>
-    <div id="scannerWrap">
+    <div id="scannerWrap" class="rp">
       <div id="qr-reader"></div>
       <div id="scan-feedback" class="scan-feedback hidden"></div>
 
       <!-- Carga a mano: si la cámara no abre o el QR no engancha -->
-      <form id="manual-form" class="p-2 d-flex gap-2" autocomplete="off">
+      <form id="manual-form" class="rp-manual" autocomplete="off">
         <input
           id="manual-code"
           type="text"
-          class="form-control form-control-lg"
           autocapitalize="characters"
           autocomplete="off"
           spellcheck="false"
           placeholder="Código a mano (ej. NBJVDGOGS)"
         />
-        <button type="submit" class="btn btn-light btn-lg">Agregar</button>
+        <button type="submit">Agregar</button>
       </form>
 
       <!-- HUD limpio -->
-      <div id="estado" class="p-2 text-center bg-warning text-white">
-        <div class="fw-bold">Bultos</div>
-        <div style="font-size: 28px; line-height: 1.1">
+      <div id="estado">
+        <div class="estado-k">Bultos</div>
+        <div class="estado-count rp-num">
           <span id="wh-ok">0</span> / <span id="wh-total">0</span>
         </div>
-        <div id="wh-msg" class="small">Escaneá todos los bultos para salir</div>
+        <div id="wh-msg" class="estado-msg">Escaneá todos los bultos para salir</div>
       </div>
 
-      <div class="p-2 d-grid gap-2" id="scanFooter">
-        <button id="btn-salir" class="btn btn-secondary btn-lg" disabled>
-          Faltan bultos
-        </button>
-
-        <button
-          id="btn-volver"
-          class="btn btn-outline-light btn-lg"
-          type="button"
-        >
-          Volver
-        </button>
+      <div id="scanFooter">
+        <button id="btn-salir" class="rp-confirm" disabled>Faltan bultos</button>
+        <button id="btn-volver" type="button">Volver</button>
       </div>
     </div>
 

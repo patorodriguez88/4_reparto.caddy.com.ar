@@ -545,18 +545,28 @@ function actualizarHUD(retiradoObjetivo = 1) {
       cursor.continue();
     } else {
       const faltantes = Math.max(total - ok, 0);
+      const completo = faltantes === 0 && total > 0;
 
       $("#wh-esperados").text(total);
+      $("#wh-esperados-lbl").text(total);
       $("#wh-ok").text(ok);
       $("#wh-faltantes").text(faltantes);
 
-      if (faltantes === 0 && total > 0) {
-        $("#btn-confirmar").prop("disabled", false);
-        $(".btn-primary[onclick='irAScan()']").hide();
-      } else {
-        $("#btn-confirmar").prop("disabled", true);
-        $(".btn-primary[onclick='irAScan()']").show();
-      }
+      // barra + label del hero
+      const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
+      $("#wh-bar").css("width", pct + "%");
+      $("#wh-lbl")
+        .toggleClass("done", completo)
+        .html(completo ? "Completo" : 'Faltan <span id="wh-faltantes">' + faltantes + "</span>");
+
+      // botón confirmar
+      $("#btn-confirmar")
+        .prop("disabled", !completo)
+        .toggleClass("ready", completo)
+        .text(completo ? "Confirmar carga" : "Escaneá todos para confirmar");
+
+      // botón de escaneo: se esconde cuando ya está todo
+      $("#btn-scan").toggle(!completo);
     }
   };
 }
@@ -613,27 +623,18 @@ function renderScanned(done) {
         const okE = scannedCount[base]?.entrega || 0;
         const totE = expectedCount[base]?.entrega || 0;
 
-        const cls = totE > 0 && okE === totE ? "bg-success" : "bg-warning text-dark";
-        const badge =
-          totE > 0
-            ? `<span class="badge ${cls} ms-2">${okE}/${totE}</span>`
-            : `<span class="badge bg-secondary ms-2">${okE}</span>`;
+        const completo = totE <= 1 || (totE > 0 && okE === totE);
+        const rowCls = completo ? "ok" : "partial";
+        const badge = totE > 1 ? `<span class="rp-mb rp-num">${okE}/${totE}</span>` : "";
 
         $whLista.append(`
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center gap-2">
-            <i class="mdi mdi-package-variant-closed mdi-18px text-success"></i>
-            <span class="fw-semibold">${base}</span>
-          </div>
-          <div class="d-flex align-items-center gap-2">
-            ${badge}
-            <button type="button"
-              class="wh-trash-btn"
-              data-base="${base}"
-              title="Borrar escaneo">
-              <i class="mdi mdi-trash-can-outline mdi-18px text-danger"></i>
-            </button>
-          </div>
+        <li class="rp-wh-row ${rowCls}">
+          <span class="rp-st">${completo ? "✓" : ""}</span>
+          <span class="rp-code rp-num">${base}</span>
+          ${badge}
+          <button type="button" class="wh-trash-btn" data-base="${base}" title="Borrar escaneo" aria-label="Borrar escaneo ${base}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
         </li>
       `);
       });

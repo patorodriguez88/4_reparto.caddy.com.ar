@@ -12,6 +12,7 @@ body {
   position: fixed;
   inset: 0;
   background: #000;
+  font-family: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* contenedor del lector */
@@ -54,23 +55,45 @@ body {
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.55);
 }
-#manual-code {
+#manual-form #manual-code {
   flex: 1 1 auto;
   min-width: 0;
-  text-transform: uppercase;
-}
-#manual-form .btn {
-  flex: 0 0 auto;
 }
 
-/* HUD de conteo, también arriba del lector */
+/* HUD de conteo, arriba del lector, con el look de reparto-ui */
 #estado {
   position: fixed;
   left: 12px;
   right: 12px;
   top: 84px;
   z-index: 65;
-  border-radius: 12px;
+  border-radius: 14px;
+  padding: 12px;
+  text-align: center;
+  color: var(--rp-rust-ink, #fff);
+  background: var(--rp-warn, #b97d16);
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.6);
+}
+#estado.done {
+  background: var(--rp-ok, #1c8f61);
+}
+#estado .estado-k {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+#estado .estado-count {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+#estado .estado-msg {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.95;
 }
 
 #scanFooter {
@@ -79,16 +102,33 @@ body {
   right: 0;
   bottom: 0;
   z-index: 60;
+  display: grid;
+  gap: 8px;
   padding: 12px;
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
   background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
 }
 
-#btn-volver {
+#scanFooter #btn-salir {
+  font-size: 15px;
+}
+#scanFooter #btn-volver {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
   width: 100%;
-  font-size: 20px;
-  padding: 14px 14px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  padding: 14px;
   border-radius: 14px;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+#scanFooter #btn-volver.ready {
+  background: var(--rp-ok, #1c8f61);
 }
 
 /* ocultar UI extra que a veces agrega la lib */

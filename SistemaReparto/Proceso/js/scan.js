@@ -138,13 +138,13 @@ window.addEventListener(
 // UI states
 // --------------------
 function setEstadoParcial(ok, total) {
-  $("#estado").removeClass("bg-success").addClass("bg-warning");
+  $("#estado").removeClass("done");
   $("#wh-msg").text("Escaneá todos los bultos para salir");
 
   scanLocked = false; // 👈 por si volvés a parcial
 }
 async function setEstadoCompleto(total) {
-  $("#estado").removeClass("bg-warning").addClass("bg-success");
+  $("#estado").addClass("done");
   $("#wh-msg").text("✅ Todo OK. Volvé a Warehouse y presioná Confirmar carga.");
 
   // Bloqueo lógico
@@ -162,7 +162,7 @@ async function setEstadoCompleto(total) {
   mostrarFeedback(`✅ Completo (${total}/${total})`, "ok");
 
   // Si querés, agrandá el botón volver
-  $("#btn-volver").removeClass("btn-secondary").addClass("btn-success").text("Volver y Confirmar");
+  $("#btn-volver").addClass("ready").text("Volver y Confirmar");
 }
 // --------------------
 // Conteo desde IndexedDB
