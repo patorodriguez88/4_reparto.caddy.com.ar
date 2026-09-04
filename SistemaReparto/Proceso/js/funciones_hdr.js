@@ -927,6 +927,15 @@ function paneles(a, refrescarTotales = false) {
       // ✅ Limpio espacios
       const limpio = (responseText || "").trim();
 
+      // Encabezado "Próximas paradas": visible sólo si hay tarjetas de
+      // parada de verdad (no en empty state ni con el cartel del gate).
+      const hayParadas = /rp-stop-actions|class="col-xl-7 rp"/.test(limpio);
+      const nPend = parseInt($("#badge-sinentregar").text(), 10) || 0;
+      $("#rp-paradas-head").toggle(hayParadas);
+      $("#rp-paradas-count").text(
+        hayParadas ? nPend + (nPend === 1 ? " pendiente" : " pendientes") : "",
+      );
+
       // ✅ Empty state (y OJO: acá también deberías cerrar loader)
       if (!limpio || limpio === "[]" || limpio === "{}") {
         const tRender0 = performance.now();
@@ -1499,8 +1508,9 @@ function pintarBannerDetenido() {
     minute: "2-digit",
     hour12: false,
   });
-  $("#en-ruta-icon").attr("class", "mdi mdi-stop-circle-outline text-danger");
-  $("#en-ruta-texto").text(`${ahora} · 00:00:00`);
+  $("#en-ruta-icon").attr("class", "mdi mdi-stop-circle-outline");
+  $("#banner-en-ruta").addClass("stopped");
+  $("#en-ruta-texto").text(`Sin iniciar · ${ahora} · 00:00:00`);
   $("#btn-parar-ruta").hide();
   $("#banner-en-ruta").show();
 }
@@ -1514,7 +1524,8 @@ function pintarEstadoRecorrido(jsonData) {
     $("#btn-iniciar-recorrido").hide();
     const fecha = new Date(jsonData.HoraSalidaReal.replace(" ", "T"));
     horaSalidaRealActual = isNaN(fecha.getTime()) ? null : fecha;
-    $("#en-ruta-icon").attr("class", "mdi mdi-check-circle text-success");
+    $("#en-ruta-icon").attr("class", "mdi mdi-check-circle");
+    $("#banner-en-ruta").removeClass("stopped");
     $("#btn-parar-ruta").show();
     actualizarRelojEnRuta();
     if (!relojEnRutaIniciado) {

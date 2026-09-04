@@ -100,6 +100,7 @@
   font-weight: 900; font-size: 13px;
 }
 .rp-banner.stopped .rp-banner-dot { background: var(--rp-crit-bg); color: var(--rp-crit); }
+.rp-banner .rp-banner-dot .mdi { font-size: 15px; line-height: 1; }
 .rp-banner .rp-banner-txt { flex: 1; min-width: 0; }
 .rp-banner .rp-banner-k {
   font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
@@ -129,8 +130,22 @@
 .rp-progress .km .rp-k::before { background: var(--rp-info); }
 .rp-progress .rp-v { font-size: 17px; font-weight: 900; letter-spacing: -0.02em; }
 
+/* ---- lista de paradas dentro de #hdractivas (Bootstrap .row) ---- */
+#hdractivas.row {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 520px;
+  row-gap: 0;
+}
+#hdractivas > [class*="col-"] {
+  padding-left: 0;
+  padding-right: 0;
+  margin-bottom: 14px;
+}
+#hdractivas > [class*="col-"]:last-child { margin-bottom: 0; }
+
 /* ---- tarjeta de parada ---- */
-.rp-stops { display: flex; flex-direction: column; gap: 12px; }
+.rp-stops { display: flex; flex-direction: column; gap: 14px; }
 .rp-stop {
   background: var(--rp-surface);
   border: 1px solid var(--rp-line);

@@ -717,6 +717,7 @@ if (isset($_POST['Paneles'])) {
     }
     $rpPiso = trim((string)($row['PisoDeptoDestino'] ?? ''));
     $rpObs  = trim((string)($row['Observaciones'] ?? ''));
+    if ($rpObs === '0' || strtolower($rpObs) === 'null') $rpObs = '';
 
     // Horario real del cliente si está configurado; si no, el estimado de
     // recalcularEtas() (eta.php); si no hay ninguno, "estimando".
