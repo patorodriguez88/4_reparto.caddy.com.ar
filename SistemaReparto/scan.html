@@ -10,6 +10,21 @@
     <div id="scannerWrap">
       <div id="qr-reader"></div>
       <div id="scan-feedback" class="scan-feedback hidden"></div>
+
+      <!-- Carga a mano: si la cámara no abre o el QR no engancha -->
+      <form id="manual-form" class="p-2 d-flex gap-2" autocomplete="off">
+        <input
+          id="manual-code"
+          type="text"
+          class="form-control form-control-lg"
+          autocapitalize="characters"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Código a mano (ej. NBJVDGOGS)"
+        />
+        <button type="submit" class="btn btn-light btn-lg">Agregar</button>
+      </form>
+
       <!-- HUD limpio -->
       <div id="estado" class="p-2 text-center bg-warning text-white">
         <div class="fw-bold">Bultos</div>
@@ -41,6 +56,6 @@
     <script src="Proceso/js/db.js"></script>
 
     <!-- scanner + estados -->
-    <script src="Proceso/js/scan.js"></script>
+    <script src="Proceso/js/scan.js?v=20260904"></script>
   </body>
 </html>

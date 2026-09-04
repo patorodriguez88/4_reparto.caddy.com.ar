@@ -505,6 +505,14 @@ async function startScanner() {
       return;
     }
 
+    // Sin cámara disponible (contexto no seguro / permiso denegado): no
+    // reventamos con un alert, se sigue pudiendo cargar a mano.
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      mostrarFeedback("📷 Cámara no disponible. Cargá los códigos a mano.", "warn");
+      $("#manual-code").focus();
+      return;
+    }
+
     // si quedó una instancia anterior “colgada”, limpiamos
     if (html5QrCode) {
       try {
@@ -583,6 +591,16 @@ $(document).ready(function () {
   $("#btn-volver").on("click", async function () {
     await stopScanner();
     window.location.href = "warehouse.html";
+  });
+
+  // Carga a mano: mismo camino que la cámara (onSuccess valida formato,
+  // pertenencia al recorrido, duplicados y actualiza el HUD).
+  $("#manual-form").on("submit", function (e) {
+    e.preventDefault();
+    const val = ($("#manual-code").val() || "").trim();
+    if (!val) return;
+    onSuccess(val);
+    $("#manual-code").val("").focus();
   });
   function normalizar(code) {
     return (code || "").trim().toUpperCase();
