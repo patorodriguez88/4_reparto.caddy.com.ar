@@ -501,16 +501,13 @@ if (isset($_POST['Paneles'])) {
   }
 
   if ($faltan > 0 && $overrideGate) {
-    echo "<div class='col-12 rp'><div class='rp-alert'>"
-      . "⚠️ Recorrido con <b>control de escaneo omitido</b>: faltan {$faltan} bulto" . ($faltan === 1 ? '' : 's')
-      . " sin validar en Warehouse."
+    // Un operador ya autorizó arrancar sin escanear en Warehouse: alcanza un
+    // renglón discreto, sin cartel ni el conteo (no es un error a resolver).
+    // El bypass real ya queda registrado en iniciar_recorrido / confirmo_entrega,
+    // no hace falta loguearlo en cada poll del panel.
+    echo "<div class='col-12 rp'><div class='rp-note rp-note--tight'>"
+      . "Escaneo de Warehouse omitido para este recorrido (autorizado por un operador)."
       . "</div></div>";
-    logBypassEscaneo([
-      'usuario'   => $_SESSION['Usuario'] ?? '',
-      'recorrido' => $Recorrido,
-      'cs'        => '',
-      'contexto'  => 'panel',
-    ]);
   }
 
   $Retirado_ = '';
