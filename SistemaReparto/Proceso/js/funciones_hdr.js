@@ -1941,26 +1941,76 @@ $(document).on("click", "#btn-iniciar-recorrido", function () {
     return;
   }
 
-  if (!("geolocation" in navigator)) {
-    Swal.fire({ icon: "error", title: "Sin GPS", text: "Este dispositivo no tiene geolocalización disponible." });
+  function resetIniciar() {
     $btn.prop("disabled", false).html('<i class="mdi mdi-rocket-launch-outline"></i> Iniciar Recorrido');
-    return;
   }
 
-  navigator.geolocation.getCurrentPosition(
-    function (pos) {
-      enviar(pos.coords.latitude, pos.coords.longitude);
-    },
-    function () {
-      Swal.fire({
-        icon: "error",
-        title: "No se pudo obtener tu ubicación",
-        text: "Activá el GPS/permiso de ubicación e intentá de nuevo.",
-      });
-      $btn.prop("disabled", false).html('<i class="mdi mdi-rocket-launch-outline"></i> Iniciar Recorrido');
-    },
-    { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 },
-  );
+  function pedirYArrancar() {
+    if (window.CaddyGeo && window.CaddyGeo.solicitar) {
+      window.CaddyGeo.solicitar(
+        function (p) {
+          enviar(p.lat, p.lng);
+        },
+        function (codigo) {
+          resetIniciar();
+          if (codigo === "nosoporta") {
+            Swal.fire({ icon: "error", title: "Sin GPS", text: "Este dispositivo no tiene geolocalización disponible." });
+            return;
+          }
+          if (codigo === "denied") {
+            Swal.fire({
+              icon: "error",
+              title: "La ubicación está bloqueada",
+              html:
+                "Tocá el candado 🔒 al lado de la dirección (arriba) → <b>Permisos</b> → <b>Ubicación</b> → <b>Permitir</b>.<br>" +
+                "Si no aparece, activala desde <b>Ajustes del teléfono → Ubicación</b>.",
+            });
+            return;
+          }
+          Swal.fire({
+            icon: "warning",
+            title: "No se pudo obtener tu ubicación",
+            text:
+              codigo === "timeout"
+                ? "Tardó demasiado (¿estás bajo techo?). Salí a un lugar más abierto y reintentá."
+                : "Activá el GPS e intentá de nuevo.",
+            confirmButtonText: "Reintentar",
+            showCancelButton: true,
+            cancelButtonText: "Cancelar",
+          }).then(function (r) {
+            if (r.isConfirmed) {
+              $btn.prop("disabled", true).html('<i class="mdi mdi-loading mdi-spin"></i> Iniciando...');
+              pedirYArrancar();
+            }
+          });
+        },
+      );
+      return;
+    }
+
+    // Fallback si geo_tracker.js no cargó
+    if (!("geolocation" in navigator)) {
+      Swal.fire({ icon: "error", title: "Sin GPS", text: "Este dispositivo no tiene geolocalización disponible." });
+      resetIniciar();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        enviar(pos.coords.latitude, pos.coords.longitude);
+      },
+      function () {
+        Swal.fire({
+          icon: "error",
+          title: "No se pudo obtener tu ubicación",
+          text: "Activá el GPS/permiso de ubicación e intentá de nuevo.",
+        });
+        resetIniciar();
+      },
+      { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 },
+    );
+  }
+
+  pedirYArrancar();
 });
 
 //INGRESO!
