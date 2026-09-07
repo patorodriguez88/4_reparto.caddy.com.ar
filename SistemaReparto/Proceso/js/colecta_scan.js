@@ -66,7 +66,17 @@ console.log("Version 1.16 - 2024-06-18");
   function getServicioEsperadoPorBase(base) {
     const exp = getColectaExpected();
     if (!exp || !Array.isArray(exp.servicios_detalle)) return null;
-    return exp.servicios_detalle.find((s) => String(s.cs_base).trim() === String(base).trim()) || null;
+    // Matchea por cs_base O por codigoProveedor: en las colectas Flex el nro
+    // de envio de Meli viene en CodigoProveedor, no como cs_base. Sin esto,
+    // escanear/tipear el nro de ML daba "Servicio fuera de la colecta".
+    const b = String(base).trim().toUpperCase();
+    return (
+      exp.servicios_detalle.find((s) => {
+        const cs = String(s.cs_base ?? "").trim().toUpperCase();
+        const prov = String(s.codigoProveedor ?? "").trim().toUpperCase();
+        return (cs && cs === b) || (prov && prov === b);
+      }) || null
+    );
   }
 
   function buildExpectedCodesForColecta() {

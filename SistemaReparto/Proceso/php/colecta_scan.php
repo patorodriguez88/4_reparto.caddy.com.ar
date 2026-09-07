@@ -418,7 +418,52 @@ function resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $ferniplas
                 'codigoSeguimiento' => (string)($tr['CodigoSeguimiento'] ?? ''),
             ];
         }
-        return null; // si es JSON y no matchea, no forzamos otras heurísticas
+
+        // Fallback: los envios Flex cargados por el flujo de colecta guardan el
+        // nro de envio de Meli en CodigoProveedor, NO en shipments_id. Antes de
+        // rendirnos, probamos ahi con el id sacado del QR (mismo lookup que el
+        // Path 3 de proveedor). Se devuelve como PROV_CODPROV: aguas abajo se
+        // comporta igual que un match por codigo de proveedor.
+        if ($colectaId > 0) {
+            $st = $mysqli->prepare("
+                SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                FROM TransClientes
+                WHERE idColecta=? AND Eliminado=0 AND Entregado=0 AND Devuelto=0
+                  AND CodigoProveedor=?
+                  AND (?=0 OR id<>?)
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $st->bind_param("isii", $colectaId, $ship, $padreId, $padreId);
+        } else {
+            $st = $mysqli->prepare("
+                SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
+                FROM TransClientes
+                WHERE Eliminado=0 AND Entregado=0 AND Devuelto=0
+                  AND CodigoProveedor=?
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $st->bind_param("s", $ship);
+        }
+        $st->execute();
+        $tr = $st->get_result()->fetch_assoc();
+        if ($tr && !empty($tr['id'])) {
+            return [
+                'tipo' => 'PROV_CODPROV',
+                'idTransClientes' => (int)$tr['id'],
+                'cs_base' => parseCaddyBase($tr['CodigoSeguimiento']),
+                'cantidad' => (int)($tr['Cantidad'] ?? 1),
+                'idClienteOrigen' => (int)($tr['idClienteOrigen'] ?? 0),
+                'idClienteDestino' => (int)($tr['idClienteDestino'] ?? 0),
+                'destino' => (string)($tr['DomicilioDestino'] ?? ''),
+                'nroOrden' => (string)($tr['NumerodeOrden'] ?? ''),
+                'token_store' => $meliId,
+                'codigoSeguimiento' => (string)($tr['CodigoSeguimiento'] ?? ''),
+            ];
+        }
+
+        return null; // si es JSON y no matchea ni por shipments_id ni por CodigoProveedor
     }
 
     // 2) Caddy QR BASE o BASE_n (match por SUBSTRING_INDEX)
