@@ -363,9 +363,33 @@ if (isset($_POST['CuentaResumen'])) {
     $aCobrar = $totFacturado + $totControlado;
     $mesTotEnvios = $mesEntregados + $mesNoEntregados;
 
+    // Empleado de planta de Caddy (sueldo): Mi Cuenta no lleva importes ni
+    // estados de facturación, solo cantidades. Ademas de que el front lo
+    // oculta, limpiamos los montos del payload por las dudas (JS viejo en
+    // cache, etc.). El flag se setea en admision.php al loguear.
+    $esEmpleado = !empty($_SESSION['EsEmpleadoCaddy']);
+    if ($esEmpleado) {
+      $totFacturado = $totControlado = $aCobrar = $prev = 0.0;
+      foreach ($ordenes as &$o) {
+        $o['total']       = null;
+        $o['comprobante']  = null;
+        $o['ajustados']    = 0;
+        foreach ($o['envios'] as &$e) {
+          $e['precio']          = null;
+          $e['cobranza']        = null;
+          $e['total']           = null;
+          $e['ajustado']        = false;
+          $e['precio_anterior'] = null;
+        }
+        unset($e);
+      }
+      unset($o);
+    }
+
     echo json_encode([
       'success' => 1,
       'mes'     => $mes,
+      'es_empleado' => $esEmpleado,
       'resumen' => [
         'a_cobrar'       => round($aCobrar, 2),
         'facturado'      => round($totFacturado, 2),

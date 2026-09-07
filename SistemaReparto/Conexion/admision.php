@@ -193,13 +193,19 @@ try {
     // -----------------------
     // TRANSPORTISTA (Empleados)
     // -----------------------
-    $nombreCompleto = '';
+    // Empleado de planta de Caddy = fila activa en Empleados con Aliados=0.
+    // Cobran sueldo, no por paquete: en Mi Cuenta no se les muestran importes,
+    // solo cantidades (ver funciones_hdr.php?CuentaResumen y funciones_hdr.js).
+    // Los "aliados" (Aliados=1) y los externos sin fila en Empleados SÍ se
+    // liquidan por Externos_rendicion, así que para ellos el flag queda en 0.
+    $nombreCompleto   = '';
+    $esEmpleadoCaddy  = 0;
     try {
         $stmtEmp = $mysqli->prepare("
-            SELECT NombreCompleto
+            SELECT NombreCompleto, Aliados
             FROM Empleados
             WHERE Usuario = ?
-            AND Inactivo=0            
+            AND Inactivo=0
             LIMIT 1
         ");
         $stmtEmp->bind_param("i", $idUsuario);
@@ -207,10 +213,12 @@ try {
         $resEmp = $stmtEmp->get_result();
         $emp = $resEmp ? $resEmp->fetch_assoc() : null;
         $stmtEmp->close();
-        $nombreCompleto = $emp['NombreCompleto'] ?? 'Sin Nombre';
+        $nombreCompleto  = $emp['NombreCompleto'] ?? 'Sin Nombre';
+        $esEmpleadoCaddy = ($emp && (int) ($emp['Aliados'] ?? 1) === 0) ? 1 : 0;
     } catch (Throwable $e) {
         // no rompemos login
-        $nombreCompleto = '';
+        $nombreCompleto  = '';
+        $esEmpleadoCaddy = 0;
     }
 
     // -----------------------
@@ -244,6 +252,7 @@ try {
     // SESIÓN
     // -----------------------
     $_SESSION['Transportista']      = $nombreCompleto;
+    $_SESSION['EsEmpleadoCaddy']    = $esEmpleadoCaddy; // 1 = planta (sueldo, sin importes en Mi Cuenta)
     $_SESSION['idusuario']          = $idUsuario;
     $_SESSION['ingreso']            = $row['Usuario'] ?? '';
     $_SESSION['NCliente']           = $row['NdeCliente'] ?? '';

@@ -99,6 +99,10 @@ function cargarCuentaHTML(mes) {
 
 function mcRender($dst, data) {
   const r = data.resumen || {};
+  // Empleado de planta de Caddy: cobra sueldo, no por paquete. Mi Cuenta le
+  // muestra solo cantidades (entregas, km, desempeño) — nada de importes ni
+  // estados de facturación. El flag viene del backend (sesión).
+  const emp = !!data.es_empleado;
   const desemp = r.desempeno;
   const ringCls = desemp == null ? "" : desemp >= MC_META_DESEMPENO ? "" : desemp >= 75 ? "warn" : "crit";
   const dash = desemp == null ? 0 : Math.max(0, Math.min(100, desemp));
@@ -127,9 +131,15 @@ function mcRender($dst, data) {
 
   // hero
   html += '<div class="mc-hero"><div class="mc-hero-row">';
-  html +=
-    '<div class="mc-earn"><div class="mc-label">A cobrar este mes</div>' +
-    '<div class="mc-amount mc-num">' + mcMoney(r.a_cobrar) + "</div>" + deltaHtml + "</div>";
+  if (emp) {
+    html +=
+      '<div class="mc-earn"><div class="mc-label">Entregas este mes</div>' +
+      '<div class="mc-amount mc-num">' + (r.entregas || 0) + "</div></div>";
+  } else {
+    html +=
+      '<div class="mc-earn"><div class="mc-label">A cobrar este mes</div>' +
+      '<div class="mc-amount mc-num">' + mcMoney(r.a_cobrar) + "</div>" + deltaHtml + "</div>";
+  }
   html +=
     '<div class="mc-ring-wrap"><svg class="mc-ring ' + ringCls + '" viewBox="0 0 96 96" role="img" aria-label="Desempeño ' +
     (desemp == null ? "sin datos" : desemp + " por ciento") +
@@ -141,17 +151,22 @@ function mcRender($dst, data) {
     '<div class="mc-ring-cap">Desempeño · meta ' + MC_META_DESEMPENO + "%</div></div>";
   html += "</div>"; // hero-row
 
-  html += '<div class="mc-split">';
-  html +=
-    '<div class="fac"><span class="k">Facturado</span><span class="v mc-num">' + mcMoney(r.facturado) +
-    '</span><span class="sub">' + (r.n_facturado || 0) + " órden" + ((r.n_facturado || 0) === 1 ? "" : "es") + "</span></div>";
-  html +=
-    '<div class="ctl"><span class="k">Controlado</span><span class="v mc-num">' + mcMoney(r.controlado) +
-    '</span><span class="sub">' + (r.n_controlado || 0) + " órden" + ((r.n_controlado || 0) === 1 ? "" : "es") + "</span></div>";
-  html +=
-    '<div class="rev"><span class="k">En revisión</span><span class="v mc-num">' + (r.n_revision || 0) +
-    '</span><span class="sub">órden' + ((r.n_revision || 0) === 1 ? "" : "es") + "</span></div>";
-  html += "</div></div>"; // split + hero
+  // Facturado / Controlado / En revisión son conceptos de cobro: no van para
+  // empleados de planta.
+  if (!emp) {
+    html += '<div class="mc-split">';
+    html +=
+      '<div class="fac"><span class="k">Facturado</span><span class="v mc-num">' + mcMoney(r.facturado) +
+      '</span><span class="sub">' + (r.n_facturado || 0) + " órden" + ((r.n_facturado || 0) === 1 ? "" : "es") + "</span></div>";
+    html +=
+      '<div class="ctl"><span class="k">Controlado</span><span class="v mc-num">' + mcMoney(r.controlado) +
+      '</span><span class="sub">' + (r.n_controlado || 0) + " órden" + ((r.n_controlado || 0) === 1 ? "" : "es") + "</span></div>";
+    html +=
+      '<div class="rev"><span class="k">En revisión</span><span class="v mc-num">' + (r.n_revision || 0) +
+      '</span><span class="sub">órden' + ((r.n_revision || 0) === 1 ? "" : "es") + "</span></div>";
+    html += "</div>";
+  }
+  html += "</div>"; // hero
 
   // chips
   html += '<div class="mc-chips">';
@@ -175,13 +190,16 @@ function mcRender($dst, data) {
     if (idxAbrir < 0) idxAbrir = 0;
     html += '<div class="mc-orders">';
     ordenes.forEach(function (o, i) {
-      html += mcRenderOrden(o, i === idxAbrir);
+      html += mcRenderOrden(o, i === idxAbrir, emp);
     });
     html += "</div>";
   }
 
   html +=
-    '<p class="mc-foot">Los montos se confirman cuando el operador controla y factura cada orden. ' +
+    '<p class="mc-foot">' +
+    (emp
+      ? "Cantidades tomadas de lo que registró el operador. "
+      : "Los montos se confirman cuando el operador controla y factura cada orden. ") +
     "Deslizá para actualizar.</p>";
   html += "</div>";
 
@@ -201,7 +219,7 @@ function mcRender($dst, data) {
   }
 }
 
-function mcRenderOrden(o, abrir) {
+function mcRenderOrden(o, abrir, emp) {
   const est = MC_ESTADO[o.estado] || MC_ESTADO.revision;
   const ruta = o.recorrido_nombre
     ? "R." + mcEsc(o.recorrido) + " " + mcEsc(o.recorrido_nombre)
@@ -216,28 +234,34 @@ function mcRenderOrden(o, abrir) {
   head +=
     '<span class="mc-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></span>';
   head += "</div>";
-  head += '<span class="mc-badge ' + est.cls + '">' + est.txt + "</span>";
 
-  if (o.comprobante && o.comprobante.numero) {
-    head +=
-      '<div class="mc-comp">Comprobante ' +
-      mcEsc(o.comprobante.numero) +
-      (o.comprobante.fecha ? " · " + mcEsc(mcFechaCorta(o.comprobante.fecha)) : "") +
-      "</div>";
+  // Badge de estado (En revisión / Controlada / Facturada) y comprobante son
+  // de facturación: no van para empleados de planta.
+  if (!emp) {
+    head += '<span class="mc-badge ' + est.cls + '">' + est.txt + "</span>";
+    if (o.comprobante && o.comprobante.numero) {
+      head +=
+        '<div class="mc-comp">Comprobante ' +
+        mcEsc(o.comprobante.numero) +
+        (o.comprobante.fecha ? " · " + mcEsc(mcFechaCorta(o.comprobante.fecha)) : "") +
+        "</div>";
+    }
   }
 
   head += '<div class="mc-oh-bot"><div class="mc-oh-stats">';
   head += '<span class="e">' + (o.entregados || 0) + " ✓</span>";
   head += '<span class="n">' + (o.no_entregados || 0) + " ✕</span>";
   head += '<span class="p">' + pct + "</span></div>";
-  if (o.total_confirmado) {
-    head += '<div class="mc-oh-total mc-num">' + mcMoney(o.total) + "</div>";
-  } else {
-    head += '<div class="mc-oh-total pend">Monto a confirmar</div>';
+  if (!emp) {
+    if (o.total_confirmado) {
+      head += '<div class="mc-oh-total mc-num">' + mcMoney(o.total) + "</div>";
+    } else {
+      head += '<div class="mc-oh-total pend">Monto a confirmar</div>';
+    }
   }
   head += "</div>";
 
-  if (o.ajustados > 0) {
+  if (!emp && o.ajustados > 0) {
     head +=
       '<span class="mc-flag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>' +
       o.ajustados +
@@ -251,41 +275,52 @@ function mcRenderOrden(o, abrir) {
 
   // body
   let body = '<div class="mc-body"><div class="mc-body-inner">';
-  if (o.estado === "revision" || !o.envios || !o.envios.length) {
+  const hayEnvios = o.envios && o.envios.length;
+  if (emp) {
+    if (hayEnvios) {
+      o.envios.forEach(function (e) {
+        body += mcRenderEnvio(e, emp);
+      });
+    } else {
+      body +=
+        '<div class="mc-rev-note">Todavía no hay detalle envío por envío de esta orden.</div>';
+    }
+  } else if (o.estado === "revision" || !hayEnvios) {
     body +=
       '<div class="mc-rev-note">El operador todavía no controló esta orden. Cuando revise las tarifas ' +
       "vas a ver acá el detalle envío por envío y el total a cobrar.</div>";
   } else {
     o.envios.forEach(function (e) {
-      body += mcRenderEnvio(e);
+      body += mcRenderEnvio(e, emp);
     });
   }
-  const footTxt =
-    o.estado === "facturada"
-      ? "Facturada · " + (o.envios ? o.envios.length : o.entregados + o.no_entregados) + " envíos"
+
+  const nEnvios = hayEnvios ? o.envios.length : o.entregados + o.no_entregados;
+  const footTxt = emp
+    ? nEnvios + " envío" + (nEnvios === 1 ? "" : "s")
+    : o.estado === "facturada"
+      ? "Facturada · " + nEnvios + " envíos"
       : o.estado === "controlada"
         ? "Controlada · pendiente de facturar"
         : "Entregada · " + (o.entregados + o.no_entregados) + " envíos";
-  body +=
-    '<div class="mc-order-foot"><span>' +
-    mcEsc(footTxt) +
-    "</span><b>" +
-    (o.total_confirmado ? mcMoney(o.total) : "—") +
-    "</b></div>";
+  body += '<div class="mc-order-foot"><span>' + mcEsc(footTxt) + "</span>";
+  if (!emp) {
+    body += "<b>" + (o.total_confirmado ? mcMoney(o.total) : "—") + "</b>";
+  }
+  body += "</div>";
   body += "</div></div>";
 
   return '<div class="mc-order' + (abrir ? " open" : "") + '">' + head + body + "</div>";
 }
 
-function mcRenderEnvio(e) {
+function mcRenderEnvio(e, emp) {
   const t = MC_TIPO[e.tipo] || MC_TIPO.ENTREGA;
   let h = '<div class="mc-env">';
-  h +=
-    '<div class="mc-env-top"><span class="mc-env-code">' +
-    mcEsc(e.codigo) +
-    '</span><span class="mc-env-amt mc-num">' +
-    mcMoney(e.total) +
-    "</span></div>";
+  h += '<div class="mc-env-top"><span class="mc-env-code">' + mcEsc(e.codigo) + "</span>";
+  if (!emp) {
+    h += '<span class="mc-env-amt mc-num">' + mcMoney(e.total) + "</span>";
+  }
+  h += "</div>";
   if (e.destino || e.domicilio) {
     h +=
       '<div class="mc-env-dest">' +
@@ -294,13 +329,14 @@ function mcRenderEnvio(e) {
   }
   h += '<div class="mc-env-tags"><span class="mc-tag ' + t.cls + '">' + t.txt + "</span>";
   if (e.tipo === "ENTREGA_CON_COBRANZA") h += '<span class="mc-tag cob">+ cobranza</span>';
-  h += '<span class="mc-tag">' + mcEsc(e.tarifa) + "</span>";
+  // La tarifa es una categoría de cobro: no va para empleados de planta.
+  if (!emp && e.tarifa) h += '<span class="mc-tag">' + mcEsc(e.tarifa) + "</span>";
   if (e.km > 0) h += '<span class="mc-tag">' + e.km + " km</span>";
   h += "</div>";
-  if (e.cobranza > 0) {
+  if (!emp && e.cobranza > 0) {
     h += '<div class="mc-env-break">' + mcMoney(e.precio) + " tarifa + " + mcMoney(e.cobranza) + " cobranza</div>";
   }
-  if (e.ajustado) {
+  if (!emp && e.ajustado) {
     h +=
       '<div class="mc-env-adj">Ajustado: <s>' +
       mcMoney(e.precio_anterior) +
@@ -643,7 +679,7 @@ function irAWarehouse() {
   } catch (e) {}
 
   // ajustá la ruta si warehouse.html está en otra carpeta
-  window.location.href = "warehouse.html?b=20260906a";
+  window.location.href = "warehouse.html?b=20260906b";
 }
 
 // Inyecta un item "Escanear" en el menú si no existe en el HTML

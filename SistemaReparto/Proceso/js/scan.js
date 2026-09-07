@@ -48,7 +48,7 @@ function getNextPendingCodeForBase(base, retiradoObjetivo, callback) {
 }
 function manejar401(xhr) {
   if (xhr && xhr.status === 401) {
-    window.location.href = "hdr.html?b=20260906a";
+    window.location.href = "hdr.html?b=20260906b";
     return true;
   }
   return false;
@@ -590,7 +590,7 @@ $(document).ready(function () {
 
   $("#btn-volver").on("click", async function () {
     await stopScanner();
-    window.location.href = "warehouse.html?b=20260906a";
+    window.location.href = "warehouse.html?b=20260906b";
   });
 
   // Carga a mano: mismo camino que la cámara (onSuccess valida formato,
