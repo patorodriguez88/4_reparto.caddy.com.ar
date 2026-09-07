@@ -643,7 +643,7 @@ function irAWarehouse() {
   } catch (e) {}
 
   // ajustá la ruta si warehouse.html está en otra carpeta
-  window.location.href = "warehouse.html?b=20260904d";
+  window.location.href = "warehouse.html?b=20260906a";
 }
 
 // Inyecta un item "Escanear" en el menú si no existe en el HTML

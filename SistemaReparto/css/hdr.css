@@ -889,3 +889,189 @@ body.app-ready #fab-mapa-recorrido {
 @media (prefers-reduced-motion: reduce) {
   .mc *, .mc-ring .fg { transition: none !important; animation: none !important; }
 }
+
+/* ===================================================================
+   SPLASH DE INICIO + LOGIN con la estética Mi Cuenta (.mc-*)
+   =================================================================== */
+
+/* ---- Splash: la marca Caddy gira 2 vueltas y funde a naranja ------- */
+#brand-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 4000; /* por encima de #login (2000) y los swal de login (5000 solo mientras haya popup) */
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  overflow: hidden;
+}
+/* Hyper pone `body.loading { visibility: hidden }` y el <body> arranca con esa
+   clase hasta que la app resuelve la sesión. El splash tiene que verse igual. */
+#brand-intro,
+#brand-intro * {
+  visibility: visible !important;
+}
+#brand-intro.done {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+#brand-intro .bi-mark {
+  width: auto;
+  height: min(34vh, 190px);
+  transform-origin: center;
+  /* gira de izquierda a derecha sobre su eje vertical, centro fijo */
+  transform: perspective(900px) rotateY(0deg) scale(0.6);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+#brand-intro.run .bi-mark {
+  animation: biSpin 1.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+#brand-intro .bi-flood {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--caddy-orange);
+  transform: scale(0);
+  will-change: transform;
+}
+#brand-intro.run .bi-flood {
+  animation: biFlood 0.8s ease-in 1.35s forwards;
+}
+@keyframes biSpin {
+  0%   { transform: perspective(900px) rotateY(0deg) scale(0.6);     opacity: 0; }
+  18%  { opacity: 1; }
+  78%  { transform: perspective(900px) rotateY(360deg) scale(1.06);  opacity: 1; }
+  100% { transform: perspective(900px) rotateY(360deg) scale(1);     opacity: 1; }
+}
+@keyframes biFlood {
+  to { transform: scale(130); }
+}
+@media (prefers-color-scheme: dark) {
+  #brand-intro { background: #1c171f; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #brand-intro:not(.force) { display: none; }
+}
+
+/* ---- Login card ---------------------------------------------------- */
+#login.mc-login {
+  background: linear-gradient(180deg, #fbf7f5 0%, #f2e9e4 100%);
+}
+@media (prefers-color-scheme: dark) {
+  #login.mc-login {
+    background: linear-gradient(180deg, #1c171f 0%, #221c26 100%);
+  }
+}
+#login.mc-login .login-wrapper {
+  background: transparent;
+}
+#login .mc-login-card {
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-line);
+  border-radius: 22px;
+  box-shadow: var(--mc-shadow);
+  padding: 30px 26px 26px;
+  transform-origin: center;
+  /* pop de entrada: aparece, se agranda un toque y vuelve a su lugar.
+     Corre cada vez que #login pasa de display:none a visible. */
+  animation: mcLoginPop 0.5s cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+@keyframes mcLoginPop {
+  0%   { opacity: 0; transform: scale(0.9); }
+  55%  { opacity: 1; transform: scale(1.035); }
+  100% { opacity: 1; transform: scale(1); }
+}
+#login .mc-login-head {
+  text-align: center;
+  margin-bottom: 22px;
+}
+#login .mc-login-mark {
+  width: auto;
+  height: 62px;
+  max-width: 86%;
+  object-fit: contain;
+  display: block;
+  margin: 2px auto 16px;
+}
+#login .mc-login-title {
+  margin: 0;
+  font-weight: 800;
+  font-size: 1.28rem;
+  letter-spacing: -0.01em;
+  color: var(--mc-ink);
+}
+#login .mc-login-sub {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: var(--mc-soft);
+}
+#login .mc-field {
+  margin-bottom: 15px;
+}
+#login .mc-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-mute);
+}
+#login .mc-input.form-control {
+  border: 1px solid var(--mc-line);
+  background: var(--mc-surface-2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.98rem;
+  color: var(--mc-ink);
+  box-shadow: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+#login .mc-input.form-control::placeholder {
+  color: var(--mc-mute);
+}
+#login .mc-input.form-control:focus {
+  border-color: var(--caddy-orange);
+  background: var(--mc-surface);
+  box-shadow: 0 0 0 3px rgba(226, 79, 48, 0.15);
+}
+#login .mc-input-group .mc-input.form-control {
+  border-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+#login .mc-input-group .input-group-text {
+  border: 1px solid var(--mc-line);
+  border-left: 0;
+  background: var(--mc-surface-2);
+  border-radius: 0 12px 12px 0;
+  color: var(--mc-mute);
+}
+#login .mc-input-group:focus-within .mc-input.form-control,
+#login .mc-input-group:focus-within .input-group-text {
+  border-color: var(--caddy-orange);
+}
+#login .mc-input-group:focus-within .input-group-text {
+  background: var(--mc-surface);
+}
+#login .mc-login-btn.btn-caddy {
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 22px -12px rgba(226, 79, 48, 0.7);
+  transition: transform 0.08s ease, background-color 0.15s ease;
+}
+#login .mc-login-btn.btn-caddy:active {
+  transform: translateY(1px);
+}
+#login .mc-login-ver {
+  display: block;
+  text-align: center;
+  margin-top: 12px;
+  color: var(--mc-mute);
+  text-decoration: none;
+}

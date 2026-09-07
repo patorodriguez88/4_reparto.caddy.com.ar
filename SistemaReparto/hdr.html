@@ -31,11 +31,65 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-    <link href="css/hdr.css?v=20260904d" rel="stylesheet" type="text/css" />
-    <link href="css/reparto-ui.css?v=20260904d" rel="stylesheet" type="text/css" />
+    <link href="css/hdr.css?v=20260906a" rel="stylesheet" type="text/css" />
+    <link href="css/reparto-ui.css?v=20260906a" rel="stylesheet" type="text/css" />
   </head>
 
   <body class="loading" data-layout="topnav">
+    <!-- Splash de inicio: el isotipo Caddy gira sobre su eje vertical y la
+         pantalla se funde a naranja antes de aparecer el login.
+         Overlay independiente de la lógica de sesión: se muestra una vez por
+         sesión, respeta prefers-reduced-motion y se saca solo del DOM. -->
+    <div id="brand-intro" aria-hidden="true">
+      <span class="bi-flood"></span>
+      <img class="bi-mark" src="images/iso.png?v=20260906a" alt="Caddy" />
+    </div>
+    <script>
+      (function () {
+        var el = document.getElementById("brand-intro");
+        if (!el) return;
+        // ?intro=1 (o &intro) fuerza el splash: ignora el "ya visto" de la
+        // sesión y el prefers-reduced-motion. Sirve para QA en localhost.
+        var force = /[?&]intro\b/.test(location.search);
+        var reduce =
+          !force &&
+          window.matchMedia &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        var seen = null;
+        try {
+          seen = !force && sessionStorage.getItem("caddyIntroDone");
+        } catch (e) {}
+        if (seen || reduce) {
+          if (el.parentNode) el.parentNode.removeChild(el);
+          return;
+        }
+        try {
+          sessionStorage.setItem("caddyIntroDone", "1");
+        } catch (e) {}
+        if (force) el.classList.add("force");
+        // arrancar la animación en el frame siguiente (asegura el estado inicial)
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            el.classList.add("run");
+          });
+        });
+        setTimeout(function () {
+          el.classList.add("done");
+          // Re-disparar el "pop" del card de login justo cuando el splash se
+          // abre (si el login ya estaba visible por debajo del overlay).
+          var card = document.querySelector("#login .mc-login-card");
+          if (card) {
+            card.style.animation = "none";
+            void card.offsetWidth; // forzar reflow
+            card.style.animation = "";
+          }
+        }, 2300);
+        setTimeout(function () {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        }, 2950);
+      })();
+    </script>
+
     <!-- Install banner -->
     <div id="installBanner" style="display: none" class="card shadow-sm position-fixed bottom-0 start-0 end-0 m-3">
       <div class="card-body d-flex align-items-center justify-content-between gap-2">
@@ -104,62 +158,55 @@
             </div>
           </div>
 
-          <!-- LOGIN -->
-          <div id="login" class="account-pages" style="display: none">
-            <div class="login-wrapper bg-white">
+          <!-- LOGIN — estética Mi Cuenta (.mc-*) -->
+          <div id="login" class="account-pages mc mc-login" style="display: none">
+            <div class="login-wrapper">
               <div class="login-card">
-                <div class="card">
-                  <div class="card-header pt-4 pb-4 text-center bg-white">
-                    <a href="#">
-                      <span><img src="images/LogoCaddy.png" alt="" height="88" /></span>
-                    </a>
+                <div class="mc-login-card">
+                  <div class="mc-login-head">
+                    <img class="mc-login-mark" src="images/LogoCaddy.png?v=20260906a" alt="Caddy" />
+                    <h4 class="mc-login-title">Ingreso a Recorridos</h4>
+                    <p class="mc-login-sub">Ingresá tu usuario y contraseña.</p>
                   </div>
 
-                  <div class="card-body p-4">
-                    <div class="text-center w-75 m-auto">
-                      <h4 class="text-dark-50 text-center mt-0 fw-bold">Ingreso Recorridos</h4>
-                      <p class="text-muted mb-4">Ingrese su Usuario y Contraseña.</p>
+                  <form id="loginForm" action="#" class="needs-validation mc-login-form" novalidate>
+                    <div class="mc-field">
+                      <label for="user" class="mc-label">Usuario</label>
+                      <input
+                        class="form-control mc-input"
+                        type="text"
+                        id="user"
+                        name="user"
+                        required
+                        autocomplete="username"
+                        placeholder="Tu usuario"
+                      />
                     </div>
 
-                    <form id="loginForm" action="#" class="needs-validation" novalidate>
-                      <div class="mb-3">
-                        <label for="user" class="form-label">Usuario</label>
+                    <div class="mc-field">
+                      <label for="password" class="mc-label">Contraseña</label>
+                      <div class="input-group input-group-merge mc-input-group">
                         <input
-                          class="form-control"
-                          type="text"
-                          id="user"
-                          name="user"
-                          required
-                          placeholder="Ingrese su Usuario"
+                          type="password"
+                          id="password"
+                          name="password"
+                          class="form-control mc-input"
+                          autocomplete="current-password"
+                          placeholder="Tu contraseña"
                         />
-                      </div>
-
-                      <div class="mb-3">
-                        <label for="password" class="form-label">Contraseña</label>
-                        <div class="input-group input-group-merge">
-                          <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            class="form-control"
-                            placeholder="Ingrese su Contraseña"
-                          />
-                          <div class="input-group-text" data-password="false">
-                            <span class="password-eye"></span>
-                          </div>
+                        <div class="input-group-text" data-password="false">
+                          <span class="password-eye"></span>
                         </div>
                       </div>
+                    </div>
 
-                      <div class="mb-0 text-center">
-                        <div class="d-grid mt-4">
-                          <button type="submit" class="btn btn-caddy w-100" id="ingreso">Ingresar</button>
-                          <!-- Version: mismo formato AA.MM.NN que sistema.caddy.com.ar y plataforma.caddy.com.ar,
-                               subir en cada push a main. Única copia (single-page app, sin header aparte). -->
-                          <a class="text-muted mt-2 d-block" href="#"><small>v.26.08.01</small></a>
-                        </div>
-                      </div>
-                    </form>
-                  </div>
+                    <div class="d-grid mt-4">
+                      <button type="submit" class="btn btn-caddy mc-login-btn w-100" id="ingreso">Ingresar</button>
+                      <!-- Version: mismo formato AA.MM.NN que sistema.caddy.com.ar y plataforma.caddy.com.ar,
+                           subir en cada push a main. Única copia (single-page app, sin header aparte). -->
+                      <a class="mc-login-ver" href="#"><small>v.26.08.01</small></a>
+                    </div>
+                  </form>
                 </div>
               </div>
             </div>
@@ -571,13 +618,13 @@
 
     <!-- ?v=YYYYMMDD: ver comentario en el <link> de hdr.css. Bumpear al tocar
          cualquiera de estos JS para saltear la cache vieja del proxy. -->
-    <script src="pwa/js/pwa.js?v=20260904d"></script>
-    <script src="Proceso/js/funciones_hdr.js?v=20260904d"></script>
-    <script src="Proceso/js/mail.js?v=20260904d"></script>
-    <script src="Proceso/js/dropzone.js?v=20260904d"></script>
-    <script src="Proceso/js/colecta_scan.js?v=20260904d"></script>
-    <script src="Proceso/js/app_status.js?v=20260904d"></script>
-    <script src="Proceso/js/geo_tracker.js?v=20260904d"></script>
-    <script src="Proceso/js/mapa_recorrido.js?v=20260904d"></script>
+    <script src="pwa/js/pwa.js?v=20260906a"></script>
+    <script src="Proceso/js/funciones_hdr.js?v=20260906a"></script>
+    <script src="Proceso/js/mail.js?v=20260906a"></script>
+    <script src="Proceso/js/dropzone.js?v=20260906a"></script>
+    <script src="Proceso/js/colecta_scan.js?v=20260906a"></script>
+    <script src="Proceso/js/app_status.js?v=20260906a"></script>
+    <script src="Proceso/js/geo_tracker.js?v=20260906a"></script>
+    <script src="Proceso/js/mapa_recorrido.js?v=20260906a"></script>
   </body>
 </html>
