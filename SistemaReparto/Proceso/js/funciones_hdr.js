@@ -1749,6 +1749,98 @@ $(document).on("click", "#btn-reanudar-ruta", function () {
 // tracker si es reciente, si no pide una nueva) y avisa al backend para
 // que marque el inicio real y dispare el primer recálculo de ETA.
 // ===== Finalizar Recorrido =====
+function _resetBtnFinalizar($btn) {
+  $btn.prop("disabled", false).html('<i class="mdi mdi-flag-checkered"></i> Finalizar Recorrido');
+}
+
+// Pide los km de regreso (solo pasa para vehículos propios) y reintenta.
+function _pedirKmRegresoYFinalizar($btn, res) {
+  const kmSalida = res && res.kmSalida ? Number(res.kmSalida) : 0;
+  Swal.fire({
+    icon: res.error === "KM_MENOR" ? "warning" : "info",
+    title: "Km de regreso",
+    text:
+      res.error === "KM_MENOR"
+        ? res.msg
+        : "Cargá el odómetro del vehículo al volver." +
+          (kmSalida > 0 ? " Km al salir: " + kmSalida + "." : ""),
+    input: "number",
+    inputAttributes: { min: kmSalida > 0 ? kmSalida : 1, step: 1, inputmode: "numeric" },
+    inputPlaceholder: "Km de regreso",
+    showCancelButton: true,
+    confirmButtonText: "Cerrar recorrido",
+    cancelButtonText: "Cancelar",
+    allowOutsideClick: false,
+    inputValidator: function (v) {
+      if (!v || Number(v) <= 0) return "Ingresá los km de regreso.";
+      if (kmSalida > 0 && Number(v) < kmSalida)
+        return "No puede ser menor a los km de salida (" + kmSalida + ").";
+      return undefined;
+    },
+  }).then(function (r) {
+    if (!r.isConfirmed) {
+      _resetBtnFinalizar($btn);
+      return;
+    }
+    _enviarFinalizar($btn, r.value);
+  });
+}
+
+function _enviarFinalizar($btn, km) {
+  const data = { Finalizar: 1 };
+  if (km != null && km !== "") data.Km = km;
+
+  $btn.prop("disabled", true).html('<i class="mdi mdi-loading mdi-spin"></i> Cerrando...');
+
+  $.ajax({
+    url: "Proceso/php/finalizar_recorrido.php",
+    type: "POST",
+    dataType: "json",
+    data: data,
+  })
+    .done(function (res) {
+      if (res && (res.error === "FALTA_KM" || res.error === "KM_MENOR")) {
+        _pedirKmRegresoYFinalizar($btn, res);
+        return;
+      }
+      if (!res || res.success !== 1) {
+        Swal.fire({
+          icon: "error",
+          title: "No se pudo finalizar",
+          text: (res && (res.msg || res.error)) || "Reintentá en unos segundos.",
+        });
+        _resetBtnFinalizar($btn);
+        return;
+      }
+
+      const rr = res.resumen || {};
+      Swal.fire({
+        icon: "success",
+        title: "¡Felicitaciones! 🎉",
+        html:
+          "Terminaste el recorrido.<br><br>" +
+          "<b>Tiempo total:</b> " + (rr.tiempo_texto || "sin registrar") + "<br>" +
+          "<b>Paradas:</b> " + (rr.paradas || 0) +
+          (rr.hora_inicio
+            ? "<br><small class='text-muted'>" + rr.hora_inicio + " → " + (rr.hora_fin || "") + "</small>"
+            : ""),
+        confirmButtonText: "Fin",
+        allowOutsideClick: false,
+        customClass: { container: "caddy-login-swal" },
+      }).then(function () {
+        location.reload();
+      });
+    })
+    .fail(function (xhr) {
+      if (xhr.status === 401) {
+        cerrarSesionForzada("SESSION_EXPIRED");
+        return;
+      }
+      Swal.fire({ icon: "error", title: "Error", text: "No se pudo finalizar el recorrido." });
+      _resetBtnFinalizar($btn);
+    });
+}
+
 $(document).on("click", "#btn-finalizar-recorrido", function () {
   const $btn = $(this);
 
@@ -1761,50 +1853,7 @@ $(document).on("click", "#btn-finalizar-recorrido", function () {
     cancelButtonText: "Todavía no",
   }).then(function (r) {
     if (!r.isConfirmed) return;
-
-    $btn.prop("disabled", true).html('<i class="mdi mdi-loading mdi-spin"></i> Cerrando...');
-
-    $.ajax({
-      url: "Proceso/php/finalizar_recorrido.php",
-      type: "POST",
-      dataType: "json",
-      data: { Finalizar: 1 },
-    })
-      .done(function (res) {
-        if (!res || res.success !== 1) {
-          Swal.fire({
-            icon: "error",
-            title: "No se pudo finalizar",
-            text: (res && (res.msg || res.error)) || "Reintentá en unos segundos.",
-          });
-          $btn.prop("disabled", false).html('<i class="mdi mdi-flag-checkered"></i> Finalizar Recorrido');
-          return;
-        }
-
-        const rr = res.resumen || {};
-        Swal.fire({
-          icon: "success",
-          title: "¡Felicitaciones! 🎉",
-          html:
-            "Terminaste el recorrido.<br><br>" +
-            '<b>Tiempo total:</b> ' + (rr.tiempo_texto || "sin registrar") + "<br>" +
-            '<b>Paradas:</b> ' + (rr.paradas || 0) +
-            (rr.hora_inicio ? "<br><small class='text-muted'>" + rr.hora_inicio + " → " + (rr.hora_fin || "") + "</small>" : ""),
-          confirmButtonText: "Fin",
-          allowOutsideClick: false,
-          customClass: { container: "caddy-login-swal" },
-        }).then(function () {
-          location.reload();
-        });
-      })
-      .fail(function (xhr) {
-        if (xhr.status === 401) {
-          cerrarSesionForzada("SESSION_EXPIRED");
-          return;
-        }
-        Swal.fire({ icon: "error", title: "Error", text: "No se pudo finalizar el recorrido." });
-        $btn.prop("disabled", false).html('<i class="mdi mdi-flag-checkered"></i> Finalizar Recorrido');
-      });
+    _enviarFinalizar($btn, null);
   });
 });
 

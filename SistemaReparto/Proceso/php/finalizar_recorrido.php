@@ -43,7 +43,7 @@ try {
 
   // Recorrido cargado del chofer
   $st = $mysqli->prepare("
-    SELECT id, NumerodeOrden, Recorrido, Fecha, HoraSalidaReal
+    SELECT id, NumerodeOrden, Recorrido, Fecha, HoraSalidaReal, Patente, Kilometros
     FROM Logistica
     WHERE idUsuarioChofer = ? AND Estado = 'Cargada' AND Eliminado = 0
     LIMIT 1
@@ -57,9 +57,23 @@ try {
     responder(['success' => 0, 'error' => 'SIN_RECORRIDO', 'msg' => 'No hay un recorrido activo para cerrar.']);
   }
 
-  $idLog   = (int) $log['id'];
-  $nOrden  = (int) $log['NumerodeOrden'];
-  $recorr  = (string) $log['Recorrido'];
+  $idLog    = (int) $log['id'];
+  $nOrden   = (int) $log['NumerodeOrden'];
+  $recorr   = (string) $log['Recorrido'];
+  $kmSalida = (int) round((float) ($log['Kilometros'] ?? 0));
+
+  // Vehículo propio de Caddy (Vehiculos.Aliados = 0) => el chofer tiene que
+  // cargar los km de regreso para cerrar. Externo/aliado (Aliados = 1) o
+  // patente desconocida => se cierra sin km, como antes.
+  $esPropio = false;
+  if (!empty($log['Patente'])) {
+    $stv = $mysqli->prepare("SELECT Aliados FROM Vehiculos WHERE Dominio = ? LIMIT 1");
+    $stv->bind_param('s', $log['Patente']);
+    $stv->execute();
+    $rv = $stv->get_result()->fetch_assoc();
+    $stv->close();
+    $esPropio = $rv && (int) $rv['Aliados'] === 0;
+  }
 
   // Guarda server-side: no cerramos si quedan paquetes sin resolver.
   $st = $mysqli->prepare("
@@ -82,6 +96,31 @@ try {
       'msg'     => "Todavía quedan {$pendientes} paquete(s) sin resolver.",
       'pendientes' => $pendientes,
     ]);
+  }
+
+  // Km de regreso: obligatorio solo para vehículos propios.
+  $kmRegreso = null;
+  if ($esPropio) {
+    $kmRaw = $_POST['Km'] ?? '';
+    if (!is_numeric($kmRaw) || (float) $kmRaw <= 0) {
+      responder([
+        'success'  => 0,
+        'error'    => 'FALTA_KM',
+        'esPropio' => 1,
+        'kmSalida' => $kmSalida,
+        'msg'      => 'Cargá los km de regreso para cerrar el recorrido.',
+      ]);
+    }
+    $kmRegreso = (int) round((float) $kmRaw);
+    if ($kmSalida > 0 && $kmRegreso < $kmSalida) {
+      responder([
+        'success'  => 0,
+        'error'    => 'KM_MENOR',
+        'esPropio' => 1,
+        'kmSalida' => $kmSalida,
+        'msg'      => "Los km de regreso ({$kmRegreso}) no pueden ser menores a los de salida ({$kmSalida}).",
+      ]);
+    }
   }
 
   // Total de paradas del recorrido
@@ -123,13 +162,27 @@ try {
   $fechaRet = $ahora->format('Y-m-d');
   $horaRet  = $ahora->format('H:i:s');
   $usuario  = (string) ($_SESSION['Usuario'] ?? '');
-  $st = $mysqli->prepare("
-    UPDATE Logistica
-    SET Estado = 'Cerrada', FechaRetorno = ?, HoraRetorno = ?, UsuarioCierre = ?
-    WHERE id = ? AND Estado = 'Cargada'
-    LIMIT 1
-  ");
-  $st->bind_param('sssi', $fechaRet, $horaRet, $usuario, $idLog);
+
+  if ($esPropio && $kmRegreso !== null) {
+    $kmRegresoStr  = (string) $kmRegreso;
+    $kmRecorridos  = ($kmSalida > 0) ? max(0, $kmRegreso - $kmSalida) : 0;
+    $st = $mysqli->prepare("
+      UPDATE Logistica
+      SET Estado = 'Cerrada', FechaRetorno = ?, HoraRetorno = ?, UsuarioCierre = ?,
+          KilometrosRegreso = ?, KilometrosRecorridos = ?
+      WHERE id = ? AND Estado = 'Cargada'
+      LIMIT 1
+    ");
+    $st->bind_param('ssssii', $fechaRet, $horaRet, $usuario, $kmRegresoStr, $kmRecorridos, $idLog);
+  } else {
+    $st = $mysqli->prepare("
+      UPDATE Logistica
+      SET Estado = 'Cerrada', FechaRetorno = ?, HoraRetorno = ?, UsuarioCierre = ?
+      WHERE id = ? AND Estado = 'Cargada'
+      LIMIT 1
+    ");
+    $st->bind_param('sssi', $fechaRet, $horaRet, $usuario, $idLog);
+  }
   $st->execute();
   $cerrado = $st->affected_rows;
   $st->close();
