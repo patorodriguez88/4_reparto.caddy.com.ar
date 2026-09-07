@@ -63,8 +63,9 @@ try {
   $kmSalida = (int) round((float) ($log['Kilometros'] ?? 0));
 
   // Vehículo propio de Caddy (Vehiculos.Aliados = 0) => el chofer tiene que
-  // cargar los km de regreso para cerrar. Externo/aliado (Aliados = 1) o
-  // patente desconocida => se cierra sin km, como antes.
+  // cargar km de regreso, combustible y observaciones para cerrar.
+  // Externo/aliado (Aliados = 1) o patente desconocida => se cierra sin nada,
+  // como antes.
   $esPropio = false;
   if (!empty($log['Patente'])) {
     $stv = $mysqli->prepare("SELECT Aliados FROM Vehiculos WHERE Dominio = ? LIMIT 1");
@@ -98,16 +99,28 @@ try {
     ]);
   }
 
-  // Km de regreso: obligatorio solo para vehículos propios.
-  $kmRegreso = null;
+  // Datos de cierre: obligatorios solo para vehículos propios.
+  // - Km de regreso (odómetro): >= km de salida. Km recorridos = regreso - salida.
+  // - Combustible con el que vuelve.
+  // - Observaciones: opcional.
+  $NIVELES_COMBUSTIBLE = ['Vacio', '1/4', '1/2', '3/4', 'Lleno'];
+
+  $kmRegreso   = null;
+  $combRegreso = null;
+  $obsCierre   = '';
+
   if ($esPropio) {
-    $kmRaw = $_POST['Km'] ?? '';
+    $kmRaw   = $_POST['Km'] ?? '';
+    $combRaw = trim((string) ($_POST['Combustible'] ?? ''));
+    $obsCierre = trim((string) ($_POST['Observaciones'] ?? ''));
+
     if (!is_numeric($kmRaw) || (float) $kmRaw <= 0) {
       responder([
         'success'  => 0,
-        'error'    => 'FALTA_KM',
+        'error'    => 'FALTA_DATOS_CIERRE',
         'esPropio' => 1,
         'kmSalida' => $kmSalida,
+        'niveles'  => $NIVELES_COMBUSTIBLE,
         'msg'      => 'Cargá los km de regreso para cerrar el recorrido.',
       ]);
     }
@@ -118,9 +131,21 @@ try {
         'error'    => 'KM_MENOR',
         'esPropio' => 1,
         'kmSalida' => $kmSalida,
+        'niveles'  => $NIVELES_COMBUSTIBLE,
         'msg'      => "Los km de regreso ({$kmRegreso}) no pueden ser menores a los de salida ({$kmSalida}).",
       ]);
     }
+    if (!in_array($combRaw, $NIVELES_COMBUSTIBLE, true)) {
+      responder([
+        'success'  => 0,
+        'error'    => 'FALTA_DATOS_CIERRE',
+        'esPropio' => 1,
+        'kmSalida' => $kmSalida,
+        'niveles'  => $NIVELES_COMBUSTIBLE,
+        'msg'      => 'Elegí el nivel de combustible con el que vuelve el vehículo.',
+      ]);
+    }
+    $combRegreso = $combRaw;
   }
 
   // Total de paradas del recorrido
@@ -164,16 +189,18 @@ try {
   $usuario  = (string) ($_SESSION['Usuario'] ?? '');
 
   if ($esPropio && $kmRegreso !== null) {
-    $kmRegresoStr  = (string) $kmRegreso;
-    $kmRecorridos  = ($kmSalida > 0) ? max(0, $kmRegreso - $kmSalida) : 0;
+    $kmRegresoStr = (string) $kmRegreso;
+    // Km recorridos = odómetro de regreso - odómetro de salida.
+    $kmRecorridos = ($kmSalida > 0) ? max(0, $kmRegreso - $kmSalida) : 0;
     $st = $mysqli->prepare("
       UPDATE Logistica
       SET Estado = 'Cerrada', FechaRetorno = ?, HoraRetorno = ?, UsuarioCierre = ?,
-          KilometrosRegreso = ?, KilometrosRecorridos = ?
+          KilometrosRegreso = ?, KilometrosRecorridos = ?,
+          CombustibleRegreso = ?, ObservacionesCierre = ?
       WHERE id = ? AND Estado = 'Cargada'
       LIMIT 1
     ");
-    $st->bind_param('ssssii', $fechaRet, $horaRet, $usuario, $kmRegresoStr, $kmRecorridos, $idLog);
+    $st->bind_param('ssssissi', $fechaRet, $horaRet, $usuario, $kmRegresoStr, $kmRecorridos, $combRegreso, $obsCierre, $idLog);
   } else {
     $st = $mysqli->prepare("
       UPDATE Logistica
@@ -194,11 +221,15 @@ try {
   responder([
     'success' => 1,
     'resumen' => [
-      'tiempo_texto' => $tiempoSeg > 0 ? formatoDuracion($tiempoSeg) : 'sin registrar',
-      'tiempo_seg'   => $tiempoSeg,
-      'paradas'      => $paradas,
-      'hora_inicio'  => $horaInicio,
-      'hora_fin'     => $ahora->format('H:i'),
+      'tiempo_texto'   => $tiempoSeg > 0 ? formatoDuracion($tiempoSeg) : 'sin registrar',
+      'tiempo_seg'     => $tiempoSeg,
+      'paradas'        => $paradas,
+      'hora_inicio'    => $horaInicio,
+      'hora_fin'       => $ahora->format('H:i'),
+      'km_recorridos'  => ($esPropio && $kmRegreso !== null && $kmSalida > 0)
+        ? max(0, $kmRegreso - $kmSalida)
+        : null,
+      'combustible'    => $combRegreso,
     ],
   ]);
 } catch (Throwable $e) {

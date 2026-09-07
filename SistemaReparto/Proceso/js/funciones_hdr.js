@@ -1753,29 +1753,62 @@ function _resetBtnFinalizar($btn) {
   $btn.prop("disabled", false).html('<i class="mdi mdi-flag-checkered"></i> Finalizar Recorrido');
 }
 
-// Pide los km de regreso (solo pasa para vehículos propios) y reintenta.
-function _pedirKmRegresoYFinalizar($btn, res) {
+// Formulario de cierre para vehículo propio: km de regreso, combustible y
+// observaciones. Solo aparece cuando el backend lo pide (esPropio).
+function _pedirDatosCierreYFinalizar($btn, res) {
   const kmSalida = res && res.kmSalida ? Number(res.kmSalida) : 0;
+  const niveles = (res && Array.isArray(res.niveles) && res.niveles.length)
+    ? res.niveles
+    : ["Vacio", "1/4", "1/2", "3/4", "Lleno"];
+  const opciones = niveles
+    .map((n) => '<option value="' + n + '">' + (n === "Vacio" ? "Vacío" : n) + "</option>")
+    .join("");
+
   Swal.fire({
     icon: res.error === "KM_MENOR" ? "warning" : "info",
-    title: "Km de regreso",
-    text:
-      res.error === "KM_MENOR"
-        ? res.msg
-        : "Cargá el odómetro del vehículo al volver." +
-          (kmSalida > 0 ? " Km al salir: " + kmSalida + "." : ""),
-    input: "number",
-    inputAttributes: { min: kmSalida > 0 ? kmSalida : 1, step: 1, inputmode: "numeric" },
-    inputPlaceholder: "Km de regreso",
+    title: "Cierre del recorrido",
+    html:
+      '<div style="text-align:left;font-size:14px">' +
+      (res.error === "KM_MENOR"
+        ? '<p style="color:#c0392b;margin:0 0 8px">' + res.msg + "</p>"
+        : "") +
+      '<label style="display:block;margin-top:4px">Km de regreso (odómetro)</label>' +
+      '<input id="fr-km" type="number" class="swal2-input" style="margin:4px 0" ' +
+      'min="' + (kmSalida > 0 ? kmSalida : 1) + '" step="1" placeholder="Km de regreso">' +
+      (kmSalida > 0
+        ? '<small style="color:#666">Km al salir: ' + kmSalida + "</small>"
+        : "") +
+      '<label style="display:block;margin-top:10px">Combustible al volver</label>' +
+      '<select id="fr-comb" class="swal2-select" style="margin:4px 0">' +
+      '<option value="">Seleccionar…</option>' + opciones + "</select>" +
+      '<label style="display:block;margin-top:10px">Observaciones (opcional)</label>' +
+      '<textarea id="fr-obs" class="swal2-textarea" style="margin:4px 0" ' +
+      'placeholder="Novedades del vehículo o de la ruta"></textarea>' +
+      "</div>",
+    focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: "Cerrar recorrido",
     cancelButtonText: "Cancelar",
     allowOutsideClick: false,
-    inputValidator: function (v) {
-      if (!v || Number(v) <= 0) return "Ingresá los km de regreso.";
-      if (kmSalida > 0 && Number(v) < kmSalida)
-        return "No puede ser menor a los km de salida (" + kmSalida + ").";
-      return undefined;
+    preConfirm: function () {
+      const km = (document.getElementById("fr-km").value || "").trim();
+      const comb = document.getElementById("fr-comb").value;
+      const obs = (document.getElementById("fr-obs").value || "").trim();
+      if (!km || Number(km) <= 0) {
+        Swal.showValidationMessage("Ingresá los km de regreso.");
+        return false;
+      }
+      if (kmSalida > 0 && Number(km) < kmSalida) {
+        Swal.showValidationMessage(
+          "Los km no pueden ser menores a los de salida (" + kmSalida + ").",
+        );
+        return false;
+      }
+      if (!comb) {
+        Swal.showValidationMessage("Elegí el nivel de combustible.");
+        return false;
+      }
+      return { km: km, comb: comb, obs: obs };
     },
   }).then(function (r) {
     if (!r.isConfirmed) {
@@ -1786,9 +1819,13 @@ function _pedirKmRegresoYFinalizar($btn, res) {
   });
 }
 
-function _enviarFinalizar($btn, km) {
+function _enviarFinalizar($btn, datos) {
   const data = { Finalizar: 1 };
-  if (km != null && km !== "") data.Km = km;
+  if (datos && typeof datos === "object") {
+    data.Km = datos.km;
+    data.Combustible = datos.comb;
+    data.Observaciones = datos.obs || "";
+  }
 
   $btn.prop("disabled", true).html('<i class="mdi mdi-loading mdi-spin"></i> Cerrando...');
 
@@ -1799,8 +1836,13 @@ function _enviarFinalizar($btn, km) {
     data: data,
   })
     .done(function (res) {
-      if (res && (res.error === "FALTA_KM" || res.error === "KM_MENOR")) {
-        _pedirKmRegresoYFinalizar($btn, res);
+      if (
+        res &&
+        (res.error === "FALTA_DATOS_CIERRE" ||
+          res.error === "FALTA_KM" ||
+          res.error === "KM_MENOR")
+      ) {
+        _pedirDatosCierreYFinalizar($btn, res);
         return;
       }
       if (!res || res.success !== 1) {
@@ -1821,6 +1863,13 @@ function _enviarFinalizar($btn, km) {
           "Terminaste el recorrido.<br><br>" +
           "<b>Tiempo total:</b> " + (rr.tiempo_texto || "sin registrar") + "<br>" +
           "<b>Paradas:</b> " + (rr.paradas || 0) +
+          (rr.km_recorridos != null
+            ? "<br><b>Km recorridos:</b> " + rr.km_recorridos
+            : "") +
+          (rr.combustible
+            ? "<br><b>Combustible:</b> " +
+              (rr.combustible === "Vacio" ? "Vacío" : rr.combustible)
+            : "") +
           (rr.hora_inicio
             ? "<br><small class='text-muted'>" + rr.hora_inicio + " → " + (rr.hora_fin || "") + "</small>"
             : ""),
