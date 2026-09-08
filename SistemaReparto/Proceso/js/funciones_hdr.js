@@ -640,6 +640,14 @@ function validarCodigosPickup() {
   const base = baseActual();
   const seleccion = ($("#prueba").val() || []).map(normalizarCode);
 
+  // Override de escaneo prendido para el recorrido + nada escaneado: se acepta
+  // el retiro/colecta sin escanear (decisión del operador desde Órdenes de
+  // Salida). Si escaneó algo, igual se valida para no aceptar códigos que no
+  // correspondan.
+  if (window.omitirEscaneo && seleccion.length === 0) {
+    return { ok: true, omitido: true };
+  }
+
   // si no hay base o no hay esperado, no validamos todavía
   if (!base || esperado <= 0) return { ok: false, msg: "Sin envío seleccionado" };
 
@@ -1431,10 +1439,12 @@ function actualizarEstadoCantidadPickup() {
       return;
     }
   }
-  // Si todavía no cargó nada, bloqueá sin cartel
+  // Si todavía no cargó nada, bloqueá sin cartel - salvo que el recorrido tenga
+  // el escaneo desactivado (Logistica.OmitirControlEscaneo): ahí se puede
+  // aceptar el retiro sin escanear (decisión del operador desde Órdenes).
   const cargado = getCantidadCargada();
   if (cargado === 0) {
-    setAceptarPickupEnabled(false);
+    setAceptarPickupEnabled(!!window.omitirEscaneo);
     return;
   }
 
@@ -1629,6 +1639,9 @@ function cargarHeader() {
       $("#badge-total").html(jsonData.Total);
       $("#badge-sinentregar").html(jsonData.Abiertos);
       $("#badge-entregados").html(jsonData.Cerrados);
+      // Override de escaneo del recorrido (Logistica.OmitirControlEscaneo): si
+      // está prendido, aceptar retiro/colecta no exige haber escaneado.
+      window.omitirEscaneo = String(jsonData.OmitirEscaneo) === "1";
       pintarEstadoRecorrido(jsonData);
     }
   });

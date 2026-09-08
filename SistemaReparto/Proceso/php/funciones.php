@@ -275,6 +275,9 @@ if (isset($_POST['Datos'])) {
       'Abiertos'   => (int) $TotalNoEntregados['Cantidad'],
       'Usuario'    => $Transportista,
       'idUsuario'  => $idUsuario,
+      // Override de escaneo prendido para este recorrido (Logistica.OmitirControlEscaneo).
+      // El front lo usa para NO exigir escaneo al aceptar un retiro/colecta.
+      'OmitirEscaneo'      => overrideEscaneo($mysqli, (int) $idUsuario) ? 1 : 0,
       'HoraSalidaReal'     => $rowLog['HoraSalidaReal'] ?? null,
       'PausaActiva'        => $rowPausa ?: null,
       // round() puede serializar con ruido binario (15.4000...552713...) según
