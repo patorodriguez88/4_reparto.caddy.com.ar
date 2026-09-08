@@ -90,4 +90,78 @@
   } else {
     sendAppStatus();
   }
+
+  // -------------------------------------------------------------------------
+  // Chequeo de versión. No hay Service Worker y el navegador no vuelve a bajar
+  // el JS hasta que se cierra la app, así que si se deploya código nuevo
+  // mientras la PWA está abierta el chofer se queda con la versión vieja en
+  // memoria (fue lo que pasó con los km de regreso). Esto consulta
+  // /version.php al abrir, cada vez que la app vuelve a primer plano y cada
+  // 10 min; si cambió el "build" -> recarga (o banner si el chofer está en
+  // medio de un modal).
+  // -------------------------------------------------------------------------
+  var CADDY_BUILD = null;
+  var bannerUpdateVisible = false;
+
+  function pantallaSegura() {
+    // Login a la vista = seguro. Con un modal de SweetAlert abierto (escaneo,
+    // cierre de recorrido, confirmaciones) NO recargamos para no cortarlo.
+    var login = document.getElementById("login");
+    if (login && window.getComputedStyle(login).display !== "none") return true;
+    if (document.querySelector(".swal2-container")) return false;
+    return true;
+  }
+
+  function mostrarBannerUpdate() {
+    if (bannerUpdateVisible || document.getElementById("caddy-update-bar")) return;
+    bannerUpdateVisible = true;
+    var b = document.createElement("div");
+    b.id = "caddy-update-bar";
+    b.style.cssText =
+      "position:fixed;left:0;right:0;top:0;z-index:99999;background:#ea580c;" +
+      "color:#fff;padding:11px 14px;font:600 14px/1.3 system-ui,-apple-system,sans-serif;" +
+      "text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.28);cursor:pointer";
+    b.textContent = "Hay una versión nueva. Tocá acá para actualizar.";
+    b.addEventListener("click", function () {
+      location.reload();
+    });
+    document.body.appendChild(b);
+  }
+
+  function chequearVersion() {
+    fetch("/SistemaReparto/version.php?t=" + Date.now(), {
+      cache: "no-store",
+      credentials: "include",
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d || !d.build) return;
+        if (CADDY_BUILD === null) {
+          CADDY_BUILD = d.build; // primera lectura = build con el que arrancó la app
+          return;
+        }
+        if (d.build === CADDY_BUILD) return; // al día
+        // Hay código nuevo en el server.
+        if (d.forzar || pantallaSegura()) {
+          location.reload();
+        } else {
+          mostrarBannerUpdate();
+        }
+      })
+      .catch(function () {
+        /* sin red: no molestamos */
+      });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", chequearVersion);
+  } else {
+    chequearVersion();
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") chequearVersion();
+  });
+  setInterval(chequearVersion, 10 * 60 * 1000);
 })();
