@@ -191,6 +191,34 @@ try {
     }
 
     // -----------------------
+    // DISPOSITIVO ACTIVO (bloqueo mono-telefono, "gana el ultimo login")
+    // -----------------------
+    // El front manda device_id (guardado en el telefono) por POST y tambien
+    // como cookie. Dejamos registrado SOLO este; la validacion de sesion en
+    // conexioni.php cierra cualquier sesion vieja de otro telefono.
+    $deviceId = (string) ($_POST['device_id'] ?? ($_COOKIE['caddy_device_id'] ?? ''));
+    $deviceId = substr(preg_replace('/[^A-Za-z0-9_-]/', '', $deviceId), 0, 64);
+    $_SESSION['device_id'] = $deviceId;
+    if ($deviceId !== '') {
+        try {
+            $stmtDev = $mysqli->prepare(
+                "INSERT INTO DispositivoChofer (idUsuario, device_id, ip, user_agent, ts)
+                 VALUES (?, ?, ?, ?, NOW())
+                 ON DUPLICATE KEY UPDATE device_id = VALUES(device_id), ip = VALUES(ip),
+                                         user_agent = VALUES(user_agent), ts = NOW()"
+            );
+            $ua = substr($userAgent, 0, 255);
+            $stmtDev->bind_param("isss", $idUsuario, $deviceId, $ipCliente, $ua);
+            $stmtDev->execute();
+            $stmtDev->close();
+        } catch (Throwable $e) {
+            // Si falta correr la migracion DispositivoChofer, no rompe el login;
+            // simplemente el bloqueo mono-telefono queda inactivo.
+            error_log('admision.php DispositivoChofer: ' . $e->getMessage());
+        }
+    }
+
+    // -----------------------
     // TRANSPORTISTA (Empleados)
     // -----------------------
     // Empleado de planta de Caddy = fila activa en Empleados con Aliados=0.

@@ -461,6 +461,8 @@ function msgReason(reason) {
       return "No se detectó usuario activo (sesión perdida). Volvé a ingresar.";
     case "SESSION_EXPIRED":
       return "Tu sesión expiró. Volvé a ingresar.";
+    case "OTHER_DEVICE":
+      return "Se inició sesión con tu usuario en otro teléfono. Este quedó desconectado.";
     default:
       return `No se pudo continuar (${r || "SIN_MOTIVO"}). Volvé a ingresar.`;
   }
@@ -814,7 +816,7 @@ function initApp() {
         $("#hdractivas").show();
         $("#mis_envios").hide();
         $("#card-envio").hide();
-        $("#hdr-header").html(`Ruta: ${jsonData.NOrden} · Recorrido: ${jsonData.Recorrido}`);
+        $("#hdr-header").html(`Ruta: ${jsonData.NOrden} · Rec.: ${jsonData.Recorrido}`);
         if (isAppInstalled()) {
           disableBellIndicator();
         }
@@ -1623,7 +1625,7 @@ function cargarHeader() {
     dataType: "json",
   }).done(function (jsonData) {
     if (jsonData && jsonData.success == 1) {
-      $("#hdr-header").html(`Ruta: ${jsonData.NOrden} · Recorrido: ${jsonData.Recorrido}`);
+      $("#hdr-header").html(`Ruta: ${jsonData.NOrden} · Rec.: ${jsonData.Recorrido}`);
       $("#badge-total").html(jsonData.Total);
       $("#badge-sinentregar").html(jsonData.Abiertos);
       $("#badge-entregados").html(jsonData.Cerrados);
@@ -2148,7 +2150,7 @@ $(document).on("click", "#ingreso", function (e) {
     url: "Conexion/admision.php",
     type: "POST",
     dataType: "json",
-    data: { Login: 1, user: user, password: pass },
+    data: { Login: 1, user: user, password: pass, device_id: window.CADDY_DEVICE_ID || "" },
     success: function (jsonData) {
       if (jsonData && jsonData.forceLogout) {
         Swal.fire({

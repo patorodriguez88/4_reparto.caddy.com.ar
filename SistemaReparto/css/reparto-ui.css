@@ -211,12 +211,20 @@
 
 .rp-stop-actions {
   display: grid;
-  grid-template-columns: minmax(94px, 1fr) 1fr 1.3fr;
+  grid-template-columns: repeat(3, 1fr); /* tres botones del mismo ancho */
   gap: 8px;
   padding: 10px 12px 12px;
   border-top: 1px solid var(--rp-line);
   background: var(--rp-surface-2);
 }
+.rp-stop-actions > .rp-btn {
+  min-width: 0; /* que no desborden la celda */
+  padding-left: 6px;
+  padding-right: 6px;
+  font-size: 11.5px;
+  gap: 4px;
+}
+.rp-stop-actions > .rp-btn.no svg { width: 13px; height: 13px; flex-shrink: 0; }
 .rp-btn {
   -webkit-appearance: none; appearance: none;
   border: 0; margin: 0;

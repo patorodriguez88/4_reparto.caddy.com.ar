@@ -1076,17 +1076,23 @@ body.app-ready #fab-mapa-recorrido {
   text-decoration: none;
 }
 
-/* Header de ruta: "Ruta: 16782 · Recorrido: 9502" — texto plano, a la izquierda, un pelin mas grande */
+/* Header de ruta: "Ruta: 16782 · Rec.: 9502" — texto plano, a la izquierda.
+   No debe tapar la campanita: se limita el ancho y se recorta con ellipsis. */
 #navbar .page-title {
   justify-content: flex-start;
-  max-width: 82vw; /* que entre completo "Ruta ... · Recorrido ..." sin cortarse */
+  max-width: 66vw;
+  min-width: 0;
 }
 #navbar #hdr-header {
   background: transparent;
   color: var(--rp-ink, #2a2230);
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 800;
   letter-spacing: 0.01em;
-  padding: 0.3rem 0.6rem; /* aire antes de "Ruta" y despues de "Recorrido" */
+  padding: 0.25rem 0.35rem 0.25rem 0;
   text-align: left;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

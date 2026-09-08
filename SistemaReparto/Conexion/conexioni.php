@@ -200,6 +200,44 @@ if (!defined('ALLOW_NO_SESSION') || ALLOW_NO_SESSION !== true) {
             redirigirAlLogin('sesion');
         }
 
+        // Bloqueo mono-dispositivo: si hubo un login más nuevo del mismo chofer
+        // desde otro teléfono (otro device_id), esta sesión queda invalidada
+        // ("gana el último login"). Se chequea como mucho 1 vez cada 45s.
+        // Fail-open: si falta la tabla o el device_id, no bloquea nada.
+        if (!empty($_SESSION['idusuario']) && !empty($_SESSION['device_id'])) {
+            if ((time() - (int) ($_SESSION['dev_chk'] ?? 0)) > 45) {
+                $_SESSION['dev_chk'] = time();
+                try {
+                    $uidDev = (int) $_SESSION['idusuario'];
+                    $rDev = $mysqli->query("SELECT device_id FROM DispositivoChofer WHERE idUsuario = {$uidDev} LIMIT 1");
+                    $devActivo = ($rDev && $rDev->num_rows) ? (string) $rDev->fetch_assoc()['device_id'] : '';
+                    if ($devActivo !== '' && $devActivo !== (string) $_SESSION['device_id']) {
+                        destruirSesionSegura();
+                        $esAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+                            && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+                        if ($esAjax) {
+                            if (!headers_sent()) {
+                                header('Content-Type: application/json; charset=utf-8');
+                                header('X-Session-Expired: 1');
+                                http_response_code(401);
+                            }
+                            echo json_encode([
+                                'success'     => 0,
+                                'forceLogout' => true,
+                                'reason'      => 'OTHER_DEVICE',
+                                'error'       => 'Se inició sesión en otro dispositivo.',
+                            ], JSON_UNESCAPED_UNICODE);
+                            exit;
+                        }
+                        header('Location: /SistemaReparto/hdr.html?m=otro-dispositivo');
+                        exit;
+                    }
+                } catch (Throwable $e) {
+                    // Falta la migración DispositivoChofer -> no se bloquea.
+                }
+            }
+        }
+
         // Sesión OK → refresco tiempo
         $_SESSION['tiempo'] = time();
     }
