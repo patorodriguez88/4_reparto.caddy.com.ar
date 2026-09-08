@@ -131,9 +131,24 @@ function calcularResume($payload)
     if (!is_array($scans)) $scans = [];
     if (!is_array($det))   $det = [];
 
+    // Cupo por base (paquetes del servicio) para NO contar de más cuando un
+    // mismo servicio quedó cubierto por ML y además el chofer lo escaneó a mano.
+    $needByBase = [];
+    foreach ($det as $svc) {
+        $b = trim((string)($svc['cs_base'] ?? ''));
+        if ($b !== '') $needByBase[$b] = (int)($svc['paquetes'] ?? 0);
+    }
+    $qtyByBase = [];
     $paquetes_ok = 0;
     foreach ($scans as $s) {
-        $paquetes_ok += (int)($s['qty'] ?? 1);
+        $b = trim((string)($s['base'] ?? ''));
+        $q = (int)($s['qty'] ?? 1);
+        if ($b === '') { $paquetes_ok += $q; continue; }
+        $qtyByBase[$b] = ($qtyByBase[$b] ?? 0) + $q;
+    }
+    foreach ($qtyByBase as $b => $q) {
+        $need = $needByBase[$b] ?? 0;
+        $paquetes_ok += ($need > 0) ? min($q, $need) : $q;
     }
 
     $servicios_ok = 0;
@@ -160,6 +175,50 @@ function calcularResume($payload)
         'paquetes_ok'     => $paquetes_ok,
         'paquetes_total'  => $paquetes_total,
     ];
+}
+
+/**
+ * ¿MercadoLibre ya nos confirmó el retiro (primer escaneo) de este servicio Flex?
+ * Señal oficial ML: topic "flex-handshakes" -> se dispara "al escanear por
+ * primera vez (cuando se marca shipped)". Lo tomamos como confirmado si:
+ *   - hay fila en flex_handshakes para el shipping_id, recibida después de
+ *     crearse la colecta, O
+ *   - el envío ya está en shipped / delivered / not_delivered (status_meli).
+ * Defensivo: si las tablas/columnas no existen -> devuelve no confirmado.
+ */
+function mlConfirmacionServicio($mysqli, $shipmentId, $cs, $fechaDesde)
+{
+    $shipmentId = trim((string) $shipmentId);
+    $cs = trim((string) $cs);
+
+    if ($shipmentId !== '' && $shipmentId !== '0') {
+        try {
+            $st = $mysqli->prepare("SELECT 1 FROM flex_handshakes
+                                     WHERE shipping_id = ? AND received >= ? LIMIT 1");
+            $st->bind_param("ss", $shipmentId, $fechaDesde);
+            $st->execute();
+            if ($st->get_result()->fetch_row()) {
+                return ['ok' => true, 'status' => 'shipped', 'via' => 'handshake'];
+            }
+        } catch (Throwable $e) { /* flex_handshakes no disponible en este entorno */ }
+    }
+
+    if ($cs !== '') {
+        try {
+            $st = $mysqli->prepare("SELECT status_meli FROM Seguimiento
+                                     WHERE CodigoSeguimiento = ?
+                                       AND status_meli IN ('shipped','delivered','not_delivered')
+                                     ORDER BY id DESC LIMIT 1");
+            $st->bind_param("s", $cs);
+            $st->execute();
+            $r = $st->get_result()->fetch_assoc();
+            if ($r && !empty($r['status_meli'])) {
+                return ['ok' => true, 'status' => (string) $r['status_meli'], 'via' => 'status_meli'];
+            }
+        } catch (Throwable $e) { /* status_meli no disponible */ }
+    }
+
+    return ['ok' => false, 'status' => '', 'via' => ''];
 }
 
 function leerResumeColecta($mysqli, $colectaId)
@@ -608,7 +667,7 @@ if (isset($_POST['InitColecta'])) {
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
         // Traer colecta real
-        $stC = $mysqli->prepare("SELECT id, Cantidad, Cantidad_m
+        $stC = $mysqli->prepare("SELECT id, Cantidad, Cantidad_m, Fecha
             FROM Colecta
             WHERE id=? AND Eliminado=0
             LIMIT 1");
@@ -619,12 +678,17 @@ if (isset($_POST['InitColecta'])) {
 
         if (!$c) responder(['success' => 0, 'error' => 'COLECTA_NO_ENCONTRADA']);
 
+        // Desde cuándo miramos handshakes de ML (evita contar retiros viejos).
+        $fechaMlDesde = (!empty($c['Fecha']) && $c['Fecha'] !== '0000-00-00')
+            ? $c['Fecha'] . ' 00:00:00'
+            : date('Y-m-d') . ' 00:00:00';
+
         // Cantidad declarada por operador (para auditoría)
         $paquetesOperador = (int)($c['Cantidad_m'] ?? 0);
         if ($paquetesOperador <= 0) $paquetesOperador = (int)($c['Cantidad'] ?? 0);
 
         // Servicios asignados a esa colecta (excluyo padre)
-        $stT = $mysqli->prepare("SELECT id, CodigoSeguimiento, Cantidad, shipments_id, CodigoProveedor
+        $stT = $mysqli->prepare("SELECT id, CodigoSeguimiento, Cantidad, shipments_id, CodigoProveedor, Flex, ClienteDestino
         FROM TransClientes
         WHERE idColecta = ?
             AND Eliminado=0 AND Entregado=0 AND Devuelto=0
@@ -636,6 +700,11 @@ if (isset($_POST['InitColecta'])) {
 
         $serviciosDetalle = [];
         $sumaTrans = 0;
+        $serviciosFlex = 0;
+        $serviciosFlexOk = 0;
+        $paquetesML = 0;
+        $scansSeed = [];
+        $nowSeed = date('Y-m-d H:i:s');
 
         while ($row = $res->fetch_assoc()) {
             $cs = trim((string)($row['CodigoSeguimiento'] ?? ''));
@@ -645,12 +714,40 @@ if (isset($_POST['InitColecta'])) {
             $cant = (int)($row['Cantidad'] ?? 0);
             if ($cant <= 0) $cant = 1;
 
+            // nro de envío ML: en Flex suele venir en CodigoProveedor (shipments_id=0)
+            $shipId = trim((string)($row['shipments_id'] ?? ''));
+            if ($shipId === '' || $shipId === '0') $shipId = trim((string)($row['CodigoProveedor'] ?? ''));
+            $esFlex = ((int)($row['Flex'] ?? 0) === 1) || ($shipId !== '' && $shipId !== '0');
+
+            $ml = $esFlex
+                ? mlConfirmacionServicio($mysqli, $shipId, $cs, $fechaMlDesde)
+                : ['ok' => false, 'status' => '', 'via' => ''];
+
             $serviciosDetalle[] = [
                 'idTransCliente'  => (int)$row['id'],
                 'codigoProveedor' => (string)($row['CodigoProveedor'] ?? ''),
                 'cs_base'         => $base,
+                'cliente'         => (string)($row['ClienteDestino'] ?? ''),
                 'paquetes'        => $cant,
+                'es_flex'         => $esFlex ? 1 : 0,
+                'ml_confirmado'   => $ml['ok'] ? 1 : 0,
+                'ml_status'       => $ml['status'],
             ];
+
+            if ($esFlex) $serviciosFlex++;
+            if ($ml['ok']) {
+                $serviciosFlexOk++;
+                $paquetesML += $cant;
+                // Sembramos el bulto como ya escaneado (origen ML) para que
+                // cuente en el resume y no bloquee si el chofer lo re-escanea.
+                $scansSeed[] = [
+                    'code' => $base . '_ML',
+                    'base' => $base,
+                    'qty'  => $cant,
+                    'ts'   => $nowSeed,
+                    'kind' => 'ML',
+                ];
+            }
 
             $sumaTrans += $cant;
         }
@@ -685,6 +782,9 @@ if (isset($_POST['InitColecta'])) {
             'paquetes_sistema'        => $paquetesSistema,
             'inconsistencia_cantidad' => $inconsistenciaCantidad ? 1 : 0,
             'servicios_detalle'       => $serviciosDetalle,
+            'servicios_flex'          => $serviciosFlex,
+            'servicios_flex_ok'       => $serviciosFlexOk,
+            'paquetes_ml'             => $paquetesML,
             'colecta_id'              => $colectaId
         ];
 
@@ -692,14 +792,9 @@ if (isset($_POST['InitColecta'])) {
             'colecta_id' => $colectaId,
             'padre_id'   => $padreId,
             'expected'   => $expected,
-            'scans'      => [],
-            'resume'     => [
-                'servicios_ok'    => 0,
-                'servicios_total' => count($serviciosDetalle),
-                'paquetes_ok'     => 0,
-                'paquetes_total'  => $paquetesSistema,
-            ],
+            'scans'      => $scansSeed,
         ];
+        $payload['resume'] = calcularResume($payload);
 
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
         $now = date('Y-m-d H:i:s');
@@ -720,6 +815,233 @@ if (isset($_POST['InitColecta'])) {
         ]);
     } catch (Throwable $e) {
         responder(['success' => 0, 'error' => 'INIT_COLECTA_ERROR', 'detail' => $e->getMessage()]);
+    }
+}
+
+/* ============================================================
+   ROUTER 1b: EstadoML  (poll liviano mientras la colecta está abierta)
+   Re-chequea qué servicios Flex confirmó MercadoLibre y siembra los
+   bultos nuevos en el JSON de la colecta. Devuelve el detalle + resume.
+   ============================================================ */
+
+if (isset($_POST['EstadoML'])) {
+    $colectaId = (int)($_POST['colectaId'] ?? 0);
+    if ($colectaId <= 0) responder(['success' => 0, 'error' => 'FALTA_COLECTAID']);
+
+    try {
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+        $stp = $mysqli->prepare("SELECT c.ColectaScans, c.Fecha FROM Colecta c WHERE c.id=? AND c.Eliminado=0 LIMIT 1");
+        $stp->bind_param("i", $colectaId);
+        $stp->execute();
+        $rowP = $stp->get_result()->fetch_assoc();
+        if (!$rowP || trim((string)($rowP['ColectaScans'] ?? '')) === '') {
+            responder(['success' => 0, 'error' => 'COLECTA_NOT_INITIALIZED']);
+        }
+
+        $payload = json_decode($rowP['ColectaScans'], true);
+        if (!is_array($payload)) responder(['success' => 0, 'error' => 'COLECTA_JSON_INVALIDO']);
+
+        $fechaMlDesde = (!empty($rowP['Fecha']) && $rowP['Fecha'] !== '0000-00-00')
+            ? $rowP['Fecha'] . ' 00:00:00' : date('Y-m-d') . ' 00:00:00';
+
+        $det   = $payload['expected']['servicios_detalle'] ?? [];
+        $scans = is_array($payload['scans'] ?? null) ? $payload['scans'] : [];
+
+        // bases que ya tienen seed ML
+        $mlYa = [];
+        foreach ($scans as $s) {
+            if (($s['kind'] ?? '') === 'ML') $mlYa[trim((string)($s['base'] ?? ''))] = true;
+        }
+
+        $nuevos = [];
+        $paquetesML = 0;
+        $serviciosFlexOk = 0;
+        $nowSeed = date('Y-m-d H:i:s');
+
+        foreach ($det as &$sd) {
+            if (empty($sd['es_flex'])) continue;
+            $base = trim((string)($sd['cs_base'] ?? ''));
+            $cs = $base; // el cs_base es el CodigoSeguimiento sin sufijo
+            $shipId = trim((string)($sd['codigoProveedor'] ?? ''));
+
+            $ml = mlConfirmacionServicio($mysqli, $shipId, $cs, $fechaMlDesde);
+            if ($ml['ok']) {
+                $serviciosFlexOk++;
+                $paquetesML += (int)($sd['paquetes'] ?? 1);
+                if (empty($sd['ml_confirmado'])) $sd['ml_confirmado'] = 1;
+                $sd['ml_status'] = $ml['status'];
+                if (empty($mlYa[$base])) {
+                    $scans[] = [
+                        'code' => $base . '_ML',
+                        'base' => $base,
+                        'qty'  => (int)($sd['paquetes'] ?? 1),
+                        'ts'   => $nowSeed,
+                        'kind' => 'ML',
+                    ];
+                    $mlYa[$base] = true;
+                    $nuevos[] = $base;
+                }
+            }
+        }
+        unset($sd);
+
+        $payload['expected']['servicios_detalle'] = $det;
+        $payload['expected']['servicios_flex_ok'] = $serviciosFlexOk;
+        $payload['expected']['paquetes_ml'] = $paquetesML;
+        $payload['scans'] = $scans;
+        $payload['resume'] = calcularResume($payload);
+
+        if (!empty($nuevos)) {
+            $jsonNew = json_encode($payload, JSON_UNESCAPED_UNICODE);
+            $up = $mysqli->prepare("UPDATE Colecta SET ColectaScans=?, ColectaScansUpdatedAt=? WHERE id=?");
+            $up->bind_param("ssi", $jsonNew, $nowSeed, $colectaId);
+            $up->execute();
+        }
+
+        responder([
+            'success'  => 1,
+            'expected' => $payload['expected'],
+            'resume'   => $payload['resume'],
+            'nuevos'   => $nuevos,
+        ]);
+    } catch (Throwable $e) {
+        responder(['success' => 0, 'error' => 'ESTADO_ML_ERROR', 'detail' => $e->getMessage()]);
+    }
+}
+
+/* ============================================================
+   ROUTER 1c: ColectaCerrar
+   Cierra la colecta AUNQUE falten bultos (avanzar, no frenar). Por cada
+   servicio escribe en Seguimiento:
+     - escaneado a mano (qty completa)  -> pickup_scanned  (pickup_origen='mano')
+     - confirmado por ML                -> pickup_scanned  (pickup_origen='ML')
+     - sin cubrir                       -> pickup_not_scanned + observación
+   El padre queda Retirado=1 y su HojaDeRuta 'Cerrado'.
+   ============================================================ */
+
+if (isset($_POST['ColectaCerrar'])) {
+    $colectaId = (int)($_POST['colectaId'] ?? 0);
+    $padreId   = (int)($_POST['padreId'] ?? 0);
+    $obsChofer = trim((string)($_POST['obs'] ?? ''));
+
+    if ($colectaId <= 0 || $padreId <= 0) {
+        responder(['success' => 0, 'error' => 'FALTA_COLECTAID_O_PADREID']);
+    }
+
+    $usuario   = $_SESSION['Usuario'] ?? ($_POST['Usuario'] ?? '');
+    $sucursal  = $_SESSION['Sucursal'] ?? '';
+    $recorrido = $_SESSION['RecorridoAsignado'] ?? ($_POST['Recorrido'] ?? '');
+
+    try {
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+        $stp = $mysqli->prepare("SELECT ColectaScans, Fecha FROM Colecta WHERE id=? AND Eliminado=0 LIMIT 1");
+        $stp->bind_param("i", $colectaId);
+        $stp->execute();
+        $rc = $stp->get_result()->fetch_assoc();
+        if (!$rc || trim((string)($rc['ColectaScans'] ?? '')) === '') {
+            responder(['success' => 0, 'error' => 'COLECTA_NOT_INITIALIZED']);
+        }
+        $payload = json_decode($rc['ColectaScans'], true);
+        if (!is_array($payload)) responder(['success' => 0, 'error' => 'COLECTA_JSON_INVALIDO']);
+
+        $det   = $payload['expected']['servicios_detalle'] ?? [];
+        $scans = is_array($payload['scans'] ?? null) ? $payload['scans'] : [];
+
+        // qty escaneada A MANO por base (excluye el seed ML)
+        $manoQty = [];
+        foreach ($scans as $s) {
+            if (($s['kind'] ?? '') === 'ML') continue;
+            $b = trim((string)($s['base'] ?? ''));
+            if ($b === '') continue;
+            $manoQty[$b] = ($manoQty[$b] ?? 0) + (int)($s['qty'] ?? 1);
+        }
+
+        $estScan = estadoPorSlug($mysqli, 'pickup_scanned');
+        $estNot  = estadoPorSlug($mysqli, 'pickup_not_scanned');
+        if (!$estScan || !$estNot) {
+            responder(['success' => 0, 'error' => 'ESTADOS_FALTAN', 'detail' => 'pickup_scanned / pickup_not_scanned']);
+        }
+
+        $ids = [];
+        foreach ($det as $sd) {
+            $i = (int)($sd['idTransCliente'] ?? 0);
+            if ($i > 0) $ids[] = $i;
+        }
+        $infoHijos = [];
+        if ($ids) {
+            $in = implode(',', array_map('intval', $ids));
+            $rh = $mysqli->query("SELECT id, CodigoSeguimiento, ClienteDestino, idClienteDestino, NumerodeOrden
+                                  FROM TransClientes WHERE id IN ($in)");
+            while ($x = $rh->fetch_assoc()) $infoHijos[(int)$x['id']] = $x;
+        }
+
+        $faltantes = [];
+        $cerrados  = [];
+
+        foreach ($det as $sd) {
+            $base   = strtoupper(trim((string)($sd['cs_base'] ?? '')));
+            if ($base === '') continue;
+            $need   = max(1, (int)($sd['paquetes'] ?? 1));
+            $idTr   = (int)($sd['idTransCliente'] ?? 0);
+            $hi     = $infoHijos[$idTr] ?? [];
+            $cli    = (string)($hi['ClienteDestino'] ?? '');
+            $idCli  = (int)($hi['idClienteDestino'] ?? 0);
+            $nroOrd = (int)($hi['NumerodeOrden'] ?? 0);
+            $mlOk   = !empty($sd['ml_confirmado']);
+            $mano   = (int)($manoQty[$base] ?? 0);
+
+            if ($mlOk || $mano >= $need) {
+                // quién / cómo se colectó va en Observaciones (no hay columnas nuevas)
+                $obs = $mlOk
+                    ? 'Colectado - confirmado por MercadoLibre (' . (string)($sd['ml_status'] ?? 'shipped') . ')'
+                    : 'Colectado - escaneado por ' . $usuario;
+                upsertSeguimiento($mysqli, [
+                    'codigo' => $base, 'status' => 'pickup_scanned',
+                    'estado_id' => (int)$estScan['id'], 'estado_txt' => (string)$estScan['Estado'],
+                    'destino' => $cli, 'idCliente' => $idCli, 'idTransClientes' => $idTr,
+                    'usuario' => ($mlOk ? 'MercadoLibre' : $usuario), 'sucursal' => $sucursal,
+                    'recorrido' => $recorrido, 'nroOrden' => $nroOrd, 'obs' => $obs, 'retirado' => 1,
+                ]);
+                $cerrados[] = ['cs' => $base, 'cliente' => $cli, 'origen' => ($mlOk ? 'ML' : 'mano'), 'paquetes' => $need];
+            } else {
+                $obs = 'CERRADO SIN ESCANEAR por ' . $usuario . ' (' . $mano . '/' . $need . ')'
+                     . ($obsChofer !== '' ? ' | ' . $obsChofer : '');
+                upsertSeguimiento($mysqli, [
+                    'codigo' => $base, 'status' => 'pickup_not_scanned',
+                    'estado_id' => (int)$estNot['id'], 'estado_txt' => (string)$estNot['Estado'],
+                    'destino' => $cli, 'idCliente' => $idCli, 'idTransClientes' => $idTr,
+                    'usuario' => $usuario, 'sucursal' => $sucursal, 'recorrido' => $recorrido,
+                    'nroOrden' => $nroOrd, 'obs' => $obs, 'retirado' => 1,
+                ]);
+                $faltantes[] = ['cs' => $base, 'cliente' => $cli, 'paquetes' => $need, 'escaneados' => $mano];
+            }
+        }
+
+        // Padre: retirado + hoja de ruta cerrada
+        $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . (int)$padreId . " LIMIT 1");
+        $mysqli->query("UPDATE HojaDeRuta SET Estado='Cerrado' WHERE idTransClientes=" . (int)$padreId . " AND Eliminado=0 LIMIT 1");
+
+        // dejar constancia en el JSON de la colecta
+        $payload['cierre'] = [
+            'ts' => date('Y-m-d H:i:s'),
+            'usuario' => $usuario,
+            'obs' => $obsChofer,
+            'faltantes' => count($faltantes),
+        ];
+        $jsonNew = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        $up = $mysqli->prepare("UPDATE Colecta SET ColectaScans=?, ColectaScansUpdatedAt=NOW() WHERE id=?");
+        $up->bind_param("si", $jsonNew, $colectaId);
+        $up->execute();
+
+        responder([
+            'success'   => 1,
+            'cerrados'  => $cerrados,
+            'faltantes' => $faltantes,
+        ]);
+    } catch (Throwable $e) {
+        responder(['success' => 0, 'error' => 'COLECTA_CERRAR_ERROR', 'detail' => $e->getMessage()]);
     }
 }
 
@@ -936,6 +1258,29 @@ if ($isColecta) {
     if ($esQR) $newQty = 1;
 
     if (($yaQty + $newQty) > $paquetesSvc) {
+        // Si el servicio ya vino confirmado por MercadoLibre, que el chofer lo
+        // re-escanee NO es un error -> se responde OK y se sigue (avanzar, no frenar).
+        $cubiertoPorML = false;
+        foreach ($scans as $s) {
+            if (trim((string)($s['base'] ?? '')) === $base && ($s['kind'] ?? '') === 'ML') {
+                $cubiertoPorML = true;
+                break;
+            }
+        }
+        if ($cubiertoPorML) {
+            $payload['resume'] = calcularResume($payload);
+            responder([
+                'success'   => 1,
+                'ml_ya'     => 1,
+                'duplicate' => 1,
+                'scan_saved' => 0,
+                'codigo'    => $base,
+                'cs_base'   => $base,
+                'resume'    => $payload['resume'],
+                'paquetes_servicio' => $paquetesSvc,
+            ]);
+        }
+
         responder([
             'success' => 0,
             'error'   => 'EXCEDE_PAQUETES_SERVICIO',

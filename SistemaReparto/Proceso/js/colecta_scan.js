@@ -11,7 +11,7 @@ console.log("Version 1.16 - 2024-06-18");
   let scannerStarting = false;
   let scannerStopping = false;
   let coolingDown = false;
-  let cooldownMs = 1200; // ajustable
+  let cooldownMs = 700; // ajustable
 
   const codigosEscaneados = new Set(); // guarda codeToStore válidos (solo cuando backend confirma)
   let _audioCtx = null;
@@ -21,9 +21,112 @@ console.log("Version 1.16 - 2024-06-18");
     alert((opts.title ? opts.title + "\n" : "") + (opts.text || ""));
   }
 
+  // Feedback rápido dentro del modal (chip), sin popup bloqueante. Para el
+  // ida y vuelta de cada bulto: escanear fluido sin frenar en cada lectura.
+  function fbColecta(kind, text) {
+    const el = document.getElementById("colecta-feedback");
+    if (!el) return;
+    const cls = kind === "ok" ? "ok" : kind === "dup" ? "dup" : "err";
+    const ic = kind === "ok" ? "mdi-check-bold" : kind === "dup" ? "mdi-information" : "mdi-alert";
+    el.innerHTML = '<span class="fb ' + cls + '"><i class="mdi ' + ic + '"></i>' + text + "</span>";
+    clearTimeout(fbColecta._t);
+    fbColecta._t = setTimeout(function () {
+      if (el) el.innerHTML = "";
+    }, 1500);
+  }
+
   function esModoColecta() {
     return ($("#card-servicio").text() || "").trim().toUpperCase() === "COLECTA";
   }
+
+  // ===== MercadoLibre: servicios ya confirmados por ML (flex-handshake) =====
+  // Se muestran como bulto ya cargado, con badge amarillo, y el chofer no
+  // tiene que re-escanearlos. El backend los siembra en el JSON de la colecta.
+  window.mlCodes = window.mlCodes || new Set();
+
+  function markMlChoices() {
+    // El contenedor de select2 puede ser el hermano inmediato o estar más
+    // abajo; buscamos los chips en todo el bloque de la colecta.
+    const $chips = $("#card-receptor-items .select2-selection__choice");
+    if (!$chips.length) return;
+    $chips.each(function () {
+      const t = ($(this).attr("title") || $(this).text() || "").replace(/[×✕]/g, "").trim();
+      $(this).toggleClass("rp-choice-ml", window.mlCodes.has(t));
+    });
+  }
+  // Reintentos: select2 pinta los chips un tick después del change.
+  function markMlChoicesSoon() {
+    [0, 60, 200, 500].forEach((ms) => setTimeout(markMlChoices, ms));
+  }
+  $(document).on("change", "#prueba", markMlChoicesSoon);
+
+  function avisarML(texto) {
+    feedbackScan(true);
+    const fb = document.getElementById("colecta-feedback");
+    if (fb && $(fb).is(":visible")) {
+      fbColecta("ok", texto);
+    } else if (window.Swal && Swal.fire) {
+      Swal.fire({ toast: true, position: "top", icon: "success", title: texto, showConfirmButton: false, timer: 2600 });
+    }
+  }
+
+  function aplicarMlEnUI(expected, resume, nuevos) {
+    const $sel = $("#prueba");
+    (expected && expected.servicios_detalle ? expected.servicios_detalle : []).forEach(function (sd) {
+      if (!sd || !sd.ml_confirmado) return;
+      const code = String(sd.cs_base || "").trim();
+      if (!code) return;
+      window.mlCodes.add(code);
+      if ($sel.find('option[value="' + code + '"]').length === 0) {
+        $sel.append(new Option(code, code, true, true));
+      } else {
+        $sel.find('option[value="' + code + '"]').prop("selected", true);
+      }
+    });
+    $sel.trigger("change");
+    markMlChoicesSoon();
+    if (resume) actualizarMetricasColectaUI(resume);
+    if (nuevos && nuevos.length) {
+      avisarML("MercadoLibre confirmó " + nuevos.length + " paquete(s)");
+    }
+    if (typeof setAceptarPickupEnabled === "function" && resume) {
+      const tot = parseInt(resume.paquetes_total || 0, 10) || 0;
+      const ok = parseInt(resume.paquetes_ok || 0, 10) || 0;
+      if (tot > 0 && ok >= tot) setAceptarPickupEnabled(true);
+    }
+  }
+  window.aplicarMlEnUI = aplicarMlEnUI;
+
+  let pollMlTimer = null;
+  function pararPollML() {
+    if (pollMlTimer) {
+      clearInterval(pollMlTimer);
+      pollMlTimer = null;
+    }
+  }
+  function arrancarPollML(colectaId) {
+    pararPollML();
+    colectaId = parseInt(colectaId, 10) || 0;
+    if (!colectaId) return;
+    pollMlTimer = setInterval(function () {
+      if (!esModoColecta()) {
+        pararPollML();
+        return;
+      }
+      $.ajax({
+        url: "Proceso/php/colecta_scan.php",
+        type: "POST",
+        dataType: "json",
+        data: { EstadoML: 1, colectaId: colectaId },
+      }).done(function (r) {
+        if (!r || r.success != 1) return;
+        if (r.expected) window.colectaExpected = r.expected;
+        aplicarMlEnUI(r.expected, r.resume, r.nuevos || []);
+      });
+    }, 20000);
+  }
+  window.arrancarPollML = arrancarPollML;
+  window.pararPollML = pararPollML;
   // Si borran desde la X en el Select2, sincronizamos el Set
   $(document).on("select2:unselect", "#prueba", function (e) {
     const code = e.params?.data?.id || e.params?.data?.text;
@@ -161,7 +264,9 @@ console.log("Version 1.16 - 2024-06-18");
       faltan = Math.max(bultos - escaneados, 0);
     }
 
+    const flex = parseInt(exp?.servicios_flex || 0, 10) || 0;
     $("#totalServicios").text(servicios);
+    $("#totalServiciosMeli").text(flex > 0 ? flex + " MELI" : "").prop("hidden", flex <= 0);
     $("#totalBultos").text(bultos);
     $("#totalt").text(escaneados);
     $("#totalFaltan").text(faltan);
@@ -520,13 +625,7 @@ console.log("Version 1.16 - 2024-06-18");
           : `${expectedBase}_1`;
 
       if (codigosEscaneados.has(candidateLocal)) {
-        swalFire({
-          icon: "info",
-          title: "Ya escaneado",
-          text: candidateLocal,
-          timer: 900,
-          showConfirmButton: false,
-        });
+        fbColecta("dup", "Ya escaneado");
         feedbackScan(false);
         return;
       }
@@ -540,13 +639,7 @@ console.log("Version 1.16 - 2024-06-18");
 
       if (res && res.success == 1 && res.duplicate == 1) {
         feedbackScan(false);
-        swalFire({
-          icon: "info",
-          title: "Ya registrado",
-          text: uiLabel,
-          timer: 700,
-          showConfirmButton: false,
-        });
+        fbColecta("dup", "Ya registrado");
         return;
       }
 
@@ -639,7 +732,7 @@ console.log("Version 1.16 - 2024-06-18");
     }
 
     if (codigosEscaneados.has(codeToStoreFinal)) {
-      swalFire({ icon: "info", title: "Ya escaneado", text: codeToStoreFinal, timer: 900, showConfirmButton: false });
+      fbColecta("dup", "Ya escaneado");
       feedbackScan(false);
       return;
     }
@@ -668,7 +761,7 @@ console.log("Version 1.16 - 2024-06-18");
       });
     }
 
-    swalFire({ icon: "success", title: "OK", text: `Cargado ${ok}/${tot}`, timer: 650, showConfirmButton: false });
+    fbColecta("ok", `Cargado ${ok}/${tot}`);
   }
 
   //HASTA ACA PROCESAR SCAN
@@ -1056,34 +1149,40 @@ console.log("Version 1.16 - 2024-06-18");
       const onSuccess = async (decodedText) => {
         await procesarScan(decodedText, "scanner");
       };
-      // Config cámara (iPhone-safe + fallback)
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-      const configIOS = {
-        fps: 10,
-        qrbox: { width: 240, height: 240 },
-        disableFlip: true,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-        videoConstraints: { facingMode: "environment" },
+      // qrbox responsivo: ~72% del lado del visor. Le da margen al chofer para
+      // que el código entre en cuadro aunque no lo centre perfecto.
+      const qrboxFn = (vw, vh) => {
+        const m = Math.max(160, Math.round(Math.min(vw, vh) * 0.72));
+        return { width: m, height: m };
       };
 
-      const configHiRes = {
-        fps: 15,
-        qrbox: { width: 280, height: 280 },
+      // Un solo config. La clave para que "no cueste" leer de cerca es
+      // focusMode:continuous + resolución alta. Si el navegador rechaza los
+      // constraints avanzados, reintento sin ellos.
+      const config = {
+        fps: 12,
+        qrbox: qrboxFn,
+        aspectRatio: 1.0,
         disableFlip: true,
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         videoConstraints: {
-          facingMode: "environment",
+          facingMode: { ideal: "environment" },
           width: { ideal: 1280 },
-          height: { ideal: 720 },
+          height: { ideal: 1280 },
+          advanced: [{ focusMode: "continuous" }],
         },
       };
 
       try {
-        await colectaQr.start({ facingMode: "environment" }, isIOS ? configIOS : configHiRes, onSuccess, () => {});
+        await colectaQr.start({ facingMode: "environment" }, config, onSuccess, () => {});
       } catch (e1) {
-        console.warn("Start failed, fallback...", e1);
-        await colectaQr.start({ facingMode: "environment" }, configIOS, onSuccess, () => {});
+        console.warn("Start con constraints avanzados falló, reintento simple...", e1);
+        await colectaQr.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: qrboxFn, disableFlip: true, experimentalFeatures: { useBarCodeDetectorIfSupported: true } },
+          onSuccess,
+          () => {}
+        );
       }
 
       setTimeout(() => {
@@ -1175,27 +1274,20 @@ console.log("Version 1.16 - 2024-06-18");
     });
   });
 
-  $(document).on("click", "#btnEscanear", async function () {
-    const $btn = $(this);
-    if ($btn.data("busy")) return;
-    $btn.data("busy", 1).prop("disabled", true);
+  $(document).on("click", "#btnEscanear", function () {
+    const modalEl = document.getElementById("colectaScanModal");
+    if (!modalEl || !window.bootstrap) return;
 
-    try {
-      await scannerStopPromise;
+    codigosEscaneados.clear();
+    (getSelectedValues() || []).forEach((v) => codigosEscaneados.add(v));
+    colectaLast = "";
+    colectaLastT = 0;
 
-      const modalEl = document.getElementById("colectaScanModal");
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-
-      codigosEscaneados.clear();
-      (getSelectedValues() || []).forEach((v) => codigosEscaneados.add(v));
-
-      colectaLast = "";
-      colectaLastT = 0;
-
-      modal.show();
-    } finally {
-      $btn.data("busy", 0).prop("disabled", false);
-    }
+    // Abrir YA con un solo toque. El scanner arranca en shown.bs.modal, que
+    // por su cuenta espera a que termine cualquier stop pendiente. Antes esto
+    // hacía `await scannerStopPromise` ANTES de abrir el modal -> el primer
+    // toque no hacía nada visible y había que tocar 2-3 veces.
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
   });
 
   $(document).on("hide.bs.modal", "#colectaScanModal", function () {

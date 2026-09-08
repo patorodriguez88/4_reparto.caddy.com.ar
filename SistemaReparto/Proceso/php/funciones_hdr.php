@@ -722,12 +722,15 @@ if (isset($_POST['Paneles'])) {
     if ($servicio === 'Colecta') {
       $rpVerbo   = 'Escanear colecta';
       $rpNoLabel = 'Cancelar colecta';
+      $rpNoBtn   = 'Cancelar';
     } elseif ($servicio === 'Retiro') {
       $rpVerbo   = 'Retirar';
       $rpNoLabel = 'No se pudo retirar';
+      $rpNoBtn   = 'No retira';
     } else {
       $rpVerbo   = 'Entregar';
       $rpNoLabel = 'No entregado';
+      $rpNoBtn   = 'No entrega';
     }
     // Para una ENTREGA el dato útil es de dónde salió (proveedor);
     // para un RETIRO/COLECTA, a dónde va.
@@ -833,8 +836,9 @@ if (isset($_POST['Paneles'])) {
         </div>
 
         <div class="rp-stop-actions">
-          <button type="button" class="rp-btn no icon" aria-label="<?= htmlspecialchars($rpNoLabel) ?>" title="<?= htmlspecialchars($rpNoLabel) ?>" onclick="verwrong(<?= (int)$row['hdrid'] ?>)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <button type="button" class="rp-btn no" aria-label="<?= htmlspecialchars($rpNoLabel) ?>" title="<?= htmlspecialchars($rpNoLabel) ?>" onclick="verwrong(<?= (int)$row['hdrid'] ?>)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            <?= htmlspecialchars($rpNoBtn) ?>
           </button>
           <a class="rp-btn map" href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($direccionMapa) ?>" target="_blank" rel="noopener">Cómo llegar</a>
           <button type="button" class="rp-btn primary" onclick="verok(<?= (int)$row['hdrid'] ?>)"><?= htmlspecialchars($rpVerbo) ?></button>

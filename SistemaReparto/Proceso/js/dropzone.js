@@ -36,6 +36,11 @@ var enviandoEntrega = false;
 var enviandoNoEntrega = false;
 
 $(".guardarProducto").click(function () {
+  // En COLECTA el cierre lo maneja funciones_hdr.js (modal de faltantes +
+  // ColectaCerrar). Este handler directo se dispara ANTES que el delegado de
+  // funciones_hdr.js, así que hay que salir acá o "pasa directo" sin preguntar.
+  if ((($("#card-servicio").text() || "").trim().toUpperCase()) === "COLECTA") return;
+
   if (enviandoEntrega) return;
   enviandoEntrega = true;
   $(".guardarProducto").prop("disabled", true).text("Guardando...");

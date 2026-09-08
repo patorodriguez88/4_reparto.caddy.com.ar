@@ -31,8 +31,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-    <link href="css/hdr.css?v=20260908a" rel="stylesheet" type="text/css" />
-    <link href="css/reparto-ui.css?v=20260908a" rel="stylesheet" type="text/css" />
+    <link href="css/hdr.css?v=20260908h" rel="stylesheet" type="text/css" />
+    <link href="css/reparto-ui.css?v=20260908h" rel="stylesheet" type="text/css" />
   </head>
 
   <body class="loading" data-layout="topnav">
@@ -42,7 +42,7 @@
          sesión, respeta prefers-reduced-motion y se saca solo del DOM. -->
     <div id="brand-intro" aria-hidden="true">
       <span class="bi-flood"></span>
-      <img class="bi-mark" src="images/iso.png?v=20260908a" alt="Caddy" />
+      <img class="bi-mark" src="images/iso.png?v=20260908h" alt="Caddy" />
     </div>
     <script>
       (function () {
@@ -164,7 +164,7 @@
               <div class="login-card">
                 <div class="mc-login-card">
                   <div class="mc-login-head">
-                    <img class="mc-login-mark" src="images/LogoCaddy.png?v=20260908a" alt="Caddy" />
+                    <img class="mc-login-mark" src="images/LogoCaddy.png?v=20260908h" alt="Caddy" />
                     <h4 class="mc-login-title">Ingreso a Recorridos</h4>
                     <p class="mc-login-sub">Ingresá tu usuario y contraseña.</p>
                   </div>
@@ -204,7 +204,7 @@
                       <button type="submit" class="btn btn-caddy mc-login-btn w-100" id="ingreso">Ingresar</button>
                       <!-- Version: mismo formato AA.MM.NN que sistema.caddy.com.ar y plataforma.caddy.com.ar,
                            subir en cada push a main. Única copia (single-page app, sin header aparte). -->
-                      <a class="mc-login-ver" href="#"><small>v.26.09.06</small></a>
+                      <a class="mc-login-ver" href="#"><small>v.26.09.13</small></a>
                     </div>
                   </form>
                 </div>
@@ -256,9 +256,7 @@
               <!-- DESDE ACA CARD ENVIOS -->
               <div class="row">
                 <div class="col-12 col-xl-7" id="card-envio">
-                  <div class="col-xl-7" id="card-envio">
-                    <div class="card">
-                      <div id="border-single-card" class="card border-primary border">
+                  <div id="border-single-card" class="card border-primary border">
                         <!-- AVISO CANCELAR COLECTA -->
                         <div
                           id="alert-cancelar-colecta"
@@ -303,58 +301,43 @@
                                   <input class="form-control" type="number" id="receptor-dni" />
                                 </li>
 
-                                <!-- ITEMS -->
-                                <div id="card-receptor-items" style="display: none">
-                                  <li class="mb-2">
-                                    <p class="text-muted mb-1 font-13 d-flex align-items-center flex-wrap gap-2">
-                                      <span>
-                                        <i class="mdi mdi-tag-multiple-outline"></i> SERVICIOS
-                                        <span class="badge bg-info" id="totalServicios">0</span>
-                                      </span>
+                                <!-- ITEMS (colecta / retiro) -->
+                                <div id="card-receptor-items" class="rp rp-colecta" style="display: none">
+                                  <div class="rp-colecta-metrics">
+                                    <div>
+                                      <span class="rp-k">Servicios</span>
+                                      <span class="rp-v rp-num" id="totalServicios">0</span>
+                                      <span class="rp-sub" id="totalServiciosMeli" hidden></span>
+                                    </div>
+                                    <div><span class="rp-k">Bultos</span><span class="rp-v rp-num" id="totalBultos">0</span></div>
+                                    <div class="ok"><span class="rp-k">Escaneados</span><span class="rp-v rp-num" id="totalt">0</span></div>
+                                    <div class="pend"><span class="rp-k">Faltan</span><span class="rp-v rp-num" id="totalFaltan">0</span></div>
+                                  </div>
 
-                                      <span>
-                                        <i class="mdi mdi-package-variant-closed"></i> BULTOS
-                                        <span class="badge bg-primary" id="totalBultos">0</span>
-                                      </span>
+                                  <button type="button" id="btnEscanear" class="rp-scan">
+                                    <i class="mdi mdi-barcode-scan"></i> Escanear bultos
+                                  </button>
+                                  <button type="button" id="btnIngresoManual" class="rp-scan rp-scan-alt">
+                                    <i class="mdi mdi-keyboard-outline"></i> Ingresar código a mano
+                                  </button>
 
-                                      <span>
-                                        <i class="mdi mdi-check-circle-outline"></i> ESCANEADOS
-                                        <span class="badge bg-success" id="totalt">0</span>
-                                      </span>
-
-                                      <span>
-                                        <i class="mdi mdi-clock-outline"></i> FALTAN
-                                        <span class="badge bg-warning text-dark" id="totalFaltan">0</span>
-                                      </span>
-
-                                      <i
-                                        id="btnEscanear"
-                                        class="mdi mdi-24px mdi-barcode-scan text-primary float-end ms-auto"
-                                        style="cursor: pointer"
-                                        title="Escanear"
-                                      ></i>
-
-                                      <i
-                                        id="btnIngresoManual"
-                                        class="mdi mdi-24px mdi-keyboard-outline text-secondary float-end ms-2"
-                                        style="cursor: pointer"
-                                        title="Ingresar manualmente"
-                                      ></i>
-                                    </p>
-
-                                    <div class="input-group input-group-merge">
+                                  <div class="rp-colecta-scanned">
+                                    <span class="rp-k">Bultos escaneados</span>
+                                    <div class="input-group input-group-merge mt-1">
                                       <select
                                         id="prueba"
                                         name="codigo[]"
                                         class="select2 form-control select2-multiple"
                                         data-toggle="select2"
                                         multiple="multiple"
-                                        data-placeholder="Seleccione ..."
+                                        data-placeholder="Todavía no escaneaste ningún bulto"
                                       ></select>
                                     </div>
-                                  </li>
-
-                                  <div id="colecta-cantidad-msg" class="mt-2"></div>
+                                    <div class="rp-colecta-legend">
+                                      <span><span class="dot ml"></span>confirmado por ML</span>
+                                      <span><span class="dot ok"></span>escaneado acá</span>
+                                    </div>
+                                  </div>
 
                                   <div id="colecta-cantidad-msg" class="mt-2"></div>
                                 </div>
@@ -369,25 +352,25 @@
                             <!-- end col -->
                           </div>
                           <!-- end row -->
-                          <div class="mb-2 form-group agregarMultimedia">
+                          <div class="mb-2 form-group agregarMultimedia" id="zona-multimedia">
                             <div class="multimediaFisica needsclick dz-clickable">
                               <div class="dz-message needsclick">
                                 <i class="h1 text-muted mdi mdi-camera-plus"></i>
-                                <h4>Dar click para subir imagenes.</h4>
+                                <h4>Tocá para adjuntar una foto</h4>
                               </div>
                             </div>
                           </div>
 
                           <div class="tab-content" id="botones-entrega" style="display: none">
                             <div class="tab-pane show button-list active" id="block-buttons-preview">
-                              <div class="d-grid">
-                                <button id="boton-entrega-wrong" type="button" class="btn btn-xs btn-danger">
+                              <div class="rp rp-acciones-2">
+                                <button id="boton-entrega-wrong" type="button" class="rp-btn no">
                                   Cancelar
                                 </button>
                                 <button
                                   id="boton-entrega-success"
                                   type="button"
-                                  class="btn btn-xs btn-success guardarProducto"
+                                  class="rp-btn primary guardarProducto"
                                 >
                                   Aceptar
                                 </button>
@@ -397,14 +380,14 @@
                           </div>
                           <div class="tab-content" id="botones-no-entrega" style="display: none">
                             <div class="tab-pane show button-list active" id="block-buttons-preview">
-                              <div class="d-grid">
-                                <button id="boton-no-entrega-wrong" type="button" class="btn btn-xs btn-danger">
+                              <div class="rp rp-acciones-2">
+                                <button id="boton-no-entrega-wrong" type="button" class="rp-btn no">
                                   Cancelar
                                 </button>
                                 <button
                                   id="boton-no-entrega-success"
                                   type="button"
-                                  class="btn btn-xs btn-success guardarNoEntrega"
+                                  class="rp-btn primary guardarNoEntrega"
                                 >
                                   Aceptar
                                 </button>
@@ -416,10 +399,8 @@
                         <!-- end card body-->
                       </div>
                       <!-- end card -->
-                    </div>
                   </div>
                 </div>
-              </div>
 
               <!-- HASTA ACA CARD ENVIOS -->
               <div class="row" id="hdractivas"></div>
@@ -562,22 +543,23 @@
 
     <div class="modal" id="colectaScanModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-md">
-        <div class="modal-content">
+        <div class="modal-content rp">
           <div class="modal-header">
-            <h5 class="modal-title">Escanear bulto (colecta)</h5>
+            <h5 class="modal-title"><i class="mdi mdi-barcode-scan"></i> Escanear bultos</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
           </div>
           <div class="modal-body">
-            <div class="mb-2">
-              <span class="badge bg-secondary">Esperado:</span>
-              <span class="badge bg-primary" id="colecta-expected">–</span>
-            </div>
-            <div id="colecta-feedback" class="mb-2"></div>
             <div id="colecta-qr-reader"></div>
+            <p class="rp-scan-hint">Apuntá al código. Se lee solo.</p>
+            <div id="colecta-feedback" class="rp-scan-fb"></div>
+            <div class="rp-scan-expected">
+              <span class="rp-k">Esperado</span>
+              <span class="rp-num" id="colecta-expected">–</span>
+            </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-warning" id="btnValidarFaltantes">Validar faltantes</button>
-            <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="rp-scan rp-scan-alt m-0" id="btnValidarFaltantes">Ver faltantes</button>
+            <button type="button" class="rp-scan m-0" data-bs-dismiss="modal">Listo</button>
           </div>
         </div>
       </div>
@@ -618,13 +600,13 @@
 
     <!-- ?v=YYYYMMDD: ver comentario en el <link> de hdr.css. Bumpear al tocar
          cualquiera de estos JS para saltear la cache vieja del proxy. -->
-    <script src="pwa/js/pwa.js?v=20260908a"></script>
-    <script src="Proceso/js/funciones_hdr.js?v=20260908a"></script>
-    <script src="Proceso/js/mail.js?v=20260908a"></script>
-    <script src="Proceso/js/dropzone.js?v=20260908a"></script>
-    <script src="Proceso/js/colecta_scan.js?v=20260908a"></script>
-    <script src="Proceso/js/app_status.js?v=20260908a"></script>
-    <script src="Proceso/js/geo_tracker.js?v=20260908a"></script>
-    <script src="Proceso/js/mapa_recorrido.js?v=20260908a"></script>
+    <script src="pwa/js/pwa.js?v=20260908h"></script>
+    <script src="Proceso/js/funciones_hdr.js?v=20260908h"></script>
+    <script src="Proceso/js/mail.js?v=20260908h"></script>
+    <script src="Proceso/js/dropzone.js?v=20260908h"></script>
+    <script src="Proceso/js/colecta_scan.js?v=20260908h"></script>
+    <script src="Proceso/js/app_status.js?v=20260908h"></script>
+    <script src="Proceso/js/geo_tracker.js?v=20260908h"></script>
+    <script src="Proceso/js/mapa_recorrido.js?v=20260908h"></script>
   </body>
 </html>

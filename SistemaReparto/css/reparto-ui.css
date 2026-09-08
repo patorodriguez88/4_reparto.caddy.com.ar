@@ -211,7 +211,7 @@
 
 .rp-stop-actions {
   display: grid;
-  grid-template-columns: 44px 1fr 1.25fr;
+  grid-template-columns: minmax(94px, 1fr) 1fr 1.3fr;
   gap: 8px;
   padding: 10px 12px 12px;
   border-top: 1px solid var(--rp-line);
@@ -228,9 +228,11 @@
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
 .rp-btn:focus-visible { outline: 2px solid var(--rp-rust); outline-offset: 2px; }
-.rp-btn.no { background: var(--rp-crit-bg); color: var(--rp-crit); }
+/* acción positiva (Entregar / Retirar / Aceptar): verde sólido */
+.rp-btn.primary { background: var(--rp-ok); color: #fff; }
+/* acción negativa (No entrega / Cancelar): rojo sólido */
+.rp-btn.no { background: var(--rp-crit); color: #fff; }
 .rp-btn.map { background: var(--rp-surface); border: 1px solid var(--rp-line); color: var(--rp-soft); }
-.rp-btn.primary { background: var(--rp-rust); color: var(--rp-rust-ink); }
 .rp-btn.icon { padding: 10px 0; }
 .rp-btn.wa { background: var(--rp-ok-bg); color: var(--rp-ok); }
 
@@ -394,3 +396,112 @@
 @media (prefers-reduced-motion: reduce) {
   .rp *, .rp-wh-bar > i { transition: none !important; animation: none !important; }
 }
+
+/* =============================================================
+   Colecta / escaneo de bultos  (tarjeta del envio + modal camara)
+   ============================================================= */
+.rp-colecta { padding: 2px 0 4px; }
+
+.rp-colecta-metrics {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  background: var(--rp-surface-2);
+  border: 1px solid var(--rp-line);
+  border-radius: 14px;
+  padding: 11px 10px;
+  margin-bottom: 12px;
+}
+.rp-colecta-metrics > div { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.rp-colecta-metrics .rp-k {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--rp-mute);
+}
+.rp-colecta-metrics .rp-v { font-size: 19px; font-weight: 900; letter-spacing: -0.02em; color: var(--rp-ink); line-height: 1; }
+.rp-colecta-metrics .ok .rp-v   { color: var(--rp-ok); }
+.rp-colecta-metrics .pend .rp-v { color: var(--rp-warn); }
+.rp-colecta-metrics .rp-sub {
+  font-size: 8.5px; font-weight: 900; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--rp-warn);
+  background: var(--rp-warn-bg); border-radius: 999px;
+  padding: 1px 6px; margin-top: 2px; line-height: 1.4;
+}
+
+/* boton secundario (ingresar a mano / ver faltantes): mismo tamaño que .rp-scan pero outline */
+.rp-scan.rp-scan-alt {
+  background: var(--rp-surface);
+  color: var(--rp-soft);
+  border: 1px solid var(--rp-line);
+  box-shadow: none;
+}
+.rp-scan.rp-scan-alt:active { background: var(--rp-surface-3); }
+
+.rp-colecta-scanned { margin-top: 4px; }
+.rp-colecta-scanned .rp-k {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--rp-mute);
+}
+
+/* --- modal de escaneo --- */
+#colectaScanModal .modal-content { border: 0; border-radius: 18px; overflow: hidden; }
+#colectaScanModal .modal-header { border-bottom: 1px solid var(--rp-line); padding: 12px 16px; }
+#colectaScanModal .modal-title { font-size: 15px; font-weight: 900; color: var(--rp-ink); display: flex; align-items: center; gap: 8px; }
+#colectaScanModal .modal-body { padding: 12px 14px 8px; }
+#colectaScanModal .modal-footer { border-top: 1px solid var(--rp-line); padding: 10px 14px; gap: 8px; }
+#colectaScanModal .modal-footer .rp-scan { flex: 1; }
+
+#colecta-qr-reader {
+  width: 100%; aspect-ratio: 1 / 1; max-height: 62vh;
+  border-radius: 16px; overflow: hidden; background: #000;
+  position: relative;
+}
+#colecta-qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block; }
+#colecta-qr-reader img[alt="Info icon"], #colecta-qr-reader__dashboard { display: none !important; }
+
+.rp-scan-hint { font-size: 12px; font-weight: 700; color: var(--rp-mute); text-align: center; margin: 8px 0 6px; }
+
+.rp-scan-fb { min-height: 22px; text-align: center; margin-bottom: 6px; }
+.rp-scan-fb .fb {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 800;
+  padding: 4px 12px; border-radius: 999px;
+}
+.rp-scan-fb .fb.ok   { background: var(--rp-ok-bg);   color: var(--rp-ok); }
+.rp-scan-fb .fb.dup  { background: var(--rp-info-bg); color: var(--rp-info); }
+.rp-scan-fb .fb.err  { background: var(--rp-crit-bg); color: var(--rp-crit); }
+
+.rp-scan-expected {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 12px; font-weight: 800; color: var(--rp-soft);
+  padding: 8px 0 2px;
+}
+.rp-scan-expected .rp-k { font-size: 10px; color: var(--rp-mute); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* --- botones Aceptar / Cancelar lado a lado --- */
+.rp-acciones-2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;
+}
+.rp-acciones-2 .rp-btn { margin: 0; }
+
+/* --- leyenda de colores del select de bultos --- */
+.rp-colecta-legend {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  margin-top: 6px; font-size: 10.5px; font-weight: 700; color: var(--rp-mute);
+}
+.rp-colecta-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.rp-colecta-legend .dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.rp-colecta-legend .dot.ml { background: var(--rp-warn); }
+.rp-colecta-legend .dot.ok { background: var(--rp-ok); }
+
+/* --- bulto confirmado por MercadoLibre: tag amarillo en el select2 --- */
+.select2-selection__choice.rp-choice-ml,
+li.select2-selection__choice.rp-choice-ml {
+  background: var(--rp-warn-bg) !important;
+  border: 1px solid var(--rp-warn) !important;
+  color: var(--rp-warn) !important;
+  font-weight: 800 !important;
+}
+.select2-selection__choice.rp-choice-ml::after {
+  content: " · ML";
+  font-size: 10px;
+  opacity: 0.9;
+}
+.select2-selection__choice.rp-choice-ml .select2-selection__choice__remove { color: var(--rp-warn) !important; }

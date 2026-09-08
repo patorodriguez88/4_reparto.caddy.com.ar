@@ -814,7 +814,7 @@ function initApp() {
         $("#hdractivas").show();
         $("#mis_envios").hide();
         $("#card-envio").hide();
-        $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
+        $("#hdr-header").html(`Ruta: ${jsonData.NOrden} · Recorrido: ${jsonData.Recorrido}`);
         if (isAppInstalled()) {
           disableBellIndicator();
         }
@@ -1156,6 +1156,7 @@ function limpiarInputsEntrega() {
 }
 
 function initColectaExpected(colectaId, padreId) {
+  if (window.pararPollML) window.pararPollML();
   return $.ajax({
     url: "Proceso/php/colecta_scan.php",
     type: "POST",
@@ -1170,15 +1171,25 @@ function initColectaExpected(colectaId, padreId) {
     const resume = r?.resume || {};
 
     const servicios = parseInt(expected.servicios || 0, 10) || 0;
+    const flex = parseInt(expected.servicios_flex || 0, 10) || 0;
     const bultos = parseInt(expected.paquetes_total || 0, 10) || 0;
     const escaneados = parseInt(resume.paquetes_ok || 0, 10) || 0;
     const faltan = Math.max(bultos - escaneados, 0);
 
     $("#card-receptor-cantidad").html(bultos);
     $("#totalServicios").html(servicios);
+    $("#totalServiciosMeli").text(flex > 0 ? flex + " MELI" : "").prop("hidden", flex <= 0);
     $("#totalBultos").html(bultos);
     $("#totalt").html(escaneados);
     $("#totalFaltan").html(faltan);
+
+    // Muestra los servicios que MercadoLibre ya confirmó (badge amarillo) y
+    // arranca el poll para levantar los que confirme mientras retira.
+    if (window.aplicarMlEnUI) window.aplicarMlEnUI(expected, resume, []);
+    if (window.arrancarPollML) window.arrancarPollML(colectaId);
+    if (bultos > 0 && escaneados >= bultos && typeof setAceptarPickupEnabled === "function") {
+      setAceptarPickupEnabled(true);
+    }
 
     // opcional: auditoría visual si hay inconsistencia
     if (parseInt(expected.inconsistencia_cantidad || 0, 10) === 1) {
@@ -1194,6 +1205,8 @@ function initColectaExpected(colectaId, padreId) {
   });
 }
 function verok(i) {
+  if (window.pararPollML) window.pararPollML();
+  window.mlCodes && window.mlCodes.clear && window.mlCodes.clear();
   limpiarInputsEntrega();
 
   const miSolicitud = ++idSolicitudActual;
@@ -1277,6 +1290,8 @@ function verok(i) {
 
         $("#card-receptor-items").show();
         $("#card-receptor-name, #card-receptor-dni").hide();
+        // En colecta no se usa la carga de fotos -> se oculta para no confundir.
+        $("#zona-multimedia").toggle(!esColecta);
 
         // Bloquea hasta validar/confirmar bultos
         setAceptarPickupEnabled(false);
@@ -1303,6 +1318,7 @@ function verok(i) {
 
         $("#card-receptor-items").hide();
         $("#card-receptor-name, #card-receptor-dni").show();
+        $("#zona-multimedia").show();
       }
 
       $("#card-servicio").text(servicio);
@@ -1388,21 +1404,11 @@ function actualizarEstadoCantidadPickup() {
     setAceptarPickupEnabled(true);
     return;
   }
-  // ✅ COLECTA: validación por expected.paquetes_total
+  // COLECTA: Aceptar SIEMPRE habilitado. Si faltan bultos, el modal de
+  // confirmación (en el click) deja avanzar igual y marca los faltantes para
+  // que la oficina los confirme (avanzar, no frenar).
   if (esModoColecta()) {
-    const exp = window.colectaExpected;
-    const esperado = parseInt(exp?.paquetes_total || 0, 10);
-
-    const cargado = getCantidadCargada();
-
-    // si no tengo expected todavía, bloqueo
-    if (!esperado) {
-      setAceptarPickupEnabled(false);
-      return;
-    }
-
-    // habilita SOLO cuando coincide exacto
-    setAceptarPickupEnabled(cargado === esperado);
+    setAceptarPickupEnabled(true);
     return;
   }
 
@@ -1449,13 +1455,130 @@ $(document).on("change", "#prueba", actualizarEstadoCantidadPickup);
 // ✅ cuando cambias de envío / actualizas el card (muy importante)
 function onCargarNuevoEnvioEnCard() {
   window.colectaML = { isML: false, confirmedQty: 0 };
+  // El botón positivo dice "Aceptar" (dropzone.js lo deja en "Guardar producto"
+  // después de una entrega).
+  $("#boton-entrega-success, .guardarProducto").text("Aceptar");
   // bloquea por defecto y recalcula
   setAceptarPickupEnabled(false);
   actualizarEstadoCantidadPickup();
 }
 
+// Servicios de la colecta que NO están cubiertos (ni escaneados a mano ni ML).
+function getColectaFaltantes() {
+  const exp = window.colectaExpected;
+  if (!exp || !Array.isArray(exp.servicios_detalle)) return [];
+  const manoByBase = {};
+  ($("#prueba").val() || []).forEach((c) => {
+    if (window.mlCodes && window.mlCodes.has(String(c))) return; // ML no cuenta como "mano"
+    const b = String(c).split("_")[0].trim().toUpperCase();
+    manoByBase[b] = (manoByBase[b] || 0) + 1;
+  });
+  const out = [];
+  exp.servicios_detalle.forEach((sd) => {
+    if (sd.ml_confirmado) return;
+    const base = String(sd.cs_base || "").trim().toUpperCase();
+    const need = parseInt(sd.paquetes || 1, 10) || 1;
+    const mano = manoByBase[base] || 0;
+    if (mano >= need) return;
+    out.push({ base: base, need: need, mano: mano, cliente: sd.cliente || "" });
+  });
+  return out;
+}
+
+// Cierra la colecta (backend: colecta_scan.php ColectaCerrar) y vuelve al listado.
+function cerrarColectaAhora(obs) {
+  if (window._cerrandoColecta) return;
+  window._cerrandoColecta = true;
+  $("#boton-entrega-success, .guardarProducto").prop("disabled", true);
+
+  $.ajax({
+    url: "Proceso/php/colecta_scan.php",
+    type: "POST",
+    dataType: "json",
+    data: {
+      ColectaCerrar: 1,
+      colectaId: window.idColectaActual || window.colectaExpectedId || 0,
+      padreId: window.colectaPadreId || 0,
+      obs: obs || "",
+    },
+  })
+    .done(function (r) {
+      if (!r || r.success != 1) {
+        Swal.fire({
+          icon: "error",
+          title: "No se pudo cerrar la colecta",
+          text: (r && (r.detail || r.error)) || "",
+        });
+        return;
+      }
+      if (window.pararPollML) window.pararPollML();
+      const nF = (r.faltantes || []).length;
+      if (window.Swal) {
+        Swal.fire({
+          toast: true,
+          position: "top",
+          timer: 2800,
+          showConfirmButton: false,
+          icon: nF ? "warning" : "success",
+          title: nF
+            ? `Colecta cerrada · ${nF} paquete(s) para confirmar en oficina`
+            : "Colecta cerrada",
+        });
+      }
+      if (typeof limpiarInputsEntrega === "function") limpiarInputsEntrega();
+      $("#card-envio").hide();
+      $("#hdractivas").show();
+      if (typeof cargarHeader === "function") cargarHeader();
+      if (typeof paneles === "function") paneles();
+    })
+    .fail(function () {
+      Swal.fire({ icon: "error", title: "Error de red", text: "No se pudo cerrar la colecta." });
+    })
+    .always(function () {
+      window._cerrandoColecta = false;
+      $("#boton-entrega-success, .guardarProducto").prop("disabled", false);
+    });
+}
+
 $(document).on("click", "#boton-entrega-success, .guardarProducto", function (e) {
   if (!esRetiro()) return;
+
+  // ===== COLECTA: cierre propio, no frena aunque falten bultos =====
+  if (esModoColecta()) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (window._cerrandoColecta) return;
+
+    const faltan = getColectaFaltantes();
+    if (!faltan.length) {
+      cerrarColectaAhora("");
+      return;
+    }
+    const totalFaltan = faltan.reduce((a, f) => a + (f.need - f.mano), 0);
+    const lista = faltan
+      .map(
+        (f) =>
+          `<li><b>${f.cliente || f.base}</b> — faltan ${f.need - f.mano} de ${f.need}</li>`,
+      )
+      .join("");
+    Swal.fire({
+      icon: "warning",
+      title: `Faltan ${totalFaltan} bulto(s)`,
+      html:
+        `<ul style="text-align:left;margin:0 0 10px;padding-left:18px">${lista}</ul>` +
+        `<textarea id="colecta-cierre-obs" class="form-control" rows="2" placeholder="Observación (opcional)"></textarea>` +
+        `<div class="text-muted mt-1" style="font-size:12px">Vas a tener que avisar en la oficina que los levantaste.</div>`,
+      showCancelButton: true,
+      confirmButtonText: "Confirmar igual",
+      cancelButtonText: "Volver a escanear",
+      confirmButtonColor: "#1c8f61",
+    }).then((r) => {
+      if (r.isConfirmed) {
+        cerrarColectaAhora(($("#colecta-cierre-obs").val() || "").trim());
+      }
+    });
+    return;
+  }
 
   // ✅ NUEVO: bypass validación clásica si es flujo ML
   if (window.colectaML?.isML) {
@@ -1500,7 +1623,7 @@ function cargarHeader() {
     dataType: "json",
   }).done(function (jsonData) {
     if (jsonData && jsonData.success == 1) {
-      $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
+      $("#hdr-header").html(`Ruta: ${jsonData.NOrden} · Recorrido: ${jsonData.Recorrido}`);
       $("#badge-total").html(jsonData.Total);
       $("#badge-sinentregar").html(jsonData.Abiertos);
       $("#badge-entregados").html(jsonData.Cerrados);

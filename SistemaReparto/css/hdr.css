@@ -1075,3 +1075,18 @@ body.app-ready #fab-mapa-recorrido {
   color: var(--mc-mute);
   text-decoration: none;
 }
+
+/* Header de ruta: "Ruta: 16782 · Recorrido: 9502" — texto plano, a la izquierda, un pelin mas grande */
+#navbar .page-title {
+  justify-content: flex-start;
+  max-width: 82vw; /* que entre completo "Ruta ... · Recorrido ..." sin cortarse */
+}
+#navbar #hdr-header {
+  background: transparent;
+  color: var(--rp-ink, #2a2230);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  padding: 0.3rem 0.6rem; /* aire antes de "Ruta" y despues de "Recorrido" */
+  text-align: left;
+}
