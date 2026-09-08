@@ -571,7 +571,13 @@ function resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $ferniplas
     }
 
     // 3) Proveedor => CodigoProveedor (con filtro Ferniplast si aplica)
-    $prov = trim((string)$raw);
+    // La etiqueta propia del cliente (IGALFER / Ferniplast) para bultos
+    // multi-paquete viene como <CodigoProveedor>_1, _2, _3... igual que el
+    // codigo Caddy. Antes se comparaba CodigoProveedor EXACTO, asi que "778218_1"
+    // no matcheaba "778218" y tiraba SERVICIO_NO_RESUELTO. Se prueba con el raw
+    // y con el base (sin sufijo _n), mismo criterio que el Path 2.
+    $prov     = trim((string)$raw);
+    $provBase = parseCaddyBase($prov); // '778218_1' -> '778218'
     if ($prov !== '') {
 
         if ($colectaId > 0) {
@@ -580,25 +586,25 @@ function resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $ferniplas
                     SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
                     FROM TransClientes
                     WHERE idColecta=? AND Eliminado=0 AND Entregado=0 AND Devuelto=0
-                      AND CodigoProveedor=?
+                      AND CodigoProveedor IN (?, ?)
                       AND idClienteOrigen=?
                       AND (?=0 OR id<>?)
                     ORDER BY id DESC
                     LIMIT 1
                 ");
-                $st->bind_param("isiii", $colectaId, $prov, $ferniplastClienteId, $padreId, $padreId);
+                $st->bind_param("issiii", $colectaId, $prov, $provBase, $ferniplastClienteId, $padreId, $padreId);
                 $tipo = 'FERNIPLAST_CODPROV';
             } else {
                 $st = $mysqli->prepare("
                     SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
                     FROM TransClientes
                     WHERE idColecta=? AND Eliminado=0 AND Entregado=0 AND Devuelto=0
-                      AND CodigoProveedor=?
+                      AND CodigoProveedor IN (?, ?)
                       AND (?=0 OR id<>?)
                     ORDER BY id DESC
                     LIMIT 1
                 ");
-                $st->bind_param("isii", $colectaId, $prov, $padreId, $padreId);
+                $st->bind_param("issii", $colectaId, $prov, $provBase, $padreId, $padreId);
                 $tipo = 'PROV_CODPROV';
             }
         } else {
@@ -607,23 +613,23 @@ function resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $ferniplas
                     SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
                     FROM TransClientes
                     WHERE Eliminado=0 AND Entregado=0 AND Devuelto=0
-                      AND CodigoProveedor=?
+                      AND CodigoProveedor IN (?, ?)
                       AND idClienteOrigen=?
                     ORDER BY id DESC
                     LIMIT 1
                 ");
-                $st->bind_param("si", $prov, $ferniplastClienteId);
+                $st->bind_param("ssi", $prov, $provBase, $ferniplastClienteId);
                 $tipo = 'FERNIPLAST_CODPROV';
             } else {
                 $st = $mysqli->prepare("
                     SELECT id, CodigoSeguimiento, Cantidad, idClienteOrigen, idClienteDestino, DomicilioDestino, NumerodeOrden
                     FROM TransClientes
                     WHERE Eliminado=0 AND Entregado=0 AND Devuelto=0
-                      AND CodigoProveedor=?
+                      AND CodigoProveedor IN (?, ?)
                     ORDER BY id DESC
                     LIMIT 1
                 ");
-                $st->bind_param("s", $prov);
+                $st->bind_param("ss", $prov, $provBase);
                 $tipo = 'PROV_CODPROV';
             }
         }
