@@ -14,18 +14,44 @@ if (isset($_POST['GetLista'])) {
         exit;
     }
 
-    // Las COLECTAS no se cargan en el depósito: el chofer las retira en el
-    // cliente durante el recorrido y las entrega en el warehouse como una
-    // parada más. Por eso quedan fuera de esta lista de carga pre-salida.
+    // Entregas del recorrido para escanear antes de salir / en el punto de
+    // entrega (WePoint). Incluye:
+    //   - Entregas normales desde depósito (sin colecta), como siempre.
+    //   - Bultos de COLECTA ya retirados y sin entregar: en las rutas Flex el
+    //     chofer los deja en WePoint y ahí se escanean. Antes se excluían con
+    //     (idColecta = 0) y en esas rutas la lista salía casi vacía (p.ej. el
+    //     recorrido 1464: 2 de 19).
+    // Por cada bulto se calcula 'escaneo_via' mirando Seguimiento:
+    //   'MANUAL' -> ya tiene warehouse_validated o pickup_scanned (lector)
+    //   'ML'     -> pickup_scanned confirmado por MercadoLibre (handshake)
+    //   ''       -> sin escaneo real todavía => hay que escanearlo acá.
+    // pickup_ready y pickup_not_scanned NO cuentan como escaneado (el segundo
+    // es justamente "colecta cerrada sin escanear").
     $st = $mysqli->prepare("
-        SELECT t.Retirado, t.CodigoSeguimiento, t.Cantidad, t.shipments_id
+        SELECT t.Retirado, t.CodigoSeguimiento, t.Cantidad, t.shipments_id,
+               t.CodigoProveedor,
+               CASE WHEN (t.idColecta IS NULL OR t.idColecta = 0) THEN 0 ELSE 1 END AS es_colecta,
+               (
+                   SELECT CASE
+                       WHEN SUM(s.status = 'warehouse_validated') > 0 THEN 'MANUAL'
+                       WHEN SUM(s.status = 'pickup_scanned' AND s.Usuario = 'MercadoLibre') > 0 THEN 'ML'
+                       WHEN SUM(s.status = 'pickup_scanned') > 0 THEN 'MANUAL'
+                       ELSE ''
+                   END
+                   FROM Seguimiento s
+                   WHERE SUBSTRING_INDEX(s.CodigoSeguimiento, '_', 1) = SUBSTRING_INDEX(t.CodigoSeguimiento, '_', 1)
+                     AND (s.Eliminado IS NULL OR s.Eliminado = 0)
+               ) AS escaneo_via
         FROM HojaDeRuta h
         INNER JOIN TransClientes t ON t.id = h.idTransClientes
         WHERE h.Recorrido = ?
             AND h.Estado = 'Abierto'
             AND h.Eliminado = 0
             AND t.Eliminado = 0
-            AND (t.idColecta IS NULL OR t.idColecta = 0)
+            AND (
+                (t.idColecta IS NULL OR t.idColecta = 0)
+                OR (t.idColecta > 0 AND t.Retirado = 1 AND t.Entregado = 0 AND t.Devuelto = 0)
+            )
         ORDER BY t.CodigoSeguimiento ASC
         ");
 
@@ -38,12 +64,24 @@ if (isset($_POST['GetLista'])) {
 
         $meliId = (string)($r['shipments_id'] ?? '');
         if ($meliId === '0') $meliId = '';
+        // En Flex el nº de envío de ML suele venir en CodigoProveedor
+        // (shipments_id = 0). Sin esto, el bulto de colecta no matchea cuando
+        // el operador escanea el QR de MercadoLibre en WePoint.
+        if ($meliId === '' && (int)$r['es_colecta'] === 1) {
+            $cp = trim((string)($r['CodigoProveedor'] ?? ''));
+            if ($cp !== '' && $cp !== '0') $meliId = $cp;
+        }
+
+        $via = (string)($r['escaneo_via'] ?? '');
 
         $items[] = [
             'base' => $r['CodigoSeguimiento'],
             'bultos' => (int)$r['Cantidad'],
             'retirado' => (int)$r['Retirado'],
             'meli_id' => $meliId,
+            'es_colecta' => (int)$r['es_colecta'],
+            'ya_escaneado' => $via !== '' ? 1 : 0,
+            'escaneo_via' => $via,
         ];
     }
     $solo_hash = isset($_POST['solo_hash']) ? (int)$_POST['solo_hash'] : 0;

@@ -360,6 +360,12 @@
   color: var(--rp-info); background: var(--rp-info-bg);
   padding: 2px 6px; border-radius: 6px; flex-shrink: 0;
 }
+/* Bulto que ya venía escaneado (MercadoLibre / colecta): verde, sin tacho,
+   con el chip pegado a la derecha para diferenciarlo de un escaneo hecho acá. */
+.rp-wh-row.pre .rp-mb { margin-left: auto; background: var(--rp-ok-bg); color: var(--rp-ok); }
+/* Bulto que todavía falta escanear en WePoint. */
+.rp-wh-row.pending { opacity: 0.72; }
+.rp-wh-row.pending .rp-st { background: var(--rp-surface-3); color: var(--rp-mute); border: 1.5px dashed var(--rp-mute); }
 
 .rp-confirm {
   -webkit-appearance: none; appearance: none; border: 0; margin: 0;

@@ -413,25 +413,40 @@ function cargarLista() {
           // en múltiples bultos cada _n es un registro propio sin este campo.
           const meliId = bultos === 1 ? String(item.meli_id ?? "").trim() || null : null;
 
+          // Bultos que YA tienen un escaneo real (lector / warehouse) o
+          // confirmación de MercadoLibre entran directo en verde: el operador
+          // los ve pero no los tiene que volver a pasar por el lector. El
+          // resto arranca "pendiente" y hay que escanearlo en WePoint.
+          const yaEscaneado = Number(item.ya_escaneado) === 1;
+          const estadoInicial = yaEscaneado ? "ok" : "pendiente";
+          const escaneoVia = String(item.escaneo_via ?? "");
+          const esColecta = Number(item.es_colecta) === 1 ? 1 : 0;
+
           // 1) Normal (por CodigoSeguimiento)
           if (bultos === 1) {
             expected.put({
               code: codigoSeguimiento,
               base: codigoSeguimiento,
-              estado: "pendiente",
+              estado: estadoInicial,
               retirado: retirado,
               codigoSeguimiento: codigoSeguimiento,
               meli_id: meliId,
+              ya_escaneado: yaEscaneado ? 1 : 0,
+              escaneo_via: escaneoVia,
+              es_colecta: esColecta,
             });
           } else {
             for (let i = 1; i <= bultos; i++) {
               expected.put({
                 code: `${codigoSeguimiento}_${i}`,
                 base: codigoSeguimiento,
-                estado: "pendiente",
+                estado: estadoInicial,
                 retirado: retirado,
                 codigoSeguimiento: codigoSeguimiento,
                 meli_id: null,
+                ya_escaneado: yaEscaneado ? 1 : 0,
+                escaneo_via: escaneoVia,
+                es_colecta: esColecta,
               });
             }
           }
@@ -571,6 +586,12 @@ function actualizarHUD(retiradoObjetivo = 1) {
   };
 }
 
+function whTrashBtn(base) {
+  return `<button type="button" class="wh-trash-btn" data-base="${base}" title="Borrar escaneo" aria-label="Borrar escaneo ${base}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>`;
+}
+
 function renderScanned(done) {
   const $whLista = $("#wh-lista"); // ✅ DEFINIDA ACÁ
 
@@ -580,8 +601,8 @@ function renderScanned(done) {
   const scannedStore = t.objectStore("scanned");
   const expectedStore = t.objectStore("expected");
 
-  const scannedCount = {}; // { base: {entrega} }
-  const expectedCount = {}; // { base: {entrega} }
+  const scannedCount = {}; // { base: n } -> bultos escaneados EN ESTA sesión
+  const info = {}; // { base: { tot, ok, pre, via } }
 
   // 1) leo SCANNED -> SOLO ENTREGAS (retirado=1)
   scannedStore.openCursor().onsuccess = function (e) {
@@ -591,16 +612,13 @@ function renderScanned(done) {
       const base = v.base || (v.code ? v.code.split("_")[0] : "");
       const ret = Number(v.retirado ?? 1);
 
-      if (base && ret === 1) {
-        if (!scannedCount[base]) scannedCount[base] = { entrega: 0 };
-        scannedCount[base].entrega++;
-      }
+      if (base && ret === 1) scannedCount[base] = (scannedCount[base] || 0) + 1;
 
       cursor.continue();
       return;
     }
 
-    // 2) leo EXPECTED (para saber el total por base)
+    // 2) leo EXPECTED -> total por base + si viene pre-escaneado (ML / colecta)
     expectedStore.openCursor().onsuccess = function (e2) {
       const c2 = e2.target.result;
       if (c2) {
@@ -608,33 +626,57 @@ function renderScanned(done) {
         const base = v.base || (v.code ? v.code.split("_")[0] : "");
         const ret = Number(v.retirado ?? 1);
 
-        if (base && ret === 1) {
-          if (!expectedCount[base]) expectedCount[base] = { entrega: 0 };
-          expectedCount[base].entrega++;
+        if (base && ret === 1 && v.estado !== "alias") {
+          if (!info[base]) info[base] = { tot: 0, ok: 0, pre: false, via: "" };
+          info[base].tot++;
+          if (v.estado === "ok") info[base].ok++;
+          if (Number(v.ya_escaneado) === 1) {
+            info[base].pre = true;
+            if (!info[base].via) info[base].via = String(v.escaneo_via || "");
+          }
         }
         c2.continue();
         return;
       }
 
-      // 3) ✅ render SOLO bases que fueron escaneadas
-      const bases = Object.keys(scannedCount).sort();
+      // 3) ✅ render de TODAS las bases de entrega del recorrido (no solo las
+      //    escaneadas): el operador tiene que ver las 19, cuáles ya vienen
+      //    resueltas (ML / colecta) y cuáles le faltan escanear en WePoint.
+      const bases = Object.keys(info).sort();
 
       bases.forEach((base) => {
-        const okE = scannedCount[base]?.entrega || 0;
-        const totE = expectedCount[base]?.entrega || 0;
+        const it = info[base];
+        const scanNow = scannedCount[base] || 0;
+        const completo = it.tot > 0 && it.ok >= it.tot;
+        const preSolo = completo && scanNow === 0 && it.pre; // verde por ML/colecta, sin re-escaneo
 
-        const completo = totE <= 1 || (totE > 0 && okE === totE);
-        const rowCls = completo ? "ok" : "partial";
-        const badge = totE > 1 ? `<span class="rp-mb rp-num">${okE}/${totE}</span>` : "";
+        let rowCls, stIcon, extra;
+
+        if (preSolo) {
+          rowCls = "ok pre";
+          stIcon = "✓";
+          extra = `<span class="rp-mb">${it.via === "ML" ? "MELI" : "YA ESCANEADO"}</span>`;
+        } else if (completo) {
+          rowCls = "ok";
+          stIcon = "✓";
+          extra = (it.tot > 1 ? `<span class="rp-mb rp-num">${scanNow}/${it.tot}</span>` : "") + whTrashBtn(base);
+        } else if (scanNow > 0 || it.ok > 0) {
+          rowCls = "partial";
+          stIcon = "";
+          extra = `<span class="rp-mb rp-num">${Math.max(scanNow, it.ok)}/${it.tot}</span>` + whTrashBtn(base);
+        } else {
+          rowCls = "pending";
+          stIcon = "";
+          extra =
+            (it.tot > 1 ? `<span class="rp-mb rp-num">0/${it.tot}</span>` : "") +
+            `<span class="rp-who">falta escanear</span>`;
+        }
 
         $whLista.append(`
         <li class="rp-wh-row ${rowCls}">
-          <span class="rp-st">${completo ? "✓" : ""}</span>
+          <span class="rp-st">${stIcon}</span>
           <span class="rp-code rp-num">${base}</span>
-          ${badge}
-          <button type="button" class="wh-trash-btn" data-base="${base}" title="Borrar escaneo" aria-label="Borrar escaneo ${base}">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-          </button>
+          ${extra}
         </li>
       `);
       });
