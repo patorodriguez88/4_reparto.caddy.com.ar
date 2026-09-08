@@ -142,14 +142,17 @@ if (isset($_POST['Datos'])) {
     exit;
   }
 
-  // Busco la orden cargada para este chofer
+  // Busco la orden cargada para este chofer. ORDER BY id DESC: si por un error
+  // de datos quedan 2 filas 'Cargada' para el mismo chofer, gana la más nueva
+  // (y elegimos igual que admision.php para no entrar en loop de reingreso).
   $sql = consultaOError(
     $mysqli,
-    "SELECT NumerodeOrden,Recorrido 
-         FROM Logistica 
-         WHERE idUsuarioChofer = '{$idUsuario}' 
-           AND Estado = 'Cargada' 
-           AND Eliminado = 0 
+    "SELECT NumerodeOrden,Recorrido
+         FROM Logistica
+         WHERE idUsuarioChofer = '{$idUsuario}'
+           AND Estado = 'Cargada'
+           AND Eliminado = 0
+         ORDER BY id DESC
          LIMIT 1",
     'Logistica NumerodeOrden'
   );
@@ -160,6 +163,24 @@ if (isset($_POST['Datos'])) {
 
     $nOrden = $row['NumerodeOrden'];
     $Recorrido = $row['Recorrido'];
+
+    // El recorrido Cargado del chofer cambió respecto al que se fijó al
+    // loguearse (RecorridoAsignado se setea SOLO en admision.php). El resto de
+    // los endpoints -warehouse, panel HdR, colecta, iniciar recorrido- siguen
+    // usando $_SESSION['RecorridoAsignado'], así que quedan apuntando al viejo
+    // (caso 2026-09-08: al chofer del rec. 1500 le armaron el 1467 a mitad de
+    // turno y la pantalla de escaneo mostraba 0/0). Forzamos reingreso para que
+    // admision.php reasigne todo limpio.
+    $recorridoSesion = (string) ($_SESSION['RecorridoAsignado'] ?? '');
+    if ($recorridoSesion !== '' && $recorridoSesion !== (string) $Recorrido) {
+      responder([
+        'success'           => 1,
+        'RecorridoCambio'   => 1,
+        'RecorridoAnterior' => $recorridoSesion,
+        'Recorrido'         => (string) $Recorrido,
+        'NOrden'            => $nOrden,
+      ]);
+    }
     // CANTIDAD TOTAL
     $sqlCantidadTotal = consultaOError(
       $mysqli,
@@ -243,6 +264,7 @@ if (isset($_POST['Datos'])) {
     $sqlLog = $mysqli->query(
       "SELECT HoraSalidaReal FROM Logistica
        WHERE idUsuarioChofer = '{$idUsuario}' AND Estado = 'Cargada' AND Eliminado = 0
+       ORDER BY id DESC
        LIMIT 1"
     );
     $rowLog = $sqlLog ? $sqlLog->fetch_assoc() : null;

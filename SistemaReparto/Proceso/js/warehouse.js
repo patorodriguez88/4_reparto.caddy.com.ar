@@ -91,6 +91,16 @@ function cargarHeaderWarehouse() {
     data: { Datos: 1 },
   })
     .done(function (jsonData) {
+      // Le cambiaron el recorrido al chofer a mitad de turno: la sesión quedó
+      // con el viejo y esta pantalla mostraría datos que no son. Lo mandamos a
+      // reingresar.
+      if (jsonData && jsonData.RecorridoCambio) {
+        saModal("warning", "Te cambiaron el recorrido", "Volvé a ingresar para cargar el nuevo.");
+        setTimeout(function () {
+          window.location.href = "hdr.html?b=20260906c";
+        }, 1500);
+        return;
+      }
       if (jsonData && jsonData.success == 1) {
         $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
         $("#badge-total").html(jsonData.Total);

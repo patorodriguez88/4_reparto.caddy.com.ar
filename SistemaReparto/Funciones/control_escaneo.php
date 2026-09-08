@@ -115,6 +115,7 @@ function overrideEscaneo(mysqli $mysqli, int $userId): bool
             WHERE idUsuarioChofer = {$userId}
               AND Estado = 'Cargada'
               AND Eliminado = 0
+            ORDER BY id DESC
             LIMIT 1";
 
     $res = $mysqli->query($sql);

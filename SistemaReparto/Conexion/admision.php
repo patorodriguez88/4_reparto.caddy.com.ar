@@ -260,6 +260,7 @@ try {
             WHERE idUsuarioChofer = ?
               AND Estado = 'Cargada'
               AND Eliminado = '0'
+            ORDER BY id DESC
             LIMIT 1");
 
         $stmtLog->bind_param("i", $idUsuario);

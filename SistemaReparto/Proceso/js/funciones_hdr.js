@@ -461,6 +461,8 @@ function msgReason(reason) {
       return "No se detectó usuario activo (sesión perdida). Volvé a ingresar.";
     case "SESSION_EXPIRED":
       return "Tu sesión expiró. Volvé a ingresar.";
+    case "RECORRIDO_CAMBIO":
+      return "Te cambiaron el recorrido. Volvé a ingresar para cargar el nuevo.";
     case "OTHER_DEVICE":
       return "Se inició sesión con tu usuario en otro teléfono. Este quedó desconectado.";
     default:
@@ -798,6 +800,11 @@ function initApp() {
     dataType: "json",
   })
     .done(function (jsonData) {
+      // Le cambiaron el recorrido al chofer (RecorridoAsignado viejo en sesión).
+      if (jsonData && jsonData.RecorridoCambio) {
+        cerrarSesionForzada("RECORRIDO_CAMBIO");
+        return;
+      }
       // Si tu backend manda forceLogout
       if (jsonData && jsonData.forceLogout) {
         // ✅ Si es la primera carga o no hay usuario, NO muestres cartel
@@ -1643,6 +1650,12 @@ function cargarHeader() {
     url: "Proceso/php/funciones.php",
     dataType: "json",
   }).done(function (jsonData) {
+    // El backend detectó que le cambiaron el recorrido al chofer a mitad de
+    // turno: RecorridoAsignado quedó viejo y hay que reingresar.
+    if (jsonData && jsonData.RecorridoCambio) {
+      cerrarSesionForzada("RECORRIDO_CAMBIO");
+      return;
+    }
     if (jsonData && jsonData.success == 1) {
       $("#hdr-header").html(`Ruta: ${jsonData.NOrden} · Rec.: ${jsonData.Recorrido}`);
       $("#badge-total").html(jsonData.Total);
