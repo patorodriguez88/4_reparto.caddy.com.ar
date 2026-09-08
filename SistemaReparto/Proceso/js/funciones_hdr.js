@@ -773,6 +773,15 @@ $(document).ready(function () {
 
   // ✅ Chequeo sesión real
   initApp();
+
+  // Al volver a la app (cambiar de pestaña, desbloquear el teléfono) refrescamos
+  // el header. Así el toggle de "omitir escaneo" que prende la oficina desde
+  // Órdenes de Salida se aplica sin tener que recargar toda la app.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && typeof cargarHeader === "function") {
+      cargarHeader();
+    }
+  });
 });
 function showBottomnav() {
   $("body").addClass("app-ready").removeClass("login-lock");

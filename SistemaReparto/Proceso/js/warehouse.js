@@ -96,6 +96,15 @@ function cargarHeaderWarehouse() {
         $("#badge-total").html(jsonData.Total);
         $("#badge-sinentregar").html(jsonData.Abiertos);
         $("#badge-entregados").html(jsonData.Cerrados);
+        // Override de escaneo del recorrido (Logistica.OmitirControlEscaneo):
+        // si está prendido, se puede confirmar la carga aunque falten bultos
+        // por escanear (chofer en la calle, lector roto, etc.).
+        window.omitirEscaneo = String(jsonData.OmitirEscaneo) === "1";
+        if (typeof actualizarHUD === "function" && db) {
+          try {
+            actualizarHUD(1);
+          } catch (e) {}
+        }
       } else {
         console.warn("Header Datos no OK:", jsonData);
       }
@@ -320,47 +329,72 @@ function puedeSalir() {
     console.log("pendientesEntrega:", pendientesEntrega);
 
     if (pendientesEntrega > 0) {
-      saModal("warning", "Faltan entregas", "Hay ENTREGAS sin validar. No se puede salir.");
-      return;
+      // Con el control de escaneo desactivado para el recorrido
+      // (Logistica.OmitirControlEscaneo) se puede confirmar la carga igual;
+      // los bultos sin escanear quedan registrados como tales al confirmar
+      // entrega más adelante.
+      if (!window.omitirEscaneo) {
+        saModal("warning", "Faltan entregas", "Hay ENTREGAS sin validar. No se puede salir.");
+        return;
+      }
+      const msg = `Quedan ${pendientesEntrega} bulto(s) sin escanear. El recorrido tiene el control de escaneo desactivado. ¿Confirmar la carga igual?`;
+      if (saAvailable()) {
+        Swal.fire({
+          icon: "warning",
+          title: "Confirmar sin escanear",
+          text: msg,
+          showCancelButton: true,
+          confirmButtonText: "Sí, confirmar",
+          cancelButtonText: "Cancelar",
+        }).then((r) => {
+          if (r.isConfirmed) confirmarCarga();
+        });
+        return;
+      }
+      if (!confirm(msg)) return;
     }
 
-    saToast("info", "Validando salida…", 900);
+    confirmarCarga();
+  };
+}
 
-    // ✅ tomamos bases_done y enviamos
-    obtenerBasesDone(function (basesDone) {
-      console.log("Bases enviadas:", basesDone);
+function confirmarCarga() {
+  saToast("info", "Validando salida…", 900);
 
-      $.ajax({
-        url: "Proceso/php/warehouse.php",
-        type: "POST",
-        dataType: "json",
-        data: {
-          RegistrarWarehouseBatch: 1,
-          bases: JSON.stringify(basesDone),
-          state_id: 13,
-        },
-        success: function (res) {
-          if (!res || res.success !== 1) {
-            saModal("error", "Error", res && res.error ? res.error : "No se pudo registrar");
+  // ✅ tomamos bases_done y enviamos
+  obtenerBasesDone(function (basesDone) {
+    console.log("Bases enviadas:", basesDone);
+
+    $.ajax({
+      url: "Proceso/php/warehouse.php",
+      type: "POST",
+      dataType: "json",
+      data: {
+        RegistrarWarehouseBatch: 1,
+        bases: JSON.stringify(basesDone),
+        state_id: 13,
+      },
+      success: function (res) {
+        if (!res || res.success !== 1) {
+          saModal("error", "Error", res && res.error ? res.error : "No se pudo registrar");
+          return;
+        }
+
+        marcarEnTransitoBackend(function (ok2, r2) {
+          if (!ok2) {
+            saModal("error", "Error", r2.error || "No se pudo registrar En Tránsito");
             return;
           }
 
-          marcarEnTransitoBackend(function (ok2, r2) {
-            if (!ok2) {
-              saModal("error", "Error", r2.error || "No se pudo registrar En Tránsito");
-              return;
-            }
-
-            saModal("success", "Listo", "Carga confirmada correctamente");
-          });
-        },
-        error: function (xhr) {
-          if (manejar401(xhr)) return;
-          saModal("error", "Error", "No se pudo conectar con el servidor");
-        },
-      });
+          saModal("success", "Listo", "Carga confirmada correctamente");
+        });
+      },
+      error: function (xhr) {
+        if (manejar401(xhr)) return;
+        saModal("error", "Error", "No se pudo conectar con el servidor");
+      },
     });
-  };
+  });
 }
 function limpiarDB(callback) {
   const t1 = db.transaction(["expected", "scanned", "bases_done"], "readwrite");
@@ -574,11 +608,15 @@ function actualizarHUD(retiradoObjetivo = 1) {
         .toggleClass("done", completo)
         .html(completo ? "Completo" : 'Faltan <span id="wh-faltantes">' + faltantes + "</span>");
 
+      // Con el override de escaneo prendido, el botón se habilita igual aunque
+      // falten bultos (el chofer confirma desde el modal de puedeSalir()).
+      const forzar = !completo && !!window.omitirEscaneo && total > 0;
+
       // botón confirmar
       $("#btn-confirmar")
-        .prop("disabled", !completo)
-        .toggleClass("ready", completo)
-        .text(completo ? "Confirmar carga" : "Escaneá todos para confirmar");
+        .prop("disabled", !completo && !forzar)
+        .toggleClass("ready", completo || forzar)
+        .text(completo ? "Confirmar carga" : forzar ? "Confirmar sin escanear" : "Escaneá todos para confirmar");
 
       // botón de escaneo: se esconde cuando ya está todo
       $("#btn-scan").toggle(!completo);
@@ -698,6 +736,17 @@ window.addEventListener("pageshow", function () {
   } catch (e) {}
 });
 
+// Al volver a la app (cambiar de pestaña, desbloquear el teléfono) refrescamos
+// el header: así el toggle de "omitir escaneo" que prende la oficina se aplica
+// sin recargar.
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState !== "visible") return;
+  try {
+    cargarHeaderWarehouse();
+    safeRenderScanned();
+  } catch (e) {}
+});
+
 $("#mi_recorrido").on("click", function (e) {
   e.preventDefault();
 
@@ -721,13 +770,14 @@ $("#mi_recorrido").on("click", function (e) {
       return;
     }
 
-    if (pendientesEntrega > 0) {
+    if (pendientesEntrega > 0 && !window.omitirEscaneo) {
       saModal("warning", "Todavía faltan", `Todavía hay ${pendientesEntrega} ENTREGAS sin escanear.`);
       return;
     }
 
-    // Todo validado (ENTREGAS) → volvemos a HDR
-    saToast("success", "Entregas validadas. Volviendo a HDR…", 900);
+    // Todo validado (o el recorrido tiene el control de escaneo desactivado)
+    // → volvemos a HDR
+    saToast("success", "Volviendo a HDR…", 900);
     window.location.href = "hdr.html?b=20260906c";
   };
 });
