@@ -758,13 +758,16 @@ if (isset($_POST['Paneles'])) {
       $horarioMuted = true;
     }
 
-    // Cobranza (misma query de siempre, ahora se muestra como chip)
+    // Cobranza: el monto a cobrarle al destinatario sale de SUM(Ventas.CobrarEnvio)
+    // por NumPedido (igual que el sistema viejo AppRecorridos). El refactor a
+    // la tarjeta .rp-* habia dejado esta query sin usar y mostraba
+    // $row['Importe'] (no existe esa columna en TransClientes) -> siempre 0,00.
     $rpCobrar = '';
-    if (isset($row['CobrarEnvio'])) {
+    if ((float) ($row['CobrarEnvio'] ?? 0) > 0) {
       $sqlCobranza = $mysqli->query("SELECT SUM(CobrarEnvio) AS Cobrar FROM Ventas WHERE NumPedido='$codSeguimiento' AND Eliminado=0");
-      if ($sqlCobranza) { $sqlCobranza->fetch_assoc(); }
-      if ((float)($row['CobrarEnvio'] ?? 0) > 0) {
-        $rpCobrar = number_format((float)($row['Importe'] ?? 0), 2);
+      $montoCobranza = ($sqlCobranza && ($dCob = $sqlCobranza->fetch_assoc())) ? (float) $dCob['Cobrar'] : 0.0;
+      if ($montoCobranza > 0) {
+        $rpCobrar = number_format($montoCobranza, 2, ',', '.');
       }
     }
 
