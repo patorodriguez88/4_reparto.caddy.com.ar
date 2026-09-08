@@ -840,7 +840,7 @@ function initApp() {
         $("#hdractivas").show();
         $("#mis_envios").hide();
         $("#card-envio").hide();
-        $("#hdr-header").html(`Ruta: ${jsonData.NOrden} · Rec.: ${jsonData.Recorrido}`);
+        $("#hdr-header").html(`Rec. ${jsonData.Recorrido} · H${jsonData.NOrden}`);
         if (isAppInstalled()) {
           disableBellIndicator();
         }
@@ -1657,7 +1657,7 @@ function cargarHeader() {
       return;
     }
     if (jsonData && jsonData.success == 1) {
-      $("#hdr-header").html(`Ruta: ${jsonData.NOrden} · Rec.: ${jsonData.Recorrido}`);
+      $("#hdr-header").html(`Rec. ${jsonData.Recorrido} · H${jsonData.NOrden}`);
       $("#badge-total").html(jsonData.Total);
       $("#badge-sinentregar").html(jsonData.Abiertos);
       $("#badge-entregados").html(jsonData.Cerrados);

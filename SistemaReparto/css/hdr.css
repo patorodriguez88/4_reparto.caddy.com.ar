@@ -351,19 +351,33 @@ body.login-lock {
 /* MOBILE: acercar lupa a campana */
 /* MOBILE: evitar que los badges bajen de línea */
 @media (max-width: 576px) {
+  /* la barra de menú ocupa el ancho libre entre el hamburguesa y el borde */
+  #navbar .topbar-menu {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  /* el <li> que contiene el título toma todo el ancho libre entre el
+     hamburguesa y los iconos de la derecha */
+  #navbar .topbar-menu > li:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   #navbar .page-title {
     display: flex;
     align-items: center;
-    gap: 6px;
-    flex-wrap: nowrap; /* ✅ clave: evita salto */
-    white-space: nowrap; /* ✅ */
-    overflow-x: auto; /* ✅ si no entra, scrollea */
-    -webkit-overflow-scrolling: touch;
-    max-width: 60vw; /* ✅ opcional: no invadir iconos derecha */
+    gap: 5px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden; /* SIN scroll: el que cede es el pill de ruta, no los contadores */
   }
 
-  #navbar .page-title::-webkit-scrollbar {
-    display: none;
+  /* El pill "Rec. 1470 · H17069" es lo único que se achica / recorta con
+     ellipsis. Los 3 contadores (total / entregados / pendientes) SIEMPRE se ven. */
+  #navbar #hdr-header {
+    flex: 0 1 auto;
+    min-width: 2ch;
   }
 
   #navbar .page-title .badge {
@@ -373,8 +387,8 @@ body.login-lock {
     justify-content: center;
     line-height: 1;
     white-space: nowrap;
-    font-size: 12px;
-    padding: 0.35rem 0.45rem;
+    font-size: 11.5px;
+    padding: 0.3rem 0.4rem;
   }
 }
 /* COLECTA: contenedor cuadrado (tu stream es 1080x1080) */
