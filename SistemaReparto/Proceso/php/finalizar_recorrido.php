@@ -76,7 +76,32 @@ try {
     $esPropio = $rv && (int) $rv['Aliados'] === 0;
   }
 
-  // Guarda server-side: no cerramos si quedan paquetes sin resolver.
+  // Las COLECTAS retiradas del cliente pero sin entregar en depósito no traban
+  // el cierre: se pasan al depósito (Recorrido 80) para que operaciones las baje
+  // / resuelva desde la oficina (mismo criterio que "No se pudo entregar", que
+  // ConfirmoNoEntrega ya manda a 80). El chofer se va con la camioneta, esos
+  // bultos quedan como pendientes de depósito, no de su recorrido.
+  $recEsc = $mysqli->real_escape_string($recorr);
+  $mvRes = $mysqli->query("
+    SELECT t.id, t.CodigoSeguimiento
+    FROM HojaDeRuta h
+    INNER JOIN TransClientes t ON h.Seguimiento = t.CodigoSeguimiento
+    WHERE h.Recorrido = '{$recEsc}' AND h.NumerodeOrden = {$nOrden}
+      AND h.Eliminado = 0 AND h.Devuelto = 0
+      AND t.Eliminado = 0 AND t.Entregado = 0 AND t.Devuelto = 0
+      AND IFNULL(t.idColecta,0) > 0 AND t.Retirado = 1
+  ");
+  while ($mvRes && $mv = $mvRes->fetch_assoc()) {
+    $csMv = $mysqli->real_escape_string($mv['CodigoSeguimiento']);
+    $idMv = (int) $mv['id'];
+    $mysqli->query("UPDATE TransClientes SET Recorrido='80', Estado='Pendiente entrega deposito' WHERE id={$idMv} LIMIT 1");
+    $mysqli->query("UPDATE HojaDeRuta SET Recorrido='80', Estado='Cerrado' WHERE Seguimiento='{$csMv}' AND Eliminado=0 LIMIT 1");
+    $mysqli->query("UPDATE Roadmap SET Recorrido='80', Estado='Cerrado' WHERE Seguimiento='{$csMv}' AND Eliminado=0 LIMIT 1");
+  }
+
+  // Guarda server-side: no cerramos si quedan paquetes sin resolver. Se excluyen
+  // las colectas ya resueltas-negativo (No se Pudo Retirar) - esas quedan para
+  // operaciones, no son del chofer.
   $st = $mysqli->prepare("
     SELECT COUNT(h.id) AS pendientes
     FROM HojaDeRuta h
@@ -84,6 +109,7 @@ try {
     WHERE h.Recorrido = ? AND h.NumerodeOrden = ?
       AND h.Eliminado = 0 AND h.Devuelto = 0
       AND t.Entregado = 0 AND t.Eliminado = 0
+      AND NOT (IFNULL(t.idColecta,0) > 0 AND t.Estado = 'No se Pudo Retirar')
   ");
   $st->bind_param('si', $recorr, $nOrden);
   $st->execute();

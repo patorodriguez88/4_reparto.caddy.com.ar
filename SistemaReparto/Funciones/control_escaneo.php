@@ -8,6 +8,12 @@
 //   - warehouse_validated : escaneado en el depósito antes de salir (warehouse.php)
 //   - pickup_ready         : retiro confirmado en el cliente        (colecta_scan.php / ConfirmoEntrega)
 //   - pickup_scanned       : bulto de colecta escaneado             (colecta_scan.php)
+//   - pickup_not_scanned   : colecta CERRADA sin escanear por decisión del
+//                            operador (colecta_scan.php::ColectaCerrar, "Confirmar
+//                            igual"). Es un control registrado (quién/cuándo/m de n),
+//                            así que también habilita soltar el bulto en Wepoint sin
+//                            obligar a prender OmitirControlEscaneo. Estado exclusivo
+//                            de colectas.
 //
 // Override por recorrido: Logistica.OmitirControlEscaneo = 1. Se prende a mano
 // (o desde el sistema viejo) cuando falla un escáner en la calle. Cada bypass
@@ -17,7 +23,7 @@
 // overrideEscaneo() devuelve false sin reventar.
 // -----------------------------------------------------------------------------
 
-const CONTROL_ESCANEO_STATUSES = ['warehouse_validated', 'pickup_ready', 'pickup_scanned'];
+const CONTROL_ESCANEO_STATUSES = ['warehouse_validated', 'pickup_ready', 'pickup_scanned', 'pickup_not_scanned'];
 
 /** Base pura del CodigoSeguimiento (sin sufijo _n), en mayúsculas. */
 function csBase(string $cs): string

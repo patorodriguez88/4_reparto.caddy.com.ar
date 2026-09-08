@@ -1025,6 +1025,42 @@ if (isset($_POST['ColectaCerrar'])) {
             }
         }
 
+        // Barrido de seguridad: cualquier bulto de ESTA colecta que no quedó en
+        // servicios_detalle (o se escapó del loop) y no tiene ningún status de
+        // pickup -> pickup_not_scanned. Si no, queda en un limbo (Retirado=1,
+        // Entregado=0, sin status) que después traba el cierre del recorrido y
+        // no aparece como card accionable en ningún lado (caso orden 17062).
+        $rsSweep = $mysqli->query(
+            "SELECT id, CodigoSeguimiento, ClienteDestino, idClienteDestino, NumerodeOrden
+               FROM TransClientes
+              WHERE idColecta = " . (int)$colectaId . "
+                AND Eliminado = 0 AND Entregado = 0 AND Devuelto = 0
+                AND id <> " . (int)$padreId
+        );
+        while ($rsSweep && $sw = $rsSweep->fetch_assoc()) {
+            $bSw = explode('_', strtoupper(trim((string)$sw['CodigoSeguimiento'])))[0];
+            if ($bSw === '') continue;
+            $bSwEsc = $mysqli->real_escape_string($bSw);
+            $chkSw = $mysqli->query(
+                "SELECT 1 FROM Seguimiento
+                  WHERE SUBSTRING_INDEX(CodigoSeguimiento,'_',1) = '{$bSwEsc}'
+                    AND status IN ('pickup_scanned','pickup_not_scanned')
+                    AND (Eliminado IS NULL OR Eliminado = 0) LIMIT 1"
+            );
+            if ($chkSw && $chkSw->num_rows > 0) continue;
+            upsertSeguimiento($mysqli, [
+                'codigo' => $bSw, 'status' => 'pickup_not_scanned',
+                'estado_id' => (int)$estNot['id'], 'estado_txt' => (string)$estNot['Estado'],
+                'destino' => (string)($sw['ClienteDestino'] ?? ''), 'idCliente' => (int)($sw['idClienteDestino'] ?? 0),
+                'idTransClientes' => (int)$sw['id'],
+                'usuario' => $usuario, 'sucursal' => $sucursal, 'recorrido' => $recorrido,
+                'nroOrden' => (int)($sw['NumerodeOrden'] ?? 0),
+                'obs' => 'Bulto de la colecta sin registrar en el cierre - marcado sin escanear por ' . $usuario,
+                'retirado' => 1,
+            ]);
+            $faltantes[] = ['cs' => $bSw, 'cliente' => (string)($sw['ClienteDestino'] ?? ''), 'paquetes' => 1, 'escaneados' => 0];
+        }
+
         // Padre: retirado + hoja de ruta cerrada
         $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . (int)$padreId . " LIMIT 1");
         $mysqli->query("UPDATE HojaDeRuta SET Estado='Cerrado' WHERE idTransClientes=" . (int)$padreId . " AND Eliminado=0 LIMIT 1");
