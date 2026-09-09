@@ -114,12 +114,29 @@ $Fecha = date("Y-m-d");
 $Hora  = date("H:i");
 
 // Tomamos datos desde sesión o (si no hay) desde POST, con defaults
-$Usuario       = $_SESSION['Usuario']       ?? ($_POST['Usuario']       ?? 'APP');
+$Usuario       = $_SESSION['Usuario']       ?? ($_POST['Usuario']       ?? '');
 $idUsuario     = $_SESSION['idusuario']     ?? ($_POST['idUsuario']     ?? 0);
 $Sucursal      = $_SESSION['Sucursal']      ?? ($_POST['Sucursal']      ?? '');
 $Transportista = $_SESSION['Transportista'] ?? ($_POST['Transportista'] ?? '');
 $NumeroOrden   = $_SESSION['hdr']           ?? ($_POST['NumeroOrden']   ?? '');
 $Recorrido     = $_SESSION['RecorridoAsignado'] ?? ($_POST['Recorrido'] ?? '');
+
+// El Usuario del repartidor NUNCA puede quedar vacío en Seguimiento (si no, el
+// movimiento no se le puede atribuir/pagar). `??` no cubre string vacío: si la
+// sesión trae Usuario='' se resuelve desde la DB por id, y recién como último
+// recurso 'APP'.
+if (trim((string) $Usuario) === '') {
+  if ((int) $idUsuario > 0) {
+    $rU = $mysqli->query("SELECT Usuario FROM usuarios WHERE id = " . (int) $idUsuario . " LIMIT 1");
+    if ($rU && ($xU = $rU->fetch_assoc()) && trim((string) ($xU['Usuario'] ?? '')) !== '') {
+      $Usuario = $xU['Usuario'];
+    }
+  }
+  if (trim((string) $Usuario) === '') {
+    $Usuario = 'APP';
+    error_log('reparto/funciones.php: Usuario vacío (idusuario=' . (int) $idUsuario . ') -> fallback APP');
+  }
+}
 
 $infoABM = $Usuario . ' ' . $Fecha . ' ' . $Hora;
 
