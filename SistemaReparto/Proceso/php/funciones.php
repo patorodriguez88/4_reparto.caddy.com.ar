@@ -614,6 +614,24 @@ if (isset($_POST['ConfirmoEntrega'])) {
     $NumeroOrden = $NumerodeOrdenTC;
   }
 
+  // El "padre" de una colecta (idClienteDestino 18587) se entrega en el depósito
+  // y puede pertenecer a un recorrido anterior al que el repartidor tiene activo
+  // ahora: NO usar $_SESSION['hdr']. El NumerodeOrden sale de la HojaDeRuta del
+  // padre (así el movimiento entra a la liquidación de Externos del recorrido
+  // correcto). Se propaga a TransClientes si estaba en blanco.
+  if ($idClienteDestino === 18587 && $idTransClientes > 0) {
+    $rHdrP = $mysqli->query("SELECT NumerodeOrden FROM HojaDeRuta
+                             WHERE idTransClientes = {$idTransClientes} AND Eliminado = 0 AND NumerodeOrden > 0
+                             ORDER BY id DESC LIMIT 1");
+    if ($rHdrP && ($xHdrP = $rHdrP->fetch_assoc()) && (int)$xHdrP['NumerodeOrden'] > 0) {
+      $NumeroOrden = (string)(int)$xHdrP['NumerodeOrden'];
+      if ((int)$NumerodeOrdenTC === 0) {
+        $mysqli->query("UPDATE TransClientes SET NumerodeOrden = " . (int)$NumeroOrden
+          . " WHERE id = {$idTransClientes} AND (NumerodeOrden IS NULL OR NumerodeOrden = 0) LIMIT 1");
+      }
+    }
+  }
+
   if ($idTransClientes === 0) {
     responder(['success' => 0, 'error' => 'No se encontró TransClientes para confirmar', 'cs' => $CodigoSeguimiento]);
   }

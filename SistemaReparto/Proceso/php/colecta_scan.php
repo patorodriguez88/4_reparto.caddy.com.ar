@@ -243,6 +243,37 @@ function leerResumeColecta($mysqli, $colectaId)
 }
 
 /**
+ * NumerodeOrden "de verdad" de un TransClientes: 1) su HojaDeRuta no eliminada
+ * mas nueva con NumerodeOrden > 0; 2) TransClientes.NumerodeOrden si es > 0;
+ * 3) el fallback (lo que venia de la app, que a veces es 0 o el de otro
+ * recorrido). Devuelve int.
+ */
+function resolverNroOrdenTC($mysqli, $idTransClientes, $fallback = 0)
+{
+    $idTransClientes = (int)$idTransClientes;
+    $fallback = (int)$fallback;
+    if ($idTransClientes <= 0) return $fallback;
+
+    $st = $mysqli->prepare("SELECT NumerodeOrden FROM HojaDeRuta
+                            WHERE idTransClientes = ? AND Eliminado = 0 AND NumerodeOrden > 0
+                            ORDER BY id DESC LIMIT 1");
+    $st->bind_param('i', $idTransClientes);
+    $st->execute();
+    $r = $st->get_result()->fetch_assoc();
+    $st->close();
+    if ($r && (int)$r['NumerodeOrden'] > 0) return (int)$r['NumerodeOrden'];
+
+    $st = $mysqli->prepare("SELECT NumerodeOrden FROM TransClientes WHERE id = ? LIMIT 1");
+    $st->bind_param('i', $idTransClientes);
+    $st->execute();
+    $r = $st->get_result()->fetch_assoc();
+    $st->close();
+    if ($r && (int)$r['NumerodeOrden'] > 0) return (int)$r['NumerodeOrden'];
+
+    return $fallback;
+}
+
+/**
  * Inserta Seguimiento si no existe (por CodigoSeguimiento exacto + status).
  * Devuelve:
  *  - ['inserted'=>1] si insertó
@@ -986,6 +1017,10 @@ if (isset($_POST['ColectaCerrar'])) {
         $faltantes = [];
         $cerrados  = [];
 
+        // nroOrden real del recorrido de retiro (HojaDeRuta del padre) para los
+        // movimientos de esta colecta; la app / TransClientes traen 0 seguido.
+        $nroOrdenColectaCierre = resolverNroOrdenTC($mysqli, (int)$padreId, 0);
+
         foreach ($det as $sd) {
             $base   = strtoupper(trim((string)($sd['cs_base'] ?? '')));
             if ($base === '') continue;
@@ -994,7 +1029,7 @@ if (isset($_POST['ColectaCerrar'])) {
             $hi     = $infoHijos[$idTr] ?? [];
             $cli    = (string)($hi['ClienteDestino'] ?? '');
             $idCli  = (int)($hi['idClienteDestino'] ?? 0);
-            $nroOrd = (int)($hi['NumerodeOrden'] ?? 0);
+            $nroOrd = $nroOrdenColectaCierre > 0 ? $nroOrdenColectaCierre : (int)($hi['NumerodeOrden'] ?? 0);
             $mlOk   = !empty($sd['ml_confirmado']);
             $mano   = (int)($manoQty[$base] ?? 0);
 
@@ -1054,7 +1089,7 @@ if (isset($_POST['ColectaCerrar'])) {
                 'destino' => (string)($sw['ClienteDestino'] ?? ''), 'idCliente' => (int)($sw['idClienteDestino'] ?? 0),
                 'idTransClientes' => (int)$sw['id'],
                 'usuario' => $usuario, 'sucursal' => $sucursal, 'recorrido' => $recorrido,
-                'nroOrden' => (int)($sw['NumerodeOrden'] ?? 0),
+                'nroOrden' => $nroOrdenColectaCierre > 0 ? $nroOrdenColectaCierre : (int)($sw['NumerodeOrden'] ?? 0),
                 'obs' => 'Bulto de la colecta sin registrar en el cierre - marcado sin escanear por ' . $usuario,
                 'retirado' => 1,
             ]);
@@ -1067,6 +1102,18 @@ if (isset($_POST['ColectaCerrar'])) {
         // el gate de escaneo). Si no pasa por el depósito, lo cierra la oficina
         // (EntregarColectaEnDeposito). Antes se cerraba acá mismo y el servicio
         // padre nunca se confirmaba en destino.
+        // Propago el NumerodeOrden real (de la HojaDeRuta del padre) a
+        // TransClientes.NumerodeOrden si estaba en 0: las colectas se generan
+        // sin orden y recien la tienen al asignarse a un recorrido. Sin esto,
+        // el "Entregar en deposito" (ConfirmoEntrega) grababa el Seguimiento con
+        // orden 0 o la de otro recorrido -> no entraba a la liquidacion de
+        // Externos del repartidor.
+        $nroOrdenPadreCierre = resolverNroOrdenTC($mysqli, (int)$padreId, 0);
+        if ($nroOrdenPadreCierre > 0) {
+            $mysqli->query("UPDATE TransClientes SET Retirado=1, NumerodeOrden="
+                . $nroOrdenPadreCierre . " WHERE id=" . (int)$padreId
+                . " AND (NumerodeOrden IS NULL OR NumerodeOrden=0) LIMIT 1");
+        }
         $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . (int)$padreId . " LIMIT 1");
 
         // dejar constancia en el JSON de la colecta
@@ -1205,6 +1252,12 @@ if ($idTransClientes === 0 || !preg_match('/^[A-Za-z0-9\-]+$/', $base)) {
 }
 
 $isColecta = ($colectaId > 0 && $padreId > 0);
+
+// NumerodeOrden real del PADRE (de su HojaDeRuta) para los movimientos de
+// colecta; la app manda a veces 0 o el nroOrden de otro recorrido.
+$nroOrdenColecta = $isColecta
+    ? resolverNroOrdenTC($mysqli, (int)$padreId, (int)$nroOrden)
+    : (int)$nroOrden;
 
 // Variables de salida/estado
 $scanSavedToColecta = 0;
@@ -1489,7 +1542,7 @@ if ($isColecta) {
         'usuario'        => $usuario,
         'sucursal'       => $sucursal,
         'recorrido'      => $recorrido,
-        'nroOrden'       => $nroOrden,
+        'nroOrden'       => $nroOrdenColecta,
         'obs'            => 'Retirado del cliente (Colecta)',
         'retirado'       => 1
     ]);
@@ -1539,7 +1592,7 @@ if ($isColecta) {
         'usuario'        => $usuario,
         'sucursal'       => $sucursal,
         'recorrido'      => $recorrido,
-        'nroOrden'       => $nroOrden,
+        'nroOrden'       => $nroOrdenColecta,
         'obs'            => $obsH,
         'retirado'       => 1
     ]);
