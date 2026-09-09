@@ -815,10 +815,15 @@ if (isset($_POST['ConfirmoEntrega'])) {
   // ==========================================================
   // ✅ MODO NORMAL (tu lógica original)
   // ==========================================================
+  // El "padre" de una colecta (servicio contenedor origen -> Wepoint,
+  // idClienteDestino 18587) no es un bulto físico con etiqueta: el repartidor
+  // lo entrega en el depósito con un tap, sin escanear nada. No aplica el gate.
+  $esColectaPadre = ($idClienteDestino === 18587);
+
   if ($RetiradoDB == 1) {
     // GATE: no se entrega un paquete que no fue escaneado (en depósito, al
     // retirarlo o en la colecta). Override por recorrido => deja pasar y loguea.
-    if (!escaneoOk($mysqli, $csEsc)) {
+    if (!$esColectaPadre && !escaneoOk($mysqli, $csEsc)) {
       if (!overrideEscaneo($mysqli, (int)$idUsuario)) {
         responder([
           'success' => 0,

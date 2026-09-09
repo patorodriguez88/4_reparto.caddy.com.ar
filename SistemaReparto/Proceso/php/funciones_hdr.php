@@ -736,6 +736,12 @@ if (isset($_POST['Paneles'])) {
     $usuario       = $_SESSION['Transportista'] ?? '';
     $serviciowp    = $Serviciowp ?? '';
 
+    // Padre de una colecta (servicio contenedor origen -> Wepoint,
+    // idClienteDestino 18587, ya retirado): el repartidor lo "entrega" en el
+    // depósito con un tap. Card propia: sin teléfono, sin "no entrega", verbo
+    // "Entregar en depósito".
+    $esColectaPadre = ((int) ($row['idClienteDestino'] ?? 0) === 18587) && ((int) $retirado === 1);
+
     // --- Datos para el template unificado (.rp-*) ---
     $rpSvcClass = strtolower($servicio);                 // entrega | retiro | colecta
     if ($servicio === 'Colecta') {
@@ -751,9 +757,20 @@ if (isset($_POST['Paneles'])) {
       $rpNoLabel = 'No entregado';
       $rpNoBtn   = 'No entrega';
     }
+
+    if ($esColectaPadre) {
+      $servicio      = 'Colecta → depósito';
+      $rpSvcClass    = 'colecta';
+      $rpVerbo       = 'Entregar en depósito';
+      $rpNoLabel     = '';
+      $rpNoBtn       = '';
+      $nombreCliente = trim((string) ($row['RazonSocial'] ?? 'Colecta'));
+      $veocel        = 0;
+    }
     // Para una ENTREGA el dato útil es de dónde salió (proveedor);
-    // para un RETIRO/COLECTA, a dónde va.
-    if ($servicio === 'Entrega') {
+    // para un RETIRO/COLECTA, a dónde va. El padre de colecta muestra el
+    // cliente de origen (de qué colecta es).
+    if ($servicio === 'Entrega' || $esColectaPadre) {
       $rpOrgLabel = 'Origen · ' . ($row['RazonSocial'] ?? '');
     } else {
       $rpOrgLabel = 'Destino · ' . ($row['ClienteDestino'] ?? '');
@@ -866,10 +883,12 @@ if (isset($_POST['Paneles'])) {
         </div>
 
         <div class="rp-stop-actions">
+          <?php if ($rpNoBtn !== ''): ?>
           <button type="button" class="rp-btn no" aria-label="<?= htmlspecialchars($rpNoLabel) ?>" title="<?= htmlspecialchars($rpNoLabel) ?>" onclick="verwrong(<?= (int)$row['hdrid'] ?>)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             <?= htmlspecialchars($rpNoBtn) ?>
           </button>
+          <?php endif; ?>
           <a class="rp-btn map" href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($direccionMapa) ?>" target="_blank" rel="noopener">Cómo llegar</a>
           <button type="button" class="rp-btn primary" onclick="verok(<?= (int)$row['hdrid'] ?>)"><?= htmlspecialchars($rpVerbo) ?></button>
         </div>

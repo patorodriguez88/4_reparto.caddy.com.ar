@@ -1291,6 +1291,9 @@ function verok(i) {
       const idDestino = parseInt(dato.idClienteDestino, 10) || 0;
       const esRetiro = parseInt(dato.Retirado, 10) === 0;
       const esColecta = esRetiro && idDestino === 18587;
+      // Padre de colecta ya retirado: se entrega en el depósito con un tap,
+      // sin receptor ni foto.
+      const esColectaEntregaDeposito = !esRetiro && idDestino === 18587;
       const tipoServicio = determinarTipoServicio(dato);
       window.tipoServicioActual = tipoServicio;
       actualizarColorHeaderCard(tipoServicio);
@@ -1343,8 +1346,10 @@ function verok(i) {
         $("#icon-servicio").addClass("mdi-arrow-up-bold");
 
         $("#card-receptor-items").hide();
-        $("#card-receptor-name, #card-receptor-dni").show();
-        $("#zona-multimedia").show();
+        // Colecta contra depósito: sin receptor / DNI / foto, es un tap.
+        const mostrarReceptor = !esColectaEntregaDeposito;
+        $("#card-receptor-name, #card-receptor-dni").toggle(mostrarReceptor);
+        $("#zona-multimedia").toggle(mostrarReceptor);
       }
 
       $("#card-servicio").text(servicio);

@@ -76,11 +76,14 @@ try {
     $esPropio = $rv && (int) $rv['Aliados'] === 0;
   }
 
-  // Las COLECTAS retiradas del cliente pero sin entregar en depósito no traban
-  // el cierre: se pasan al depósito (Recorrido 80) para que operaciones las baje
-  // / resuelva desde la oficina (mismo criterio que "No se pudo entregar", que
-  // ConfirmoNoEntrega ya manda a 80). El chofer se va con la camioneta, esos
-  // bultos quedan como pendientes de depósito, no de su recorrido.
+  // El PADRE de la colecta (servicio contenedor origen -> Wepoint,
+  // idClienteDestino 18587) NO se barre: el repartidor tiene que pasar por el
+  // depósito y entregarlo con un tap (o lo cierra la oficina). Queda abierto y
+  // traba el cierre a propósito -> ver el gate de más abajo.
+  //
+  // Los demás bultos de colecta ya retirados y sin entregar (caso raro: un hijo
+  // que quedó en el recorrido de retiro) sí se pasan al depósito (Recorrido 80)
+  // para que no traben el cierre.
   $recEsc = $mysqli->real_escape_string($recorr);
   $mvRes = $mysqli->query("
     SELECT t.id, t.CodigoSeguimiento
@@ -90,6 +93,7 @@ try {
       AND h.Eliminado = 0 AND h.Devuelto = 0
       AND t.Eliminado = 0 AND t.Entregado = 0 AND t.Devuelto = 0
       AND IFNULL(t.idColecta,0) > 0 AND t.Retirado = 1
+      AND t.idClienteDestino <> 18587
   ");
   while ($mvRes && $mv = $mvRes->fetch_assoc()) {
     $csMv = $mysqli->real_escape_string($mv['CodigoSeguimiento']);
@@ -102,12 +106,18 @@ try {
   // Guarda server-side: no cerramos si quedan paquetes sin resolver. Se excluyen
   // las colectas ya resueltas-negativo (No se Pudo Retirar) - esas quedan para
   // operaciones, no son del chofer.
+  // Sólo las paradas ABIERTAS traban el cierre (una parada Cerrada con
+  // Entregado=0 -típico: colecta vieja ya retirada, o 'no se pudo entregar'-
+  // el chofer ya no la puede tocar). El padre de colecta, que ahora queda
+  // Abierto hasta que se entrega en el depósito, sí traba: es lo que obliga
+  // al repartidor a pasar por Wepoint.
   $st = $mysqli->prepare("
     SELECT COUNT(h.id) AS pendientes
     FROM HojaDeRuta h
     INNER JOIN TransClientes t ON h.Seguimiento = t.CodigoSeguimiento
     WHERE h.Recorrido = ? AND h.NumerodeOrden = ?
       AND h.Eliminado = 0 AND h.Devuelto = 0
+      AND h.Estado = 'Abierto'
       AND t.Entregado = 0 AND t.Eliminado = 0
       AND NOT (IFNULL(t.idColecta,0) > 0 AND t.Estado = 'No se Pudo Retirar')
   ");

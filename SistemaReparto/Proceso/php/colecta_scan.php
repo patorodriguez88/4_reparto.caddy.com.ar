@@ -1061,9 +1061,13 @@ if (isset($_POST['ColectaCerrar'])) {
             $faltantes[] = ['cs' => $bSw, 'cliente' => (string)($sw['ClienteDestino'] ?? ''), 'paquetes' => 1, 'escaneados' => 0];
         }
 
-        // Padre: retirado + hoja de ruta cerrada
+        // Padre: retirado, pero su HojaDeRuta queda ABIERTA. El repartidor lo
+        // "entrega" con un tap cuando pasa por el depósito (Wepoint) -> ahí sí
+        // Entregado=1 y HdR 'Cerrado' (ConfirmoEntrega, que para el padre saltea
+        // el gate de escaneo). Si no pasa por el depósito, lo cierra la oficina
+        // (EntregarColectaEnDeposito). Antes se cerraba acá mismo y el servicio
+        // padre nunca se confirmaba en destino.
         $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . (int)$padreId . " LIMIT 1");
-        $mysqli->query("UPDATE HojaDeRuta SET Estado='Cerrado' WHERE idTransClientes=" . (int)$padreId . " AND Eliminado=0 LIMIT 1");
 
         // dejar constancia en el JSON de la colecta
         $payload['cierre'] = [
