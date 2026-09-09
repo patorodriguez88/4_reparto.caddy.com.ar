@@ -238,7 +238,14 @@ $(".guardarProducto").click(function () {
         // 🔽 flujo clásico (QR con BASE_1/BASE_2/BASE_3)
         const cargado = etiquetas.length;
 
-        if (esperado > 0 && cargado !== esperado) {
+        // Recorrido con OmitirControlEscaneo prendido + nada escaneado: se
+        // acepta el retiro sin escanear (decisión del operador desde Órdenes de
+        // Salida). Mismo criterio que validarCodigosPickup() -> {ok, omitido}.
+        // Antes cargasistema() igual frenaba con "Cantidad incompleta 0/N" y el
+        // repartidor no podía aceptar el retiro (la app "no hacía nada").
+        const omitirSinEscaneo = !!window.omitirEscaneo && cargado === 0;
+
+        if (!omitirSinEscaneo && esperado > 0 && cargado !== esperado) {
           swalError(
             "Cantidad incompleta",
             `Cargados ${cargado}/${esperado}. Escaneá o cargá todos los bultos antes de confirmar.`,
