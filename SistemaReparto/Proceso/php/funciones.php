@@ -194,18 +194,25 @@ if (isset($_POST['Datos'])) {
     );
     $TotalCantidad = $sqlCantidadTotal->fetch_array(MYSQLI_ASSOC);
 
+    // Sólo las paradas ABIERTAS cuentan como pendientes. Una parada con
+    // HojaDeRuta.Estado='Cerrado' y TransClientes.Entregado=0 (típico: bulto de
+    // colecta ya retirado que va al depósito, o "no se pudo entregar") el chofer
+    // ya no la puede tocar: no aparece como tarjeta (el panel sólo lista
+    // Estado='Abierto'). Sin este filtro el contador mostraba "8 pendientes" con
+    // 0 tarjetas y sin botón Finalizar -> chofer trabado.
     // NO ENTREGADOS
     $sqlNoEntregados = consultaOError(
       $mysqli,
-      "SELECT COUNT(HojaDeRuta.id) AS Cantidad 
-             FROM HojaDeRuta 
-             INNER JOIN TransClientes 
-                 ON HojaDeRuta.Seguimiento = TransClientes.CodigoSeguimiento 
-             WHERE HojaDeRuta.Recorrido   = '{$Recorrido}' 
-               AND HojaDeRuta.Eliminado   = 0 
-               AND HojaDeRuta.NumerodeOrden = '{$nOrden}' 
+      "SELECT COUNT(HojaDeRuta.id) AS Cantidad
+             FROM HojaDeRuta
+             INNER JOIN TransClientes
+                 ON HojaDeRuta.Seguimiento = TransClientes.CodigoSeguimiento
+             WHERE HojaDeRuta.Recorrido   = '{$Recorrido}'
+               AND HojaDeRuta.Eliminado   = 0
+               AND HojaDeRuta.NumerodeOrden = '{$nOrden}'
                AND HojaDeRuta.Devuelto    = 0
-               AND TransClientes.Entregado = 0 
+               AND HojaDeRuta.Estado      = 'Abierto'
+               AND TransClientes.Entregado = 0
                AND TransClientes.Eliminado = 0",
       'NoEntregados HojaDeRuta'
     );
@@ -242,6 +249,7 @@ if (isset($_POST['Datos'])) {
                AND HojaDeRuta.Eliminado   = 0
                AND HojaDeRuta.NumerodeOrden = '{$nOrden}'
                AND HojaDeRuta.Devuelto    = 0
+               AND HojaDeRuta.Estado      = 'Abierto'
                AND TransClientes.Entregado = 0
                AND TransClientes.Eliminado = 0",
       'Pendiente Km/Tiempo HojaDeRuta'
