@@ -151,18 +151,37 @@ if (isset($_POST['CuentaResumen'])) {
 
   /**
    * Entregados / no entregados de una orden. Prioriza Seguimiento (igual que
-   * el operador); si no hay registros de seguimiento, cae a TransClientes.
+   * la liquidacion de Externos en sistema); si no hay registros de seguimiento,
+   * cae a TransClientes.
+   *
+   * Filtra por Seguimiento.Usuario = repartidor (mismo criterio que
+   * SistemaTriangular/Externos/Procesos/php/funciones.php). Sin ese filtro se
+   * colaban filas de otros usuarios sobre la misma orden -p.ej. un
+   * "Movimiento Interno" que carga la oficina- y el conteo daba 1 de mas
+   * respecto del informe de rendicion.
    */
-  $conteoOrden = function (int $nOrden) use ($mysqli): array {
+  $usuarioChofer = (string) ($_SESSION['Usuario'] ?? '');
+  $conteoOrden = function (int $nOrden) use ($mysqli, $usuarioChofer): array {
     $e = 0;
     $n = 0;
-    $stmt = $mysqli->prepare("
-      SELECT SUM(Entregado = 1) AS e, SUM(Entregado = 0) AS n, COUNT(*) AS c
-      FROM Seguimiento
-      WHERE NumerodeOrden = ? AND Eliminado = 0
-        AND Visitas <> 0 AND Estado <> 'Retirado del Cliente'
-    ");
-    $stmt->bind_param('i', $nOrden);
+    if ($usuarioChofer !== '') {
+      $stmt = $mysqli->prepare("
+        SELECT SUM(Entregado = 1) AS e, SUM(Entregado = 0) AS n, COUNT(*) AS c
+        FROM Seguimiento
+        WHERE NumerodeOrden = ? AND Eliminado = 0
+          AND Visitas <> 0 AND Estado <> 'Retirado del Cliente'
+          AND Usuario = ?
+      ");
+      $stmt->bind_param('is', $nOrden, $usuarioChofer);
+    } else {
+      $stmt = $mysqli->prepare("
+        SELECT SUM(Entregado = 1) AS e, SUM(Entregado = 0) AS n, COUNT(*) AS c
+        FROM Seguimiento
+        WHERE NumerodeOrden = ? AND Eliminado = 0
+          AND Visitas <> 0 AND Estado <> 'Retirado del Cliente'
+      ");
+      $stmt->bind_param('i', $nOrden);
+    }
     $stmt->execute();
     $r = $stmt->get_result()->fetch_assoc();
     $stmt->close();
