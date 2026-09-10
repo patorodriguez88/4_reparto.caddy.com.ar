@@ -799,16 +799,15 @@ if (isset($_POST['Paneles'])) {
     // AppRecorridos); el refactor a la tarjeta .rp-* habia dejado la query sin
     // usar y mostraba $row['Importe'] (no existe) -> siempre 0,00.
     //
-    // El contra-reembolso se guarda REPETIDO en el CobrarEnvio de cada linea de
-    // Ventas del pedido (mercaderia + "COBRANZA INTEGRADA X%" + a veces varias
-    // lineas de mercaderia con el mismo monto). Un SUM() lo contaba 2+ veces
-    // (la app mostraba p.ej. $ 243.920 cuando el paquete dice $ 121.960).
-    // MAX() devuelve el monto real una sola vez, y ademas funciona cuando la
-    // cobranza ya fue rendida (ahi la linea de mercaderia queda en 0 y solo la
-    // linea de CI conserva el importe).
+    // El contra-reembolso NO es un monto por linea: es UN valor del pedido que
+    // Ventas guarda repetido en el CobrarEnvio de cada linea (mercaderia +
+    // "COBRANZA INTEGRADA X%"). Por eso NO se suma: se toma UNA linea con
+    // CobrarEnvio > 0 (mismo criterio que Caddy_produccion / Twilio webhook).
+    // Sirve pre y post rendicion (post: la linea de mercaderia queda en 0 y
+    // sigue habiendo la de CI con el importe).
     $rpCobrar = '';
     if ((float) ($row['CobrarEnvio'] ?? 0) > 0) {
-      $sqlCobranza = $mysqli->query("SELECT MAX(CobrarEnvio) AS Cobrar FROM Ventas WHERE NumPedido='$codSeguimiento' AND Eliminado=0");
+      $sqlCobranza = $mysqli->query("SELECT CobrarEnvio AS Cobrar FROM Ventas WHERE NumPedido='$codSeguimiento' AND Eliminado=0 AND CobrarEnvio > 0 ORDER BY idPedido DESC LIMIT 1");
       $montoCobranza = ($sqlCobranza && ($dCob = $sqlCobranza->fetch_assoc())) ? (float) $dCob['Cobrar'] : 0.0;
       if ($montoCobranza > 0) {
         $rpCobrar = number_format($montoCobranza, 2, ',', '.');
