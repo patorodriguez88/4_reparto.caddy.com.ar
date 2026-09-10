@@ -70,8 +70,16 @@ function escaneoOk(mysqli $mysqli, string $cs): bool
 
 /**
  * Bultos de entrega-desde-depósito del recorrido que todavía NO fueron
- * validados en Warehouse. Las colectas y los retiros no cuentan: se escanean
- * durante el recorrido, no antes de salir.
+ * escaneados antes de salir. Cuenta:
+ *   - Entregas normales desde depósito (sin colecta).
+ *   - HIJOS de colecta ya retirados: en las rutas Flex salen de Wepoint/depósito
+ *     como una entrega más y también hay que escanearlos.
+ * NO cuenta el PADRE de la colecta (idClienteDestino = 18587): ese se retira en
+ * el cliente durante el recorrido, no antes de salir.
+ *
+ * Un bulto está "escaneado" si tiene warehouse_validated o pickup_scanned
+ * (lector manual o handshake de MercadoLibre). pickup_ready y pickup_not_scanned
+ * NO cuentan acá: el segundo es justamente "colecta cerrada sin escanear".
  */
 function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
 {
@@ -87,11 +95,11 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
               AND HojaDeRuta.Recorrido = '{$recEsc}'
               AND TransClientes.Eliminado = '0'
               AND TransClientes.Retirado = 1
-              AND (TransClientes.idColecta IS NULL OR TransClientes.idColecta = 0)
+              AND TransClientes.idClienteDestino <> 18587
               AND NOT EXISTS (
                   SELECT 1 FROM Seguimiento s
                   WHERE SUBSTRING_INDEX(s.CodigoSeguimiento, '_', 1) = SUBSTRING_INDEX(TransClientes.CodigoSeguimiento, '_', 1)
-                    AND s.status = 'warehouse_validated'
+                    AND s.status IN ('warehouse_validated', 'pickup_scanned')
                     AND (s.Eliminado IS NULL OR s.Eliminado = 0)
                   LIMIT 1
               )";

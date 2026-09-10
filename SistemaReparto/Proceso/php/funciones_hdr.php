@@ -452,56 +452,14 @@ if (isset($_POST['Paneles'])) {
   $Recorrido = $_SESSION['RecorridoAsignado'];
 
   // ==================================================
-  // PRE-CHECK: si falta validar algún envío (Retirado=0) en warehouse,
-  // NO mostramos ningún registro para evitar salir con carga parcial.
+  // PRE-CHECK: si faltan escanear bultos de entrega-desde-depósito en Warehouse
+  // (entregas normales + HIJOS de colecta ya retirados), NO mostramos ningún
+  // registro para evitar salir con carga parcial. El PADRE de la colecta
+  // (idClienteDestino = 18587) no cuenta: se retira en el cliente. Un bulto
+  // vale como escaneado con warehouse_validated o pickup_scanned.
+  // Lógica única en Funciones/control_escaneo.php (misma que iniciar_recorrido).
   // ==================================================
-  // $sqlChkTxt = "SELECT COUNT(*) AS faltan
-  //     FROM HojaDeRuta
-  //     INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
-  //     WHERE HojaDeRuta.Estado='Abierto'
-  //       AND HojaDeRuta.Devuelto=0
-  //       AND HojaDeRuta.Recorrido='$Recorrido'
-  //       AND TransClientes.Eliminado='0'
-  //       AND HojaDeRuta.Eliminado=0
-  //       AND TransClientes.Retirado = 1
-  //       AND NOT EXISTS (
-  //           SELECT 1
-  //           FROM Seguimiento s
-  //           WHERE s.CodigoSeguimiento = TransClientes.CodigoSeguimiento
-  //             AND s.status = 'warehouse_validated'
-  //             AND s.Eliminado = 0
-  //           LIMIT 1
-  //       )
-  // ";
-  // Las COLECTAS no entran en el gate de validación pre-salida del warehouse:
-  // se retiran en el cliente durante el recorrido y se entregan al warehouse
-  // como una parada de entrega más.
-  $sqlChkTxt = "SELECT COUNT(*) AS faltan
-  FROM HojaDeRuta
-  INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
-  WHERE HojaDeRuta.Estado='Abierto'
-    AND HojaDeRuta.Devuelto=0
-    AND HojaDeRuta.Recorrido='$Recorrido'
-    AND TransClientes.Eliminado='0'
-    AND HojaDeRuta.Eliminado=0
-    AND TransClientes.Retirado = 1
-    AND (TransClientes.idColecta IS NULL OR TransClientes.idColecta = 0)
-    AND NOT EXISTS (
-        SELECT 1
-        FROM Seguimiento s
-        WHERE SUBSTRING_INDEX(s.CodigoSeguimiento,'_',1) = SUBSTRING_INDEX(TransClientes.CodigoSeguimiento,'_',1)
-          AND s.status = 'warehouse_validated'
-          AND s.Eliminado = 0
-        LIMIT 1
-    )";
-  $sqlChk = $mysqli->query($sqlChkTxt);
-  if (!$sqlChk) {
-    echo "<div class='alert alert-danger'>Error SQL CHECK WAREHOUSE: " . $mysqli->error . "</div>";
-    exit;
-  }
-
-  $chkRow = $sqlChk->fetch_assoc();
-  $faltan = (int)($chkRow['faltan'] ?? 0);
+  $faltan = bultosSinEscaneoWarehouse($mysqli, $Recorrido);
 
   // ==================================================
   // GATE DURO: no se puede operar el recorrido si faltan escanear bultos
