@@ -3,17 +3,20 @@
 // -----------------------------------------------------------------------------
 // Control "nadie entrega lo que no escaneó" para la app de reparto.
 //
-// Un envío está "escaneado" si en Seguimiento (no eliminado) hay una fila para
-// su CodigoSeguimiento base con alguno de estos status:
-//   - warehouse_validated : escaneado en el depósito antes de salir (warehouse.php)
-//   - pickup_ready         : retiro confirmado en el cliente        (colecta_scan.php / ConfirmoEntrega)
-//   - pickup_scanned       : bulto de colecta escaneado             (colecta_scan.php)
-//   - pickup_not_scanned   : colecta CERRADA sin escanear por decisión del
-//                            operador (colecta_scan.php::ColectaCerrar, "Confirmar
-//                            igual"). Es un control registrado (quién/cuándo/m de n),
-//                            así que también habilita soltar el bulto en Wepoint sin
-//                            obligar a prender OmitirControlEscaneo. Estado exclusivo
-//                            de colectas.
+// Hay DOS gates distintos acá, con criterios de "escaneado" distintos a
+// propósito (no son el mismo control, ver el docblock de cada función):
+//
+//   - escaneoOk() / CONTROL_ESCANEO_STATUSES: control al momento de ENTREGAR
+//     al cliente final. Cualquier confirmación previa de la cadena de
+//     custodia alcanza (retiro, colecta cerrada sin escanear, deposito).
+//
+//   - bultosSinEscaneoWarehouse(): control al momento de SALIR con el
+//     recorrido (antes de arrancar / paneles). Acá el retiro en el cliente
+//     (pickup_scanned) NO alcanza -es un evento distinto y anterior en el
+//     tiempo, no prueba que el bulto esté en el depósito listo para ESTE
+//     recorrido-. Solo cuenta el escaneo real de depósito (warehouse_validated)
+//     o que MercadoLibre ya haya confirmado el envío por su propia API
+//     (ml_confirmado, ver el docblock de la función).
 //
 // Override por recorrido: Logistica.OmitirControlEscaneo = 1. Se prende a mano
 // (o desde el sistema viejo) cuando falla un escáner en la calle. Cada bypass
@@ -77,24 +80,29 @@ function escaneoOk(mysqli $mysqli, string $cs): bool
  * NO cuenta el PADRE de la colecta (idClienteDestino = 18587): ese se retira en
  * el cliente durante el recorrido, no antes de salir.
  *
- * Un bulto está "escaneado" si tiene warehouse_validated (escaneo real en el
- * depósito). El escaneo de RETIRO en el cliente (pickup_scanned) es un evento
- * distinto -y anterior en el tiempo- que solo prueba que el bulto salió del
- * cliente, no que esté físicamente en el depósito listo para salir en ESTE
- * recorrido: entre el retiro y la salida puede pasar horas y el bulto puede
- * terminar en otro recorrido, perderse, etc. Antes se aceptaba pickup_scanned
- * acá (para no dejar el gate "inerte" en rutas 100% Flex de colecta) pero eso
- * hacía que un bulto retirado a la mañana figurase "ya escaneado" a la tarde
- * sin que nadie lo haya vuelto a tocar en el depósito. Ahora SIEMPRE hace
- * falta el escaneo real de depósito, sea colecta de MercadoLibre o de
- * proveedor (Ferniplast y similares).
+ * Un bulto está "escaneado" si:
+ *   - tiene warehouse_validated (escaneo real en el depósito, via warehouse.php), o
+ *   - MercadoLibre YA confirmó el envío por su propia API/webhook
+ *     (ColectaScans.expected.servicios_detalle[].ml_confirmado=1, ver
+ *     mlConfirmacionServicio() en colecta_scan.php). Esa es una fuente externa
+ *     e independiente de que el bulto salió de lo de MELI, asi que ahorra el
+ *     reescaneo en deposito PARA ESE BULTO puntual.
+ *
+ * El escaneo de RETIRO EN EL CLIENTE hecho por nuestro propio chofer
+ * (Seguimiento.status='pickup_scanned', sea colecta de MercadoLibre o de
+ * proveedor/Ferniplast) NO alcanza: es un evento distinto y anterior en el
+ * tiempo que solo prueba que el bulto salió del cliente, no que esté
+ * físicamente en el depósito listo para salir en ESTE recorrido -entre el
+ * retiro y la salida puede pasar horas y el bulto puede terminar en otro
+ * recorrido, perderse, etc. Es la confirmación de MELI (verificación externa)
+ * la que ahorra el reescaneo, no nuestro propio escaneo de retiro.
  */
 function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
 {
     if (trim($recorrido) === '') return 0;
     $recEsc = $mysqli->real_escape_string($recorrido);
 
-    $sql = "SELECT COUNT(*) AS faltan
+    $sql = "SELECT TransClientes.id, TransClientes.idColecta
             FROM HojaDeRuta
             INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
             WHERE HojaDeRuta.Estado = 'Abierto'
@@ -113,8 +121,43 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
               )";
 
     $res = $mysqli->query($sql);
-    $row = $res ? $res->fetch_assoc() : null;
-    return (int)($row['faltan'] ?? 0);
+    if (!$res) return 0;
+
+    $candidatos = [];
+    $idsColecta = [];
+    while ($row = $res->fetch_assoc()) {
+        $idTr = (int)$row['id'];
+        $idCol = (int)($row['idColecta'] ?? 0);
+        $candidatos[] = ['id' => $idTr, 'idColecta' => $idCol];
+        if ($idCol > 0) $idsColecta[$idCol] = true;
+    }
+    if (!$candidatos) return 0;
+
+    // ml_confirmado por idTransCliente, leyendo el JSON de cada Colecta
+    // involucrada una sola vez (no por bulto).
+    $mlConfirmado = [];
+    if ($idsColecta) {
+        $in = implode(',', array_map('intval', array_keys($idsColecta)));
+        $rc = $mysqli->query("SELECT ColectaScans FROM Colecta WHERE id IN ({$in})");
+        while ($rc && $c = $rc->fetch_assoc()) {
+            $payload = json_decode((string)($c['ColectaScans'] ?? ''), true);
+            $det = $payload['expected']['servicios_detalle'] ?? null;
+            if (!is_array($det)) continue;
+            foreach ($det as $sd) {
+                $idTr = (int)($sd['idTransCliente'] ?? 0);
+                if ($idTr > 0 && !empty($sd['ml_confirmado'])) {
+                    $mlConfirmado[$idTr] = true;
+                }
+            }
+        }
+    }
+
+    $faltan = 0;
+    foreach ($candidatos as $row) {
+        if (!empty($mlConfirmado[$row['id']])) continue; // MELI ya lo confirmo -> no hace falta reescanear
+        $faltan++;
+    }
+    return $faltan;
 }
 
 /**
