@@ -265,13 +265,18 @@ $(document).ready(function () {
         return;
       }
 
-      // expected tiene datos → validamos si cache sigue vigente
+      // Mostramos YA lo que hay en el teléfono (IndexedDB, sin esperar
+      // viaje al servidor) - el chofer no tiene que esperar una ida y
+      // vuelta de red solo para ver la lista que ya está guardada acá. La
+      // validación de que el cache sigue vigente se hace después, en
+      // segundo plano, y solo recarga si de verdad cambió algo del lado
+      // del servidor.
+      console.log("⚡ Render local inmediato (sin esperar red)");
+      cargarRecorridoLocal();
+      safeRenderScanned();
+
       validarCacheConBackend(function (okToUseCache) {
-        if (okToUseCache) {
-          console.log("✅ Cache vigente → render local");
-          cargarRecorridoLocal();
-          safeRenderScanned();
-        } else {
+        if (!okToUseCache) {
           console.log("♻️ Cache viejo → recargando desde backend");
           cargarLista();
         }
@@ -583,6 +588,40 @@ function contarScanned(callback) {
   const req = tx("scanned").count();
   req.onsuccess = () => callback(req.result || 0);
 }
+// Pinta el HUD (contador, barra, botón) a partir de un total/ok YA
+// calculados - no toca IndexedDB. Separado de actualizarHUD() para que
+// renderScanned() (que igual recorre "expected" entero para armar la
+// lista) no tenga que hacer un SEGUNDO recorrido completo solo para el HUD.
+function pintarHUD(total, ok) {
+  const faltantes = Math.max(total - ok, 0);
+  const completo = faltantes === 0 && total > 0;
+
+  $("#wh-esperados").text(total);
+  $("#wh-esperados-lbl").text(total);
+  $("#wh-ok").text(ok);
+  $("#wh-faltantes").text(faltantes);
+
+  // barra + label del hero
+  const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
+  $("#wh-bar").css("width", pct + "%");
+  $("#wh-lbl")
+    .toggleClass("done", completo)
+    .html(completo ? "Completo" : 'Faltan <span id="wh-faltantes">' + faltantes + "</span>");
+
+  // Con el override de escaneo prendido, el botón se habilita igual aunque
+  // falten bultos (el chofer confirma desde el modal de puedeSalir()).
+  const forzar = !completo && !!window.omitirEscaneo && total > 0;
+
+  // botón confirmar
+  $("#btn-confirmar")
+    .prop("disabled", !completo && !forzar)
+    .toggleClass("ready", completo || forzar)
+    .text(completo ? "Confirmar carga" : forzar ? "Confirmar sin escanear" : "Escaneá todos para confirmar");
+
+  // botón de escaneo: se esconde cuando ya está todo
+  $("#btn-scan").toggle(!completo);
+}
+
 function actualizarHUD(retiradoObjetivo = 1) {
   const t = db.transaction(["expected"], "readonly");
   const store = t.objectStore("expected");
@@ -603,33 +642,7 @@ function actualizarHUD(retiradoObjetivo = 1) {
       }
       cursor.continue();
     } else {
-      const faltantes = Math.max(total - ok, 0);
-      const completo = faltantes === 0 && total > 0;
-
-      $("#wh-esperados").text(total);
-      $("#wh-esperados-lbl").text(total);
-      $("#wh-ok").text(ok);
-      $("#wh-faltantes").text(faltantes);
-
-      // barra + label del hero
-      const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
-      $("#wh-bar").css("width", pct + "%");
-      $("#wh-lbl")
-        .toggleClass("done", completo)
-        .html(completo ? "Completo" : 'Faltan <span id="wh-faltantes">' + faltantes + "</span>");
-
-      // Con el override de escaneo prendido, el botón se habilita igual aunque
-      // falten bultos (el chofer confirma desde el modal de puedeSalir()).
-      const forzar = !completo && !!window.omitirEscaneo && total > 0;
-
-      // botón confirmar
-      $("#btn-confirmar")
-        .prop("disabled", !completo && !forzar)
-        .toggleClass("ready", completo || forzar)
-        .text(completo ? "Confirmar carga" : forzar ? "Confirmar sin escanear" : "Escaneá todos para confirmar");
-
-      // botón de escaneo: se esconde cuando ya está todo
-      $("#btn-scan").toggle(!completo);
+      pintarHUD(total, ok);
     }
   };
 }
@@ -642,8 +655,6 @@ function whTrashBtn(base) {
 
 function renderScanned(done) {
   const $whLista = $("#wh-lista"); // ✅ DEFINIDA ACÁ
-
-  $whLista.empty();
 
   const t = db.transaction(["scanned", "expected"], "readonly");
   const scannedStore = t.objectStore("scanned");
@@ -667,12 +678,23 @@ function renderScanned(done) {
     }
 
     // 2) leo EXPECTED -> total por base + si viene pre-escaneado (ML / colecta)
+    // totalHud/okHud replican EXACTO el criterio que tenía actualizarHUD(1)
+    // (sin excluir "alias"), para no cambiar los números del HUD de paso -
+    // info[] sí excluye alias porque es solo para la lista visual.
+    let totalHud = 0;
+    let okHud = 0;
+
     expectedStore.openCursor().onsuccess = function (e2) {
       const c2 = e2.target.result;
       if (c2) {
         const v = c2.value;
         const base = v.base || (v.code ? v.code.split("_")[0] : "");
-        const ret = Number(v.retirado ?? 1);
+        const ret = Number(v.retirado);
+
+        if (ret === 1) {
+          totalHud++;
+          if (v.estado === "ok") okHud++;
+        }
 
         if (base && ret === 1 && v.estado !== "alias") {
           if (!info[base]) info[base] = { tot: 0, ok: 0, pre: false, via: "" };
@@ -691,6 +713,12 @@ function renderScanned(done) {
       //    escaneadas): el operador tiene que ver las 19, cuáles ya vienen
       //    resueltas (ML / colecta) y cuáles le faltan escanear en WePoint.
       const bases = Object.keys(info).sort();
+
+      // Arma TODO el HTML en memoria y recién al final lo pinta de una sola
+      // vez (1 reflow) en vez de un $.append() por fila (1 reflow por fila -
+      // con 40-60 bultos eso se nota, sobre todo en un teléfono de gama
+      // media). Tambien evita el $whLista.empty() previo por separado.
+      const filas = [];
 
       bases.forEach((base) => {
         const it = info[base];
@@ -720,7 +748,7 @@ function renderScanned(done) {
             `<span class="rp-who">falta escanear</span>`;
         }
 
-        $whLista.append(`
+        filas.push(`
         <li class="rp-wh-row ${rowCls}">
           <span class="rp-st">${stIcon}</span>
           <span class="rp-code rp-num">${base}</span>
@@ -729,8 +757,11 @@ function renderScanned(done) {
       `);
       });
 
-      // mantiene tu HUD (si ya lo ajustaste a “solo entregas”)
-      actualizarHUD(1);
+      $whLista.html(filas.join(""));
+
+      // HUD con los totales que ya calculamos arriba (sin recorrer
+      // "expected" de nuevo).
+      pintarHUD(totalHud, okHud);
 
       if (typeof done === "function") done();
     };

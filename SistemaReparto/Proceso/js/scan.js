@@ -8,6 +8,7 @@ let coolingDown = false; // 👈 ESTA LÍNEA FALTABA
 let feedbackTimeout = null;
 let scannerStarting = false;
 let scannerRunning = false;
+let autoConfirmandoCarga = false; // evita disparar la confirmación 2 veces
 
 function existeAlgunoConBase(base, cb) {
   const t = db.transaction("expected", "readonly");
@@ -145,7 +146,7 @@ function setEstadoParcial(ok, total) {
 }
 async function setEstadoCompleto(total) {
   $("#estado").addClass("done");
-  $("#wh-msg").text("✅ Todo OK. Volvé a Warehouse y presioná Confirmar carga.");
+  $("#wh-msg").text("Confirmando carga…");
 
   // Bloqueo lógico
   scanLocked = true;
@@ -161,8 +162,78 @@ async function setEstadoCompleto(total) {
   } catch (e) {}
   mostrarFeedback(`✅ Completo (${total}/${total})`, "ok");
 
-  // Si querés, agrandá el botón volver
-  $("#btn-volver").addClass("ready").text("Volver y Confirmar");
+  $("#btn-volver").addClass("ready").text("Volver");
+
+  confirmarCargaAutomatica();
+}
+
+// --------------------------------------------------------------------------
+// Confirmación automática de la carga: antes había que volver a
+// warehouse.html y tocar "Confirmar carga" a mano. Eso sumaba una vuelta de
+// pantalla (recarga completa + 2 pedidos al servidor: header y validación de
+// cache) para algo que ya sabíamos que estaba listo apenas se escaneó el
+// último bulto. Ahora se confirma desde acá mismo, al toque, sin que el
+// chofer tenga que tocar nada ni esperar esa vuelta.
+//
+// Si algo falla (sin señal, etc.) no se bloquea nada: el mensaje vuelve al
+// texto original y el botón "Confirmar carga" en Warehouse sigue andando
+// como respaldo manual.
+// --------------------------------------------------------------------------
+function obtenerBasesDoneScan(callback) {
+  const t = db.transaction("bases_done", "readonly");
+  const s = t.objectStore("bases_done");
+  const bases = [];
+  s.openCursor().onsuccess = function (e) {
+    const c = e.target.result;
+    if (!c) return callback(bases);
+    bases.push(c.value.base);
+    c.continue();
+  };
+}
+
+function confirmarCargaAutomatica() {
+  if (autoConfirmandoCarga) return;
+  autoConfirmandoCarga = true;
+
+  function volverAModoManual() {
+    autoConfirmandoCarga = false;
+    $("#wh-msg").text("✅ Todo OK. Volvé a Warehouse y presioná Confirmar carga.");
+  }
+
+  obtenerBasesDoneScan(function (basesDone) {
+    $.ajax({
+      url: "Proceso/php/warehouse.php",
+      type: "POST",
+      dataType: "json",
+      data: { RegistrarWarehouseBatch: 1, bases: JSON.stringify(basesDone), state_id: 13 },
+      success: function (res) {
+        if (!res || res.success !== 1) return volverAModoManual();
+
+        $.ajax({
+          url: "Proceso/php/warehouse.php",
+          type: "POST",
+          dataType: "json",
+          data: { PuedeSalir: 1 },
+          success: function (res2) {
+            if (!res2 || res2.success != 1) return volverAModoManual();
+
+            $("#wh-msg").text("✅ Carga confirmada. Volviendo…");
+            setTimeout(function () {
+              window.location.href = "warehouse.html?b=20260906c";
+            }, 700);
+          },
+          error: function (xhr) {
+            if (manejar401(xhr)) return;
+            volverAModoManual();
+          },
+        });
+      },
+      error: function (xhr) {
+        if (manejar401(xhr)) return;
+        volverAModoManual();
+      },
+    });
+  });
 }
 // --------------------
 // Conteo desde IndexedDB
