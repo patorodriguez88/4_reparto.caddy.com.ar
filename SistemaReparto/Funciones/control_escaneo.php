@@ -77,9 +77,17 @@ function escaneoOk(mysqli $mysqli, string $cs): bool
  * NO cuenta el PADRE de la colecta (idClienteDestino = 18587): ese se retira en
  * el cliente durante el recorrido, no antes de salir.
  *
- * Un bulto está "escaneado" si tiene warehouse_validated o pickup_scanned
- * (lector manual o handshake de MercadoLibre). pickup_ready y pickup_not_scanned
- * NO cuentan acá: el segundo es justamente "colecta cerrada sin escanear".
+ * Un bulto está "escaneado" si tiene warehouse_validated (escaneo real en el
+ * depósito). El escaneo de RETIRO en el cliente (pickup_scanned) es un evento
+ * distinto -y anterior en el tiempo- que solo prueba que el bulto salió del
+ * cliente, no que esté físicamente en el depósito listo para salir en ESTE
+ * recorrido: entre el retiro y la salida puede pasar horas y el bulto puede
+ * terminar en otro recorrido, perderse, etc. Antes se aceptaba pickup_scanned
+ * acá (para no dejar el gate "inerte" en rutas 100% Flex de colecta) pero eso
+ * hacía que un bulto retirado a la mañana figurase "ya escaneado" a la tarde
+ * sin que nadie lo haya vuelto a tocar en el depósito. Ahora SIEMPRE hace
+ * falta el escaneo real de depósito, sea colecta de MercadoLibre o de
+ * proveedor (Ferniplast y similares).
  */
 function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
 {
@@ -99,7 +107,7 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
               AND NOT EXISTS (
                   SELECT 1 FROM Seguimiento s
                   WHERE SUBSTRING_INDEX(s.CodigoSeguimiento, '_', 1) = SUBSTRING_INDEX(TransClientes.CodigoSeguimiento, '_', 1)
-                    AND s.status IN ('warehouse_validated', 'pickup_scanned')
+                    AND s.status = 'warehouse_validated'
                     AND (s.Eliminado IS NULL OR s.Eliminado = 0)
                   LIMIT 1
               )";
