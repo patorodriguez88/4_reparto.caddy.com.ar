@@ -1550,6 +1550,56 @@ if ($isColecta) {
     // =====================================
     // COLECTA: HIJO (pickup_scanned) por bulto
     // =====================================
+    //
+    // Para tokens (ML/PROV/FERNI) un pedido multi-bulto puede estar
+    // representado por UNA SOLA fila TransClientes con Cantidad>1 (ej.
+    // Ferniplast: 1 fila, Cantidad=3, mismo CodigoSeguimiento para las 3
+    // piezas) en vez de 3 filas separadas BASE_1/BASE_2/BASE_3. Seguimiento
+    // no tiene columna de cantidad -> es 1 fila = 1 estado por
+    // CodigoSeguimiento. resolverCodigoHijoParaSeguimiento() marca
+    // pickup_scanned en el PRIMER escaneo y, como es la unica fila para ese
+    // CodigoSeguimiento, en el 2do/3er escaneo la encuentra "ya marcada" y
+    // devuelve null -> HIJOS_COMPLETOS, aunque en ColectaScans todavia
+    // falten bultos reales por escanear. Eso bloqueaba al chofer a mitad de
+    // pedido y despues, al cerrar la colecta, se insertaba un
+    // pickup_not_scanned contradictorio sobre el mismo pickup_scanned ya
+    // escrito.
+    //
+    // Fix: para estos tokens con paquetesSvc>1, el pickup_scanned del hijo
+    // se escribe SOLO cuando ya se completo la cantidad esperada (sumando
+    // qty en ColectaScans, que arriba ya se guardo). Los escaneos
+    // intermedios quedan guardados igual y responden success=1 (progreso
+    // parcial), sin tocar Seguimiento todavia.
+    $esTokenMultiSinSufijo = ($esML || $esFerni || $esProv) && $paquetesSvc > 1;
+    if ($esTokenMultiSinSufijo) {
+        $qtyTotalBase = 0;
+        foreach ($scans as $s) {
+            if (trim((string)($s['base'] ?? '')) === $base) {
+                $qtyTotalBase += (int)($s['qty'] ?? 1);
+            }
+        }
+
+        if ($qtyTotalBase < $paquetesSvc) {
+            if ($colectaResume === null) {
+                $colectaResume = leerResumeColecta($mysqli, $colectaId);
+            }
+            responder([
+                'success'    => 1,
+                'inserted'   => 0,
+                'codigo'     => $base,
+                'cs_base'    => $base,
+                'codigoHijo' => null,
+                'status'     => 'pickup_parcial',
+                'scan_saved' => $scanSavedToColecta,
+                'merged'     => $isMerged,
+                'added_qty'  => $addedQty,
+                'resume'     => $colectaResume,
+                'paquetes_servicio' => $paquetesSvc,
+                'detail'     => "{$base}: {$qtyTotalBase}/{$paquetesSvc} bultos escaneados",
+            ]);
+        }
+    }
+
     $codigoHijo = resolverCodigoHijoParaSeguimiento($mysqli, $colectaId, $base, $raw, $tipoDetectado, $paquetesSvc);
     if (!$codigoHijo) {
         responder(['success' => 0, 'error' => 'HIJOS_COMPLETOS', 'detail' => "Ya están completos los bultos de $base"]);
@@ -1605,6 +1655,7 @@ if ($isColecta) {
         'success'    => 1,
         'inserted'   => (int)($insH['inserted'] ?? 0),
         'codigo'     => $base,
+        'cs_base'    => $base,
         'codigoHijo' => $base,
         'status'     => $hijoStatus,
         'estado'     => $hijoEstadoTxt,
