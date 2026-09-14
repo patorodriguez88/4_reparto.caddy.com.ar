@@ -697,13 +697,18 @@ function renderScanned(done) {
         }
 
         if (base && ret === 1 && v.estado !== "alias") {
-          if (!info[base]) info[base] = { tot: 0, ok: 0, pre: false, via: "" };
+          if (!info[base]) info[base] = { tot: 0, ok: 0, pre: false, via: "", viaRaw: "" };
           info[base].tot++;
           if (v.estado === "ok") info[base].ok++;
           if (Number(v.ya_escaneado) === 1) {
             info[base].pre = true;
             if (!info[base].via) info[base].via = String(v.escaneo_via || "");
           }
+          // A diferencia de "via" (solo se llena si ya_escaneado=1, o sea
+          // MANUAL/ML), esto guarda el escaneo_via CRUDO aunque no alcance
+          // para el gate — sirve para avisarle al operador "ya lo retiró un
+          // chofer" en vez de un genérico "falta escanear" en items RETIRO.
+          if (!info[base].viaRaw) info[base].viaRaw = String(v.escaneo_via || "");
         }
         c2.continue();
         return;
@@ -743,9 +748,14 @@ function renderScanned(done) {
         } else {
           rowCls = "pending";
           stIcon = "";
+          // Retirado por un chofer en el cliente pero SIN escaneo de
+          // depósito todavía: no cuenta como escaneado (ver comentario en
+          // warehouse.php), pero avisamos igual para que no parezca que a
+          // este bulto nunca lo tocó nadie.
+          const leyenda = it.viaRaw === "RETIRO" ? "retirado, falta depósito" : "falta escanear";
           extra =
             (it.tot > 1 ? `<span class="rp-mb rp-num">0/${it.tot}</span>` : "") +
-            `<span class="rp-who">falta escanear</span>`;
+            `<span class="rp-who">${leyenda}</span>`;
         }
 
         filas.push(`

@@ -22,11 +22,27 @@ if (isset($_POST['GetLista'])) {
     //     (idColecta = 0) y en esas rutas la lista salía casi vacía (p.ej. el
     //     recorrido 1464: 2 de 19).
     // Por cada bulto se calcula 'escaneo_via' mirando Seguimiento:
-    //   'MANUAL' -> ya tiene warehouse_validated o pickup_scanned (lector)
+    //   'MANUAL' -> ya tiene warehouse_validated (escaneo real en depósito)
     //   'ML'     -> pickup_scanned confirmado por MercadoLibre (handshake)
-    //   ''       -> sin escaneo real todavía => hay que escanearlo acá.
+    //   'RETIRO' -> pickup_scanned de NUESTRO chofer en el cliente, pero
+    //               SIN warehouse_validated todavía - NO alcanza para el
+    //               gate de salida (ver bultosSinEscaneoWarehouse() en
+    //               Funciones/control_escaneo.php: entre el retiro y la
+    //               salida el bulto puede terminar en otro recorrido,
+    //               perderse, etc. - solo informativo, no cuenta como
+    //               escaneado).
+    //   ''       -> sin ningún escaneo/confirmación todavía.
     // pickup_ready y pickup_not_scanned NO cuentan como escaneado (el segundo
     // es justamente "colecta cerrada sin escanear").
+    //
+    // FIX (2026-09-14): antes 'RETIRO' entraba en el mismo bucket que
+    // 'MANUAL' -> la lista mostraba el bulto en verde con el tag "YA
+    // ESCANEADO" (ya_escaneado=1), pero el gate de salida (que exige
+    // warehouse_validated de verdad) lo seguía contando como pendiente. El
+    // chofer veía "27/27 completo" acá y "Faltan escanear N bultos" en la
+    // otra pantalla para el mismo recorrido - caso real: funes_624, rec.
+    // 1464, bulto 09ZL60WHC con pickup_scanned de OTRO chofer (retiro en
+    // el cliente) pero sin escaneo de depósito.
     $st = $mysqli->prepare("
         SELECT t.Retirado, t.CodigoSeguimiento, t.Cantidad, t.shipments_id,
                t.CodigoProveedor,
@@ -35,7 +51,7 @@ if (isset($_POST['GetLista'])) {
                    SELECT CASE
                        WHEN SUM(s.status = 'warehouse_validated') > 0 THEN 'MANUAL'
                        WHEN SUM(s.status = 'pickup_scanned' AND s.Usuario = 'MercadoLibre') > 0 THEN 'ML'
-                       WHEN SUM(s.status = 'pickup_scanned') > 0 THEN 'MANUAL'
+                       WHEN SUM(s.status = 'pickup_scanned') > 0 THEN 'RETIRO'
                        ELSE ''
                    END
                    FROM Seguimiento s
@@ -73,6 +89,11 @@ if (isset($_POST['GetLista'])) {
         }
 
         $via = (string)($r['escaneo_via'] ?? '');
+        // Solo MANUAL (warehouse_validated real) y ML (confirmación externa
+        // de MercadoLibre) satisfacen el gate de salida - RETIRO (nuestro
+        // propio chofer lo retiró del cliente, pero todavía no hay escaneo
+        // de depósito) es a propósito NO suficiente, ver comentario arriba.
+        $yaEscaneado = ($via === 'MANUAL' || $via === 'ML') ? 1 : 0;
 
         $items[] = [
             'base' => $r['CodigoSeguimiento'],
@@ -80,7 +101,7 @@ if (isset($_POST['GetLista'])) {
             'retirado' => (int)$r['Retirado'],
             'meli_id' => $meliId,
             'es_colecta' => (int)$r['es_colecta'],
-            'ya_escaneado' => $via !== '' ? 1 : 0,
+            'ya_escaneado' => $yaEscaneado,
             'escaneo_via' => $via,
         ];
     }

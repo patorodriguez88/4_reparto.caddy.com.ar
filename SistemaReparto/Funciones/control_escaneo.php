@@ -96,13 +96,21 @@ function escaneoOk(mysqli $mysqli, string $cs): bool
  * retiro y la salida puede pasar horas y el bulto puede terminar en otro
  * recorrido, perderse, etc. Es la confirmación de MELI (verificación externa)
  * la que ahorra el reescaneo, no nuestro propio escaneo de retiro.
+ *
+ * FIX (2026-09-14): esto contaba 1 por cada FILA de TransClientes pendiente,
+ * sin mirar Cantidad - un envío de 2 bultos sumaba "1 falta" acá pero "2
+ * faltan" en la pantalla de Warehouse (Proceso/php/warehouse.php::GetLista,
+ * que sí expande por Cantidad). El chofer veía "Faltan escanear 13 bultos"
+ * en Recorrido y "FALTAN 14" en Warehouse para el mismo recorrido - mismo
+ * gate, mismo texto ("bultos"), unidades distintas. Ahora suma Cantidad
+ * igual que GetLista, para que los dos números siempre coincidan.
  */
 function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
 {
     if (trim($recorrido) === '') return 0;
     $recEsc = $mysqli->real_escape_string($recorrido);
 
-    $sql = "SELECT TransClientes.id, TransClientes.idColecta
+    $sql = "SELECT TransClientes.id, TransClientes.idColecta, TransClientes.Cantidad
             FROM HojaDeRuta
             INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
             WHERE HojaDeRuta.Estado = 'Abierto'
@@ -128,7 +136,9 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
     while ($row = $res->fetch_assoc()) {
         $idTr = (int)$row['id'];
         $idCol = (int)($row['idColecta'] ?? 0);
-        $candidatos[] = ['id' => $idTr, 'idColecta' => $idCol];
+        $bultos = (int)($row['Cantidad'] ?? 1);
+        if ($bultos < 1) $bultos = 1;
+        $candidatos[] = ['id' => $idTr, 'idColecta' => $idCol, 'bultos' => $bultos];
         if ($idCol > 0) $idsColecta[$idCol] = true;
     }
     if (!$candidatos) return 0;
@@ -155,7 +165,7 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
     $faltan = 0;
     foreach ($candidatos as $row) {
         if (!empty($mlConfirmado[$row['id']])) continue; // MELI ya lo confirmo -> no hace falta reescanear
-        $faltan++;
+        $faltan += $row['bultos'];
     }
     return $faltan;
 }
