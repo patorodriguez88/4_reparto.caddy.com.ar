@@ -452,17 +452,40 @@ if (isset($_POST['Paneles'])) {
   $Recorrido = $_SESSION['RecorridoAsignado'];
 
   // ==================================================
-  // FIX (2026-09-14, a pedido): antes había acá un GATE DURO que, si
-  // faltaba escanear algún bulto en Warehouse, no mostraba NINGUNA
-  // tarjeta (exit temprano) salvo que la oficina prendiera el override a
-  // mano. En la práctica eso trababa casi todas las rutas con colecta -
-  // el override dejó de ser una excepción y pasó a ser un trámite diario
-  // en casi el 100% de las órdenes. Se saca: las tarjetas se muestran
-  // siempre que haya algo pendiente (el chequeo real para "puede
-  // arrancar" ahora es tarjetasPendientes(), en iniciar_recorrido.php).
-  // El escaneo de depósito real se sigue viendo y pidiendo en Warehouse,
-  // simplemente ya no bloquea el panel de Recorrido.
+  // PRE-CHECK: si faltan escanear bultos de entrega-desde-depósito en Warehouse
+  // (entregas normales + HIJOS de colecta ya retirados), NO mostramos ningún
+  // registro para evitar salir con carga parcial. El PADRE de la colecta
+  // (idClienteDestino = 18587) no cuenta: se retira en el cliente. Un bulto
+  // vale como escaneado con warehouse_validated o pickup_scanned.
+  // Lógica única en Funciones/control_escaneo.php (misma que iniciar_recorrido).
   // ==================================================
+  $faltan = bultosSinEscaneoWarehouse($mysqli, $Recorrido);
+
+  // ==================================================
+  // GATE DURO: no se puede operar el recorrido si faltan escanear bultos
+  // de entrega-desde-depósito en Warehouse. Override por recorrido
+  // (Logistica.OmitirControlEscaneo=1) => sólo advierte, deja pasar.
+  // ==================================================
+  $idUsuarioGate = (int)($_SESSION['idusuario'] ?? 0);
+  $overrideGate  = overrideEscaneo($mysqli, $idUsuarioGate);
+
+  if ($faltan > 0 && !$overrideGate) {
+    echo "<div class='col-12 rp'><div class='rp-alert crit'>"
+      . "⚠️ Faltan escanear <b>{$faltan}</b> bulto" . ($faltan === 1 ? '' : 's') . " en <b>Warehouse</b>. "
+      . "Andá a <b>Warehouse</b>, escaneá todo y volvé a <b>Recorrido</b>."
+      . "</div></div>";
+    exit;
+  }
+
+  if ($faltan > 0 && $overrideGate) {
+    // Un operador ya autorizó arrancar sin escanear en Warehouse: alcanza un
+    // renglón discreto, sin cartel ni el conteo (no es un error a resolver).
+    // El bypass real ya queda registrado en iniciar_recorrido / confirmo_entrega,
+    // no hace falta loguearlo en cada poll del panel.
+    echo "<div class='col-12 rp'><div class='rp-note rp-note--tight'>"
+      . "Escaneo de Warehouse omitido para este recorrido (autorizado por un operador)."
+      . "</div></div>";
+  }
 
   $Retirado_ = '';
 

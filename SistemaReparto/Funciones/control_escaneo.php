@@ -171,43 +171,6 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
 }
 
 /**
- * Cuántas tarjetas/paradas pendientes tiene el recorrido (mismo criterio
- * que Proceso/php/funciones_hdr.php::Paneles usa para listarlas).
- *
- * GATE de arranque (2026-09-14, a pedido): antes "Iniciar Recorrido" y el
- * panel de tarjetas exigían bultosSinEscaneoWarehouse()===0 (escaneo real
- * de depósito). En la práctica eso trababa casi TODAS las rutas con
- * colecta (el depósito no escanea sistemáticamente en Warehouse) y la
- * oficina terminaba prendiendo OmitirControlEscaneo a mano todas las
- * mañanas, en casi el 100% de las órdenes - el gate dejó de ser una
- * excepción para convertirse en un trámite diario. Se reemplaza por un
- * chequeo mucho más simple y confiable: si el recorrido no tiene NINGUNA
- * tarjeta pendiente asignada, no tiene sentido arrancarlo (caso real que
- * originó esto: no era esto, era un falso "arrancó" por GPS, pero de paso
- * se saca el gate de escaneo que ya se sabía que rompía las colectas).
- * El control de escaneo real de depósito sigue existiendo y viéndose en
- * Warehouse - solo deja de BLOQUEAR la salida del recorrido.
- */
-function tarjetasPendientes(mysqli $mysqli, string $recorrido): int
-{
-    if (trim($recorrido) === '') return 0;
-    $recEsc = $mysqli->real_escape_string($recorrido);
-
-    $res = $mysqli->query(
-        "SELECT COUNT(*) AS n
-         FROM HojaDeRuta
-         INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
-         WHERE HojaDeRuta.Estado = 'Abierto'
-           AND HojaDeRuta.Devuelto = 0
-           AND HojaDeRuta.Eliminado = 0
-           AND HojaDeRuta.Recorrido = '{$recEsc}'
-           AND TransClientes.Eliminado = '0'"
-    );
-    $row = $res ? $res->fetch_assoc() : null;
-    return (int)($row['n'] ?? 0);
-}
-
-/**
  * ¿El recorrido activo del chofer tiene prendido el override de control
  * de escaneo? Si falta la columna, devuelve false.
  */
