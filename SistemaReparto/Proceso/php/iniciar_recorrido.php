@@ -56,23 +56,19 @@ if ($recorrido === '') {
   responder(['success' => 0, 'error' => 'SIN_RECORRIDO']);
 }
 
-// GATE DURO: no se arranca el recorrido si faltan escanear bultos en Warehouse,
-// salvo override por recorrido (Logistica.OmitirControlEscaneo=1).
-$faltanBultos = bultosSinEscaneoWarehouse($mysqli, $recorrido);
-if ($faltanBultos > 0) {
-  if (!overrideEscaneo($mysqli, $userId)) {
-    responder([
-      'success' => 0,
-      'error'   => 'FALTAN_BULTOS_WAREHOUSE',
-      'faltan'  => $faltanBultos,
-      'msg'     => "Faltan escanear {$faltanBultos} bulto" . ($faltanBultos === 1 ? '' : 's') . " en Warehouse. Escaneá todo antes de iniciar el recorrido.",
-    ]);
-  }
-  logBypassEscaneo([
-    'usuario'   => $_SESSION['Usuario'] ?? '',
-    'recorrido' => $recorrido,
-    'cs'        => '',
-    'contexto'  => 'iniciar_recorrido',
+// GATE DURO (2026-09-14): antes exigía 0 bultos sin escanear en Warehouse -
+// eso trababa casi todas las rutas con colecta (ver docblock de
+// tarjetasPendientes() en control_escaneo.php) y la oficina terminaba
+// prendiendo el override a mano todos los días. Ahora el único requisito
+// para arrancar es que el recorrido tenga alguna tarjeta/parada asignada -
+// el escaneo de depósito sigue existiendo y se sigue viendo en Warehouse,
+// pero deja de bloquear la salida.
+$tarjetas = tarjetasPendientes($mysqli, $recorrido);
+if ($tarjetas === 0) {
+  responder([
+    'success' => 0,
+    'error'   => 'SIN_TARJETAS_PENDIENTES',
+    'msg'     => 'Este recorrido no tiene ninguna parada asignada todavía. Consultá con la oficina antes de arrancar.',
   ]);
 }
 
