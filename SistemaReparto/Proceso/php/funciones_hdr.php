@@ -471,8 +471,20 @@ if (isset($_POST['Paneles'])) {
   // Warehouse lo valide - por eso se arma acá el set de pendientes y se
   // saltea esa fila puntual en el while de abajo, en vez de bloquear
   // toda la pantalla como antes.
+  //
+  // FIX (2026-09-15, URGENTE - recorrido 1382 ya en la calle con
+  // OmitirControlEscaneo=1): el filtro de arriba no miraba el override
+  // por recorrido - a un recorrido que la oficina ya había eximido a
+  // mano del control de escaneo (Logistica.OmitirControlEscaneo=1) le
+  // desaparecían igual los paquetes no escaneados. Si el override está
+  // prendido para el recorrido activo de este chofer, no se filtra nada
+  // acá (mismo criterio que ya usaban iniciar_recorrido.php/warehouse.js
+  // antes de este cambio).
   // ==================================================
-  $idsPendientesDeEscaneo = candidatosSinEscaneoWarehouse($mysqli, $Recorrido);
+  $idUsuarioGate = (int)($_SESSION['idusuario'] ?? 0);
+  $idsPendientesDeEscaneo = overrideEscaneo($mysqli, $idUsuarioGate)
+      ? []
+      : candidatosSinEscaneoWarehouse($mysqli, $Recorrido);
 
   $Retirado_ = '';
 
