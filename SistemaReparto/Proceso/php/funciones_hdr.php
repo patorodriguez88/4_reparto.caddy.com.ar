@@ -457,12 +457,22 @@ if (isset($_POST['Paneles'])) {
   // tarjeta (exit temprano) salvo que la oficina prendiera el override a
   // mano. En la práctica eso trababa casi todas las rutas con colecta -
   // el override dejó de ser una excepción y pasó a ser un trámite diario
-  // en casi el 100% de las órdenes. Se saca: las tarjetas se muestran
-  // siempre que haya algo pendiente (el chequeo real para "puede
-  // arrancar" ahora es tarjetasPendientes(), en iniciar_recorrido.php).
-  // El escaneo de depósito real se sigue viendo y pidiendo en Warehouse,
-  // simplemente ya no bloquea el panel de Recorrido.
+  // en casi el 100% de las órdenes. Se sacó por completo... pero eso
+  // dejó pasar de más: entregas normales (no colecta, no confirmadas por
+  // MELI) empezaron a verse ANTES de estar escaneadas en Warehouse.
+  //
+  // FIX (2026-09-15, a pedido - regla real): la única tarjeta que el
+  // chofer tiene que poder ver SIN haber escaneado es la de colecta
+  // (Retirado=0 - ahí es donde recién arranca a escanearla, no puede
+  // depender de un escaneo previo). Los MELI no necesitan reescaneo
+  // porque MercadoLibre ya confirmó el envío por su cuenta (ver
+  // candidatosSinEscaneoWarehouse()). Todo el resto de Entrega
+  // (paquetes normales de depósito) tiene que quedar OCULTO hasta que
+  // Warehouse lo valide - por eso se arma acá el set de pendientes y se
+  // saltea esa fila puntual en el while de abajo, en vez de bloquear
+  // toda la pantalla como antes.
   // ==================================================
+  $idsPendientesDeEscaneo = candidatosSinEscaneoWarehouse($mysqli, $Recorrido);
 
   $Retirado_ = '';
 
@@ -533,6 +543,14 @@ if (isset($_POST['Paneles'])) {
   $esPrimeraParada = true; // la primera de la lista se resalta como "próxima"
 
   while ($row = $BuscarRecorridos->fetch_array(MYSQLI_ASSOC)) {
+
+    // Entrega normal de depósito todavía sin escanear en Warehouse (y no
+    // confirmada por MELI) -> no se muestra esta tarjeta todavía. Las
+    // colectas (Retirado=0) nunca entran a $idsPendientesDeEscaneo, así
+    // que esto no las afecta.
+    if (isset($idsPendientesDeEscaneo[(int)$row['id']])) {
+      continue;
+    }
 
     // lo dejo EXACTAMENTE igual que tu versión,
     // solo verificando que ninguna query reviente.

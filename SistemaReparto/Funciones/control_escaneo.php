@@ -107,7 +107,32 @@ function escaneoOk(mysqli $mysqli, string $cs): bool
  */
 function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
 {
-    if (trim($recorrido) === '') return 0;
+    $faltan = 0;
+    foreach (candidatosSinEscaneoWarehouse($mysqli, $recorrido) as $row) {
+        $faltan += $row['bultos'];
+    }
+    return $faltan;
+}
+
+/**
+ * Devuelve, en un array [idTransCliente => true], los bultos de
+ * entrega-desde-depósito del recorrido que TODAVÍA no fueron escaneados
+ * (mismo criterio que bultosSinEscaneoWarehouse() - ver su docblock para el
+ * detalle de qué cuenta como "escaneado" y por qué el PADRE de colecta y
+ * los confirmados por MELI no entran acá).
+ *
+ * Extraída de bultosSinEscaneoWarehouse() (2026-09-15, a pedido) para poder
+ * usarse como FILTRO por fila en Paneles (funciones_hdr.php) en vez de
+ * como gate de "todo o nada" para toda la pantalla: la colecta (Retirado=0,
+ * el chofer todavía no la retiró) siempre tiene que verse - es el mecanismo
+ * por el cual el chofer arranca a escanearla, no puede depender de un
+ * escaneo de Warehouse previo. Solo las entregas normales desde depósito
+ * (y los hijos de colecta ya retirados, no confirmados por MELI) tienen que
+ * quedar ocultas hasta que Warehouse las valide.
+ */
+function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): array
+{
+    if (trim($recorrido) === '') return [];
     $recEsc = $mysqli->real_escape_string($recorrido);
 
     $sql = "SELECT TransClientes.id, TransClientes.idColecta, TransClientes.Cantidad
@@ -129,7 +154,7 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
               )";
 
     $res = $mysqli->query($sql);
-    if (!$res) return 0;
+    if (!$res) return [];
 
     $candidatos = [];
     $idsColecta = [];
@@ -138,10 +163,10 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
         $idCol = (int)($row['idColecta'] ?? 0);
         $bultos = (int)($row['Cantidad'] ?? 1);
         if ($bultos < 1) $bultos = 1;
-        $candidatos[] = ['id' => $idTr, 'idColecta' => $idCol, 'bultos' => $bultos];
+        $candidatos[$idTr] = ['id' => $idTr, 'idColecta' => $idCol, 'bultos' => $bultos];
         if ($idCol > 0) $idsColecta[$idCol] = true;
     }
-    if (!$candidatos) return 0;
+    if (!$candidatos) return [];
 
     // ml_confirmado por idTransCliente, leyendo el JSON de cada Colecta
     // involucrada una sola vez (no por bulto).
@@ -162,12 +187,11 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
         }
     }
 
-    $faltan = 0;
-    foreach ($candidatos as $row) {
-        if (!empty($mlConfirmado[$row['id']])) continue; // MELI ya lo confirmo -> no hace falta reescanear
-        $faltan += $row['bultos'];
+    foreach ($mlConfirmado as $idTr => $_) {
+        unset($candidatos[$idTr]); // MELI ya lo confirmo -> no hace falta reescanear, no queda oculto
     }
-    return $faltan;
+
+    return $candidatos;
 }
 
 /**
