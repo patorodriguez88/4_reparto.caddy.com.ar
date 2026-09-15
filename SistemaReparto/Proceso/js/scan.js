@@ -436,8 +436,37 @@ function validarBulto(rawCode) {
 
     const retiradoObjetivo = 1; // esta pantalla: ENTREGAS
 
-    // 1) Si viene con sufijo: validar EXACTO (sin inventar nada)
+    // 1) Si viene con sufijo _1: primero exacto, y si no está en el cache,
+    //    lo tomamos como alias de la BASE sin sufijo (mismo criterio que el
+    //    punto 2 de abajo, pero al revés). Reportado con etiquetas de
+    //    FERNIPLAST: algunos proveedores imprimen "_1" siempre, aunque el
+    //    envío sea de Cantidad=1 y en nuestro sistema esté guardado sin
+    //    sufijo - sin este fallback, esos bultos daban "No pertenece al
+    //    recorrido" aunque sí pertenecían. Sufijos _2, _3, etc. SÍ se
+    //    validan exactos nomás (ahí si no matchea es multi-bulto real).
     if (tieneSufijoBulto(code)) {
+      if (/_1$/.test(code)) {
+        const baseSinSufijo = code.replace(/_1$/, "");
+        const tExact = db.transaction("expected", "readonly");
+        tExact.objectStore("expected").get(code).onsuccess = function (eExact) {
+          if (eExact.target.result) {
+            return validarExacto(code, retiradoObjetivo, resolve);
+          }
+          const tBase = db.transaction("expected", "readonly");
+          tBase.objectStore("expected").get(baseSinSufijo).onsuccess = function (eBase) {
+            const itemBase = eBase.target.result;
+            if (itemBase && (itemBase.retirado ?? 1) === retiradoObjetivo) {
+              mostrarFeedback(`✅ Tomado como ${baseSinSufijo}`, "ok");
+              return validarExacto(baseSinSufijo, retiradoObjetivo, resolve);
+            }
+            // Ni el _1 exacto ni la base existen -> que lo reporte
+            // validarExacto con el código original (mismo mensaje de
+            // siempre, "No pertenece al recorrido").
+            return validarExacto(code, retiradoObjetivo, resolve);
+          };
+        };
+        return;
+      }
       return validarExacto(code, retiradoObjetivo, resolve);
     }
 
