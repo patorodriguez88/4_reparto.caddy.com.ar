@@ -636,7 +636,11 @@ if (isset($_POST['ConfirmoEntrega'])) {
     responder(['success' => 0, 'error' => 'No se encontró TransClientes para confirmar', 'cs' => $CodigoSeguimiento]);
   }
 
-  $Localizacion = (string)($sqlLocalizacionR['DomicilioDestino'] ?? '');
+  // FIX (reportado con OFBX3F3FV, dirección "Bernardo O'Higgins..."): este
+  // valor se inserta después sin comillas escapadas - un apóstrofe en la
+  // dirección rompía el INSERT de Seguimiento y la entrega nunca se
+  // confirmaba (fallaba en silencio para el repartidor).
+  $Localizacion = $mysqli->real_escape_string((string)($sqlLocalizacionR['DomicilioDestino'] ?? ''));
   $RetiradoDB   = (int)($sqlLocalizacionR['Retirado'] ?? 0); // 👈 este manda el flujo
   $Redespacho   = (int)($sqlLocalizacionR['Redespacho'] ?? 0);
 
@@ -682,7 +686,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
     $Estado_id = (int)($st['id'] ?? 0);
     $Estado    = (string)($st['Estado'] ?? '');
 
-    $Localizacion = (string)($rowBase['DomicilioOrigen'] ?? '');
+    $Localizacion = $mysqli->real_escape_string((string)($rowBase['DomicilioOrigen'] ?? ''));
 
     // evitar duplicado exacto (cs + status)
     $chkPadre = consultaOError(
@@ -882,7 +886,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
     } else {
       $Entregado = 0;
       $status = 'last_mile';
-      $Localizacion = (string)($rowBase['DomicilioOrigen'] ?? '');
+      $Localizacion = $mysqli->real_escape_string((string)($rowBase['DomicilioOrigen'] ?? ''));
     }
 
     $st = estadoPorSlug($mysqli, $status);
@@ -900,7 +904,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
     $Estado_id = (int)($st['id'] ?? 0);
     $Estado    = (string)($st['Estado'] ?? '');
 
-    $Localizacion = (string)($rowBase['DomicilioOrigen'] ?? '');
+    $Localizacion = $mysqli->real_escape_string((string)($rowBase['DomicilioOrigen'] ?? ''));
   }
 
   // Insert en Seguimiento (solo CS)
@@ -1033,7 +1037,10 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
     'Localizacion NoEntrega'
   );
   $sqlLocalizacionR = $sqlLocalizacion->fetch_array(MYSQLI_ASSOC) ?: [];
-  $Localizacion     = ($sqlLocalizacionR['DomicilioDestino'] ?? '');
+  // FIX (mismo bug de OFBX3F3FV / "Bernardo O'Higgins..."): sin escapar,
+  // un apóstrofe en la dirección rompe el INSERT de Seguimiento de más
+  // abajo y la "No Entrega" nunca se confirma.
+  $Localizacion     = $mysqli->real_escape_string($sqlLocalizacionR['DomicilioDestino'] ?? '');
 
   // Visitas
   $sqlvisita = consultaOError(
@@ -1062,7 +1069,7 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
     $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
 
     $NombreCompleto  = ($datossqlTransClientes['ClienteDestino'] ?? '');
-    $Localizacion    = ($datossqlTransClientes['DomicilioDestino'] ?? '');
+    $Localizacion    = $mysqli->real_escape_string($datossqlTransClientes['DomicilioDestino'] ?? '');
     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
   } else {
     $sqlTransClientes = consultaOError(
@@ -1075,7 +1082,7 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
     $datossqlTransClientes = $sqlTransClientes->fetch_array(MYSQLI_ASSOC) ?: [];
 
     $NombreCompleto  = ($datossqlTransClientes['RazonSocial'] ?? '');
-    $Localizacion    = ($datossqlTransClientes['DomicilioOrigen'] ?? '');
+    $Localizacion    = $mysqli->real_escape_string($datossqlTransClientes['DomicilioOrigen'] ?? '');
     $idTransClientes = $datossqlTransClientes['id'] ?? 0;
   }
 
