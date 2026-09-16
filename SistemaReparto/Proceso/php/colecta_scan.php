@@ -1058,6 +1058,22 @@ if (isset($_POST['ColectaCerrar'])) {
                 ]);
                 $faltantes[] = ['cs' => $base, 'cliente' => $cli, 'paquetes' => $need, 'escaneados' => $mano];
             }
+
+            // FIX (2026-09-16, reportado con Ferniplast: "en HdR2 figuran
+            // todavía como retiro"): upsertSeguimiento() de arriba solo
+            // escribe Seguimiento.Retirado (la fila de LOG) - nunca tocaba
+            // TransClientes.Retirado de este bulto puntual. Solo el padre
+            // (Wepoint, más abajo) se actualizaba de verdad, así que cada
+            // hijo se quedaba con Retirado=0 para siempre después de
+            // cerrarse la colecta, aunque el repartidor ya lo hubiera
+            // levantado y pasado por depósito - HojaDeRuta2 lo seguía
+            // tratando como pendiente de retiro en vez de pendiente de
+            // entrega. Se marca acá, en las dos ramas (escaneado o no): la
+            // colecta ya se cerró de cualquier forma, escanear es solo
+            // verificación/auditoría, no un gate para Retirado.
+            if ($idTr > 0) {
+                $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . $idTr . " AND Eliminado=0 LIMIT 1");
+            }
         }
 
         // Barrido de seguridad: cualquier bulto de ESTA colecta que no quedó en
@@ -1093,6 +1109,9 @@ if (isset($_POST['ColectaCerrar'])) {
                 'obs' => 'Bulto de la colecta sin registrar en el cierre - marcado sin escanear por ' . $usuario,
                 'retirado' => 1,
             ]);
+            // Mismo fix que en el loop de arriba - upsertSeguimiento() no toca
+            // TransClientes.Retirado, solo el log.
+            $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . (int)$sw['id'] . " AND Eliminado=0 LIMIT 1");
             $faltantes[] = ['cs' => $bSw, 'cliente' => (string)($sw['ClienteDestino'] ?? ''), 'paquetes' => 1, 'escaneados' => 0];
         }
 
@@ -1546,6 +1565,13 @@ if ($isColecta) {
         'obs'            => 'Retirado del cliente (Colecta)',
         'retirado'       => 1
     ]);
+    // FIX (2026-09-16, mismo caso Ferniplast): upsertSeguimiento() solo
+    // escribe el log (Seguimiento.Retirado) - nunca tocaba
+    // TransClientes.Retirado. Antes esto quedaba diferido hasta
+    // ColectaCerrar (ya corregido más arriba), pero el padre físicamente
+    // YA se retiró en este momento (primer escaneo de la colecta) - se
+    // marca acá, en tiempo real, en vez de esperar al cierre.
+    $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . (int)$padreId . " AND Eliminado=0 LIMIT 1");
 
     // =====================================
     // COLECTA: HIJO (pickup_scanned) por bulto
@@ -1646,6 +1672,12 @@ if ($isColecta) {
         'obs'            => $obsH,
         'retirado'       => 1
     ]);
+    // FIX (2026-09-16, caso Ferniplast): este es el escaneo real de ESTE
+    // bulto puntual - se marca Retirado=1 en el momento, no recién al
+    // cerrar toda la colecta (que puede tener muchos bultos/paradas).
+    if ($idTransClientes > 0) {
+        $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . (int)$idTransClientes . " AND Eliminado=0 LIMIT 1");
+    }
 
     if ($colectaResume === null) {
         $colectaResume = leerResumeColecta($mysqli, $colectaId);
@@ -1694,6 +1726,11 @@ if ($isColecta) {
         'obs'            => $obsR,
         'retirado'       => 1
     ]);
+    // FIX (2026-09-16, mismo caso): retiro simple (sin colecta) - también
+    // se marcaba Retirado=1 solo en el log, nunca en TransClientes.
+    if ($idTransClientes > 0) {
+        $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . (int)$idTransClientes . " AND Eliminado=0 LIMIT 1");
+    }
 
     responder([
         'success'    => 1,
