@@ -701,6 +701,20 @@ if (isset($_POST['Paneles'])) {
     $usuario       = $_SESSION['Transportista'] ?? '';
     $serviciowp    = $Serviciowp ?? '';
 
+    // REPOSICIONES DINTER (a pedido, 2026-09-16): si este envío tuvo
+    // bultos agregados después de imprimirse (Etiquetas por Recorrido ->
+    // Reposiciones), se lo marca acá - "tiene que llevar una marca" para
+    // que el repartidor sepa que ese paquete lleva de más sobre lo
+    // original.
+    $totalRepo = 0;
+    if ($codSeguimiento !== '') {
+      $csEscRepo = $mysqli->real_escape_string($codSeguimiento);
+      $rRepo = $mysqli->query("SELECT COALESCE(SUM(CantidadBultos),0) AS total FROM reposiciones_dinter WHERE CodigoSeguimiento='{$csEscRepo}' AND Eliminado=0");
+      if ($rRepo && ($xRepo = $rRepo->fetch_assoc())) {
+        $totalRepo = (int) $xRepo['total'];
+      }
+    }
+
     // Padre de una colecta (servicio contenedor origen -> Wepoint,
     // idClienteDestino 18587, ya retirado): el repartidor lo "entrega" en el
     // depósito con un tap. Card propia: sin teléfono, sin "no entrega", verbo
@@ -794,6 +808,13 @@ if (isset($_POST['Paneles'])) {
           <div class="rp-stop-top">
             <span class="rp-seq rp-num"><?= htmlspecialchars((string)$row['Posicion']) ?></span>
             <span class="rp-svc <?= $rpSvcClass ?>"><?= htmlspecialchars($servicio) ?></span>
+            <!-- FIX (a pedido, 2026-09-16 - "es fundamental mostrar el
+                 Código de Proveedor"): antes solo aparecía como chip suelto
+                 más abajo ("ID [xxxx]"), fácil de pasar por alto. Ahora
+                 también va justo antes del nombre - span aparte (no
+                 concatenado al nombre) para que el código nunca se corte
+                 por el ellipsis del nombre largo. -->
+            <?php if ($idProv): ?><span class="rp-stop-provcode"><?= htmlspecialchars($idProv) ?></span><?php endif; ?>
             <span class="rp-stop-client"><?= htmlspecialchars($nombreCliente) ?></span>
           </div>
 
@@ -811,8 +832,10 @@ if (isset($_POST['Paneles'])) {
           <div class="rp-stop-meta">
             <span class="rp-chip eta<?= $horarioMuted ? ' muted' : '' ?>"><?= htmlspecialchars($horarioTexto) ?></span>
             <span class="rp-chip rp-num"><?= (int)$Cantidad ?> bulto<?= (int)$Cantidad === 1 ? '' : 's' ?></span>
+            <?php if ($totalRepo > 0): ?><span class="rp-chip repo">+<?= (int)$totalRepo ?> REPO</span><?php endif; ?>
             <span class="rp-chip rp-num"><?= htmlspecialchars($codSeguimiento) ?></span>
-            <?php if ($idProv): ?><span class="rp-chip">ID <?= htmlspecialchars($idProv) ?></span><?php endif; ?>
+            <!-- El código de proveedor ahora va arriba, junto al nombre -
+                 se saca el chip "ID [xxxx]" de acá para no duplicarlo. -->
             <?php if ($rpCobrar !== ''): ?><span class="rp-chip cobranza rp-num">Cobrar $ <?= $rpCobrar ?></span><?php endif; ?>
           </div>
 

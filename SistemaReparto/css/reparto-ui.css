@@ -179,6 +179,17 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 45%;
 }
+/* Código de Proveedor (a pedido, 2026-09-16): span aparte ANTES del
+   nombre, con su propio margin-left:auto - si el envío no tiene código
+   (retiro/colecta, este span ni se renderiza) el nombre igual se empuja
+   solo contra el borde derecho con el suyo. El código nunca se corta por
+   el ellipsis del nombre porque es un span aparte, no está concatenado. */
+.rp-stop-provcode {
+  margin-left: auto; flex-shrink: 0;
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--rp-mute); background: var(--rp-surface-3);
+  padding: 1px 6px; border-radius: 6px;
+}
 .rp-stop-org { font-size: 11px; font-weight: 700; color: var(--rp-mute); margin: 8px 0 0; }
 .rp-stop-addr {
   font-size: 13px; font-weight: 700; color: var(--rp-soft);
@@ -198,6 +209,10 @@
 .rp-chip.eta { background: var(--rp-info-bg); color: var(--rp-info); }
 .rp-chip.eta.muted { opacity: 0.65; }
 .rp-chip.cobranza { background: var(--rp-warn-bg); color: var(--rp-warn); }
+/* Reposición Dinter (a pedido, 2026-09-16): "tiene que llevar una marca" -
+   mismo lenguaje visual que .cobranza (algo que el repartidor necesita
+   notar de un vistazo), color rust para no confundirse con "hay que cobrar". */
+.rp-chip.repo { background: color-mix(in srgb, var(--rp-rust) 16%, transparent); color: var(--rp-rust); }
 
 .rp-stop-contact {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
