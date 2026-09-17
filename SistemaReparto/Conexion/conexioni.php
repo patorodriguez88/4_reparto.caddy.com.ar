@@ -124,6 +124,20 @@ class Conexion
         }
 
         $this->conexion->set_charset("utf8");
+
+        // FIX (reportado, 2026-09-17: "los horarios no me suenan a hora de
+        // Córdoba Argentina"): el reloj de MySQL es correcto (UTC_TIMESTAMP()
+        // da la hora real), pero el servidor de base corre con
+        // time_zone=SYSTEM apuntando a una zona de EE.UU. (~UTC-7, no
+        // Argentina UTC-3) - NOW() y cualquier columna TIMESTAMP DEFAULT
+        // CURRENT_TIMESTAMP() salían ~4hs corridas. Ninguna columna TIMESTAMP
+        // de la base recibe un valor explícito desde PHP (son todas
+        // auditoría automática) - forzar acá la sesión a Argentina corrige
+        // de una todos los TimeStamp existentes y futuros, sin arriesgar las
+        // columnas DATETIME que ya se parchearon a mano (ej. HoraSalidaReal
+        // - esas no dependen de esto).
+        $this->conexion->query("SET time_zone = '-03:00'");
+
         $_SESSION['server'] = $server;
     }
 
