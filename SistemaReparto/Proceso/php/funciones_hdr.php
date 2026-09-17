@@ -808,17 +808,22 @@ if (isset($_POST['Paneles'])) {
           <div class="rp-stop-top">
             <span class="rp-seq rp-num"><?= htmlspecialchars((string)$row['Posicion']) ?></span>
             <span class="rp-svc <?= $rpSvcClass ?>"><?= htmlspecialchars($servicio) ?></span>
-            <!-- FIX (a pedido, 2026-09-16 - "es fundamental mostrar el
-                 Código de Proveedor"): antes solo aparecía como chip suelto
-                 más abajo ("ID [xxxx]"), fácil de pasar por alto. Ahora
-                 también va justo antes del nombre - span aparte (no
-                 concatenado al nombre) para que el código nunca se corte
-                 por el ellipsis del nombre largo. -->
+            <!-- FIX (a pedido, 2026-09-17 - rediseño de la tarjeta, mockup
+                 aprobado): el Código de Seguimiento sube acá, al lado del
+                 estado, en vez de vivir como chip suelto abajo. El Código
+                 de Proveedor se corre al extremo derecho de esta misma
+                 fila (antes empujaba el nombre, que ahora vive en su
+                 propia línea más abajo). -->
+            <span class="rp-stop-code rp-num"><?= htmlspecialchars($codSeguimiento) ?></span>
             <?php if ($idProv): ?><span class="rp-stop-provcode"><?= htmlspecialchars($idProv) ?></span><?php endif; ?>
-            <span class="rp-stop-client"><?= htmlspecialchars($nombreCliente) ?></span>
           </div>
 
+          <!-- Origen/Destino ahora va ARRIBA del nombre (a pedido) - como
+               antetítulo chico, y el nombre del cliente pasa a ser el
+               título real de la tarjeta (antes competía en la misma línea
+               que el estado y el código de proveedor). -->
           <p class="rp-stop-org"><?= htmlspecialchars($rpOrgLabel) ?></p>
+          <p class="rp-stop-client"><?= htmlspecialchars($nombreCliente) ?></p>
 
           <p class="rp-stop-addr">
             <svg class="rp-pin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -831,11 +836,14 @@ if (isset($_POST['Paneles'])) {
 
           <div class="rp-stop-meta">
             <span class="rp-chip eta<?= $horarioMuted ? ' muted' : '' ?>"><?= htmlspecialchars($horarioTexto) ?></span>
-            <span class="rp-chip rp-num"><?= (int)$Cantidad ?> bulto<?= (int)$Cantidad === 1 ? '' : 's' ?></span>
-            <?php if ($totalRepo > 0): ?><span class="rp-chip repo">+<?= (int)$totalRepo ?> REPO</span><?php endif; ?>
-            <span class="rp-chip rp-num"><?= htmlspecialchars($codSeguimiento) ?></span>
-            <!-- El código de proveedor ahora va arriba, junto al nombre -
-                 se saca el chip "ID [xxxx]" de acá para no duplicarlo. -->
+            <!-- Bultos + Repo fusionados en un solo chip (a pedido: "en
+                 lugar de +2 repo tal vez que diga 3 bultos (2 REPO)") - el
+                 total real primero, y cuánto de eso es repo resaltado en
+                 el mismo pill, no como chip aparte. -->
+            <span class="rp-chip rp-num rp-chip-bultos">
+              <?= (int)$Cantidad ?> bulto<?= (int)$Cantidad === 1 ? '' : 's' ?>
+              <?php if ($totalRepo > 0): ?><b>(<?= (int)$totalRepo ?> REPO)</b><?php endif; ?>
+            </span>
             <?php if ($rpCobrar !== ''): ?><span class="rp-chip cobranza rp-num">Cobrar $ <?= $rpCobrar ?></span><?php endif; ?>
           </div>
 

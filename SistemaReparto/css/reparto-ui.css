@@ -173,27 +173,42 @@
 .rp-svc.entrega { color: var(--rp-ok); background: var(--rp-ok-bg); }
 .rp-svc.retiro { color: var(--rp-warn); background: var(--rp-warn-bg); }
 .rp-svc.colecta { color: var(--rp-rust); background: color-mix(in srgb, var(--rp-rust) 14%, transparent); }
-.rp-stop-client {
-  margin-left: auto; font-size: 12px; font-weight: 800;
-  color: var(--rp-ink); text-align: right;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  max-width: 45%;
+/* REDISEÑO de tarjeta (a pedido, 2026-09-17 - mockup aprobado):
+   - Código de Seguimiento sube a esta fila (antes vivía como chip suelto
+     abajo, ahora es una referencia chica tipo "ghost" al lado del estado).
+   - Código de Proveedor pasa al extremo derecho de esta misma fila (sigue
+     con su margin-left:auto de siempre - antes empujaba el nombre del
+     cliente, que ya no vive en esta fila).
+   - El nombre del cliente se va a su propia línea como título de la
+     tarjeta (ver .rp-stop-client más abajo) - ya no compite acá. */
+.rp-stop-code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--rp-mute); border: 1px solid var(--rp-line);
+  border-radius: 999px; padding: 2px 8px; flex-shrink: 0;
 }
-/* Código de Proveedor (a pedido, 2026-09-16): span aparte ANTES del
-   nombre, con su propio margin-left:auto - si el envío no tiene código
-   (retiro/colecta, este span ni se renderiza) el nombre igual se empuja
-   solo contra el borde derecho con el suyo. El código nunca se corta por
-   el ellipsis del nombre porque es un span aparte, no está concatenado. */
 .rp-stop-provcode {
   margin-left: auto; flex-shrink: 0;
   font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
   color: var(--rp-mute); background: var(--rp-surface-3);
   padding: 1px 6px; border-radius: 6px;
 }
-.rp-stop-org { font-size: 11px; font-weight: 700; color: var(--rp-mute); margin: 8px 0 0; }
+/* Origen/Destino: ahora es el antetítulo (arriba del nombre), chico y en
+   mayúsculas - "de dónde viene" antes de "a quién se le entrega". */
+.rp-stop-org {
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--rp-mute); margin: 10px 0 0;
+}
+/* El nombre del cliente es el título real de la tarjeta - antes vivía
+   apretado en la fila de arriba (margin-left:auto, ellipsis, max-width
+   45%) peleando con el estado y el código de proveedor. */
+.rp-stop-client {
+  font-size: 15.5px; font-weight: 900; color: var(--rp-ink);
+  line-height: 1.25; letter-spacing: -0.01em; margin: 2px 0 0;
+}
 .rp-stop-addr {
   font-size: 13px; font-weight: 700; color: var(--rp-soft);
-  line-height: 1.4; margin: 4px 0 0;
+  line-height: 1.4; margin: 8px 0 0;
   display: flex; gap: 6px;
 }
 .rp-stop-addr .rp-pin { flex-shrink: 0; margin-top: 2px; color: var(--rp-mute); }
@@ -209,10 +224,10 @@
 .rp-chip.eta { background: var(--rp-info-bg); color: var(--rp-info); }
 .rp-chip.eta.muted { opacity: 0.65; }
 .rp-chip.cobranza { background: var(--rp-warn-bg); color: var(--rp-warn); }
-/* Reposición Dinter (a pedido, 2026-09-16): "tiene que llevar una marca" -
-   mismo lenguaje visual que .cobranza (algo que el repartidor necesita
-   notar de un vistazo), color rust para no confundirse con "hay que cobrar". */
-.rp-chip.repo { background: color-mix(in srgb, var(--rp-rust) 16%, transparent); color: var(--rp-rust); }
+/* Bultos + Repo fusionados en un solo chip (a pedido, 2026-09-17: "en
+   lugar de +2 repo tal vez que diga 3 bultos (2 REPO)") - el total real
+   primero, la parte de repo resaltada en rust dentro del mismo pill. */
+.rp-chip-bultos b { color: var(--rp-rust); font-weight: 900; margin-left: 2px; }
 
 .rp-stop-contact {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
