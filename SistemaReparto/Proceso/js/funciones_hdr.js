@@ -1460,12 +1460,15 @@ function actualizarEstadoCantidadPickup() {
       return;
     }
   }
-  // Si todavía no cargó nada, bloqueá sin cartel - salvo que el recorrido tenga
-  // el escaneo desactivado (Logistica.OmitirControlEscaneo): ahí se puede
-  // aceptar el retiro sin escanear (decisión del operador desde Órdenes).
+  // Si todavía no cargó nada: habilitado igual (mismo criterio que colecta) -
+  // el paquete puede no tener código de Caddy para escanear (ej. lo trae el
+  // cliente sin etiqueta). El click (cargasistema() en dropzone.js) pregunta
+  // "¿confirmás levantarlo igual sin escanear?" antes de mandarlo, en vez de
+  // dejar el botón bloqueado en silencio como antes - eso el repartidor lo
+  // vivía como "la app no hace nada".
   const cargado = getCantidadCargada();
   if (cargado === 0) {
-    setAceptarPickupEnabled(!!window.omitirEscaneo);
+    setAceptarPickupEnabled(true);
     return;
   }
 
@@ -1629,6 +1632,13 @@ $(document).on("click", "#boton-entrega-success, .guardarProducto", function (e)
       text: `Confirmaste ${conf}/${esperado}`,
     });
     return false;
+  }
+
+  // Nada escaneado: no es un error acá - dropzone.js (cargasistema) le
+  // pregunta al repartidor si confirma el retiro igual sin escanear (mismo
+  // botón, mismo click, se dispara después de éste). Dejar pasar sin cartel.
+  if (getCantidadCargada() === 0) {
+    return;
   }
 
   // 🔽 flujo tradicional (QR con _1 _2 _3)

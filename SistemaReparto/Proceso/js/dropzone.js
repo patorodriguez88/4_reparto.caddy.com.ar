@@ -241,9 +241,41 @@ $(".guardarProducto").click(function () {
         // Recorrido con OmitirControlEscaneo prendido + nada escaneado: se
         // acepta el retiro sin escanear (decisión del operador desde Órdenes de
         // Salida). Mismo criterio que validarCodigosPickup() -> {ok, omitido}.
-        // Antes cargasistema() igual frenaba con "Cantidad incompleta 0/N" y el
-        // repartidor no podía aceptar el retiro (la app "no hacía nada").
         const omitirSinEscaneo = !!window.omitirEscaneo && cargado === 0;
+
+        // Nada escaneado (y el recorrido no lo omite solo): puede ser que el
+        // paquete no tenga código de seguimiento de Caddy para escanear (lo
+        // trae el cliente sin etiqueta) - en vez de frenar en seco,
+        // preguntamos, mismo criterio que ya usa colecta ("Confirmar igual" /
+        // "Volver a escanear"). Reportado: antes quedaba bloqueado en
+        // silencio (el botón ni se habilitaba) y el repartidor lo vivía como
+        // "la app no hace nada".
+        if (!omitirSinEscaneo && esperado > 0 && cargado === 0) {
+          if (!window.Swal) {
+            swalError(
+              "Cantidad incompleta",
+              `Cargados 0/${esperado}. Escaneá o cargá los bultos antes de confirmar.`,
+            );
+            liberarGuardaEntrega();
+            return;
+          }
+          Swal.fire({
+            icon: "question",
+            title: "¿Retirar sin escanear?",
+            text: "Este paquete no tiene código de seguimiento de Caddy para escanear. Podés confirmar el retiro igual.",
+            showCancelButton: true,
+            confirmButtonText: "Confirmar igual",
+            cancelButtonText: "Volver a escanear",
+            confirmButtonColor: "#1c8f61",
+          }).then((r) => {
+            if (r.isConfirmed) {
+              enviarConfirmacion();
+            } else {
+              liberarGuardaEntrega();
+            }
+          });
+          return; // el envío se retoma (o no) en el .then() de arriba
+        }
 
         if (!omitirSinEscaneo && esperado > 0 && cargado !== esperado) {
           swalError(
@@ -270,81 +302,88 @@ $(".guardarProducto").click(function () {
         }
       }
     }
-    $.ajax({
-      data: {
-        ConfirmoEntrega: 1,
-        Cs: csBase, // 👈 SIEMPRE BASE (evita que no actualice TransClientes)
-        Name: receptorname,
-        Dni: receptordni,
-        Obs: receptorobservaciones,
-        Retirado: retirado,
-        Razones: razones,
-        Etiquetas: etiquetas, // 👈 array (Etiquetas[])
-      },
-      type: "POST",
-      dataType: "json",
-      url: "Proceso/php/funciones.php",
-      success: function (jsonData) {
-        if (!jsonData || typeof jsonData !== "object") {
-          swalError("Respuesta inválida", "El servidor no devolvió JSON.");
-          return;
-        }
+    enviarConfirmacion();
 
-        if (jsonData.success === 1) {
-          swalToastOk(jsonData.estado || "Confirmado");
-        } else if (jsonData.error === "ENVIO_SIN_ESCANEO") {
+    // Envío real a ConfirmoEntrega - extraído a función para poder llamarlo
+    // tanto en el flujo normal (sync) como desde el .then() del diálogo
+    // "¿Retirar sin escanear?" (async).
+    function enviarConfirmacion() {
+      $.ajax({
+        data: {
+          ConfirmoEntrega: 1,
+          Cs: csBase, // 👈 SIEMPRE BASE (evita que no actualice TransClientes)
+          Name: receptorname,
+          Dni: receptordni,
+          Obs: receptorobservaciones,
+          Retirado: retirado,
+          Razones: razones,
+          Etiquetas: etiquetas, // 👈 array (Etiquetas[])
+        },
+        type: "POST",
+        dataType: "json",
+        url: "Proceso/php/funciones.php",
+        success: function (jsonData) {
+          if (!jsonData || typeof jsonData !== "object") {
+            swalError("Respuesta inválida", "El servidor no devolvió JSON.");
+            return;
+          }
+
+          if (jsonData.success === 1) {
+            swalToastOk(jsonData.estado || "Confirmado");
+          } else if (jsonData.error === "ENVIO_SIN_ESCANEO") {
+            swalError(
+              "Falta escanear",
+              jsonData.msg ||
+                "Este paquete no fue escaneado. Escanealo antes de entregar.",
+            );
+          } else {
+            swalToastError(
+              "Error para el Código " +
+                csBase +
+                " " +
+                (jsonData.msg || jsonData.error || "No se pudo confirmar la entrega"),
+            );
+          }
+
+          // ✅ Limpieza para que el próximo no herede datos
+          limpiarInputsEntrega();
+
+          // ✅ Volver al listado
+          $("#card-envio").hide();
+          $("#hdractivas").show();
+
+          // ⚠️ webhooks: si te está tirando 404 / HTML, NO lo llames por ahora
+          // webhooks(jsonData.estado);
+          console.log(
+            "Algo esta pasando con el servidor, revisa la consola para más detalles.",
+          );
+          mail_status_notice(csBase, jsonData.slug);
+          console.log("Email de notificación enviado correctamente.");
+
+          // ✅ Refrescar los contadores de arriba (Total/Entregados/Sin entregar)
+          if (typeof cargarHeader === "function") cargarHeader();
+
+          paneles();
+        },
+        error: function (xhr) {
+          const txt = (
+            xhr && xhr.responseText ? xhr.responseText : ""
+          ).toString();
+          console.error(txt || xhr);
           swalError(
-            "Falta escanear",
-            jsonData.msg ||
-              "Este paquete no fue escaneado. Escanealo antes de entregar.",
+            "Error de servidor",
+            "El servidor devolvió HTML/WARNING o un 500. Revisá Network > Response.",
           );
-        } else {
-          swalToastError(
-            "Error para el Código " +
-              csBase +
-              " " +
-              (jsonData.msg || jsonData.error || "No se pudo confirmar la entrega"),
-          );
-        }
-
-        // ✅ Limpieza para que el próximo no herede datos
-        limpiarInputsEntrega();
-
-        // ✅ Volver al listado
-        $("#card-envio").hide();
-        $("#hdractivas").show();
-
-        // ⚠️ webhooks: si te está tirando 404 / HTML, NO lo llames por ahora
-        // webhooks(jsonData.estado);
-        console.log(
-          "Algo esta pasando con el servidor, revisa la consola para más detalles.",
-        );
-        mail_status_notice(csBase, jsonData.slug);
-        console.log("Email de notificación enviado correctamente.");
-
-        // ✅ Refrescar los contadores de arriba (Total/Entregados/Sin entregar)
-        if (typeof cargarHeader === "function") cargarHeader();
-
-        paneles();
-      },
-      error: function (xhr) {
-        const txt = (
-          xhr && xhr.responseText ? xhr.responseText : ""
-        ).toString();
-        console.error(txt || xhr);
-        swalError(
-          "Error de servidor",
-          "El servidor devolvió HTML/WARNING o un 500. Revisá Network > Response.",
-        );
-        // ✅ Limpieza también en error: que un fallo de red no deje
-        // datos del código actual pegados para el próximo escaneo.
-        limpiarInputsEntrega();
-      },
-      complete: function () {
-        enviandoEntrega = false;
-        $(".guardarProducto").prop("disabled", false).text("Guardar producto");
-      },
-    });
+          // ✅ Limpieza también en error: que un fallo de red no deje
+          // datos del código actual pegados para el próximo escaneo.
+          limpiarInputsEntrega();
+        },
+        complete: function () {
+          enviandoEntrega = false;
+          $(".guardarProducto").prop("disabled", false).text("Guardar producto");
+        },
+      });
+    }
   }
 });
 //NO ENTREGADO
