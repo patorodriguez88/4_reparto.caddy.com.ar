@@ -212,6 +212,31 @@ function saModal(icon, title, text = "", timer = null) {
 
   Swal.fire(opts);
 }
+// Reportado (Oriana, colectas centro): al abrir Warehouse con la lista
+// vieja todavía en el teléfono (IndexedDB), se veía YA el contador viejo
+// (ej. "0/23" de un recorrido anterior) y el repartidor arrancaba a
+// escanear de una - cargarLista() recién estaba pisando esa lista en
+// segundo plano (red + limpiar/reescribir IndexedDB, varios segundos con
+// 20-60 bultos en un teléfono de gama baja), así que los códigos del
+// recorrido de HOY todavía "No pertenecen al recorrido" hasta que
+// terminara. Nada avisaba que había una actualización en curso.
+// Se bloquea puntualmente el botón de escanear (con el mismo modal +
+// spinner que ya usa el resto de la app, funciones_hdr.js) mientras
+// cargarLista() está corriendo - PERO sólo ahí: si el cache ya está
+// vigente (el caso de la enorme mayoría de las aperturas) no se agrega
+// ninguna espera, sigue siendo instantáneo.
+function bloquearScanPorActualizacion(bloquear) {
+  $("#btn-scan").prop("disabled", !!bloquear);
+  if (bloquear) {
+    $("#info-alert-modal-header").html("Actualizando tu recorrido…");
+    $("#info-alert-body").html("Aguardá unos segundos antes de escanear - estamos trayendo tu lista de bultos actualizada.");
+    $("#info-alert-modal").modal({ backdrop: "static", keyboard: false });
+    $("#info-alert-modal").modal("show");
+  } else {
+    $("#info-alert-modal").modal("hide");
+  }
+}
+
 function validarCacheConBackend(done) {
   // 1) leo hash guardado
   const reqHash = tx("meta").get("hash");
@@ -431,6 +456,7 @@ function guardarBulto(code, base, retirado) {
   });
 }
 function cargarLista() {
+  bloquearScanPorActualizacion(true);
   $.ajax({
     url: "Proceso/php/warehouse.php",
     type: "POST",
@@ -438,6 +464,7 @@ function cargarLista() {
     data: { GetLista: 1 },
     success: function (res) {
       if (res.success !== 1) {
+        bloquearScanPorActualizacion(false);
         saModal("error", "Error", res.error || "Error cargando lista");
         return;
       }
@@ -508,6 +535,7 @@ function cargarLista() {
         meta.put({ key: "hash", value: res.hash });
 
         t.oncomplete = function () {
+          bloquearScanPorActualizacion(false);
           cargarRecorridoLocal();
           actualizarHUD(1);
           safeRenderScanned();
@@ -515,12 +543,14 @@ function cargarLista() {
         };
 
         t.onerror = function () {
+          bloquearScanPorActualizacion(false);
           console.error("Error guardando expected/meta", t.error);
           saToast("error", "Error guardando en IndexedDB", 1600);
         };
       });
     },
     error: function (xhr) {
+      bloquearScanPorActualizacion(false);
       if (manejar401(xhr)) return;
       console.error(xhr.responseText);
       saToast("error", "Error de conexión cargando lista", 1600);
