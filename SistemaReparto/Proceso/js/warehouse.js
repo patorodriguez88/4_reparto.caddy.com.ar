@@ -115,6 +115,31 @@ function cargarHeaderWarehouse() {
             actualizarHUD(1);
           } catch (e) {}
         }
+
+        // FIX (2026-09-22, reportado: mismo teléfono, login con Sánchez
+        // (R.1478) y después con Oriana (R.1384) - la "CARGA DEL
+        // RECORRIDO" siguió mostrando 1478 varios minutos): el IndexedDB
+        // es por navegador, no por sesión/usuario, así que al cambiar de
+        // chofer en el mismo dispositivo el render instantáneo de más
+        // abajo (pensado para no hacer esperar red en el caso normal)
+        // mostraba la lista del chofer ANTERIOR hasta que la validación de
+        // hash en segundo plano (otro viaje de red aparte) la pisara. Acá
+        // ya tenemos el Recorrido real y fresco del servidor - si no
+        // coincide con lo que hay cacheado, se descarta la caché YA, sin
+        // esperar ese segundo round-trip.
+        if (db) {
+          try {
+            const reqRecorridoLocal = tx("meta").get("recorrido");
+            reqRecorridoLocal.onsuccess = function () {
+              const recorridoLocal = reqRecorridoLocal.result ? String(reqRecorridoLocal.result.value) : "";
+              const recorridoServidor = String(jsonData.Recorrido || "");
+              if (recorridoLocal !== "" && recorridoServidor !== "" && recorridoLocal !== recorridoServidor) {
+                console.log("🔁 Recorrido cambió (otro usuario/turno en este teléfono) → recargando de una");
+                cargarLista();
+              }
+            };
+          } catch (e) {}
+        }
       } else {
         console.warn("Header Datos no OK:", jsonData);
       }
