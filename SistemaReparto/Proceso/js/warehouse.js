@@ -436,12 +436,22 @@ function confirmarCarga() {
     });
   });
 }
-function limpiarDB(callback) {
+function limpiarDB(callback, onError) {
   const t1 = db.transaction(["expected", "scanned", "bases_done"], "readwrite");
   t1.objectStore("expected").clear();
   t1.objectStore("scanned").clear();
   t1.objectStore("bases_done").clear();
   t1.oncomplete = () => callback();
+  // FIX (2026-09-22, reportado por Sánchez - recorrido 1470, colecta
+  // VENEX): esta transacción solo tenía oncomplete, nunca onerror - si
+  // fallaba/abortaba (quota, conflicto de versión, lo que sea en un
+  // teléfono de gama baja), el callback nunca se llamaba y el modal de
+  // "Actualizando tu recorrido..." que lo bloquea en cargarLista() quedaba
+  // trabado para siempre, sin ningún aviso ni forma de reintentar.
+  t1.onerror = () => {
+    console.error("Error limpiando IndexedDB", t1.error);
+    if (onError) onError(t1.error);
+  };
 }
 
 function guardarBulto(code, base, retirado) {
@@ -457,6 +467,30 @@ function guardarBulto(code, base, retirado) {
 }
 function cargarLista() {
   bloquearScanPorActualizacion(true);
+
+  // FIX (2026-09-22, reportado por Sánchez - recorrido 1470, colecta
+  // VENEX): el modal de "Actualizando tu recorrido..." se queda trabado
+  // para siempre si CUALQUIER paso de la carga (el ajax, limpiarDB, o la
+  // transacción de IndexedDB de más abajo) no llega a completarse ni a
+  // disparar su propio error - ya tapado el caso puntual de limpiarDB sin
+  // onerror, pero como red de seguridad general (para que nunca más un
+  // repartidor quede bloqueado sin poder escanear pase lo que pase) se
+  // fuerza el desbloqueo a los 20s si para entonces segue trabado.
+  let listoCargarLista = false;
+  const desbloqueoDeSeguridad = setTimeout(() => {
+    if (listoCargarLista) return;
+    bloquearScanPorActualizacion(false);
+    saModal(
+      "error",
+      "No se pudo actualizar",
+      "Tardó demasiado en traer tu recorrido. Volvé a intentar - si sigue igual, avisá a la oficina."
+    );
+  }, 20000);
+  function terminarCargarLista() {
+    listoCargarLista = true;
+    clearTimeout(desbloqueoDeSeguridad);
+  }
+
   $.ajax({
     url: "Proceso/php/warehouse.php",
     type: "POST",
@@ -464,6 +498,7 @@ function cargarLista() {
     data: { GetLista: 1 },
     success: function (res) {
       if (res.success !== 1) {
+        terminarCargarLista();
         bloquearScanPorActualizacion(false);
         saModal("error", "Error", res.error || "Error cargando lista");
         return;
@@ -535,6 +570,7 @@ function cargarLista() {
         meta.put({ key: "hash", value: res.hash });
 
         t.oncomplete = function () {
+          terminarCargarLista();
           bloquearScanPorActualizacion(false);
           cargarRecorridoLocal();
           actualizarHUD(1);
@@ -543,13 +579,20 @@ function cargarLista() {
         };
 
         t.onerror = function () {
+          terminarCargarLista();
           bloquearScanPorActualizacion(false);
           console.error("Error guardando expected/meta", t.error);
           saToast("error", "Error guardando en IndexedDB", 1600);
         };
+      }, (err) => {
+        // onError de limpiarDB
+        terminarCargarLista();
+        bloquearScanPorActualizacion(false);
+        saToast("error", "Error limpiando datos locales", 1600);
       });
     },
     error: function (xhr) {
+      terminarCargarLista();
       bloquearScanPorActualizacion(false);
       if (manejar401(xhr)) return;
       console.error(xhr.responseText);
