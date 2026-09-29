@@ -250,6 +250,16 @@ try {
   $cerrado = $st->affected_rows;
   $st->close();
 
+  // El odómetro del vehículo queda en el km de regreso: la próxima orden sale de ahí.
+  // (Hasta el 29/9/2026 no se actualizaba y las órdenes de los vehículos propios salían con un
+  // km viejo -> los km recorridos se acumulaban de un viaje a otro.)
+  if ($cerrado > 0 && $esPropio && $kmRegreso !== null) {
+    $stk = $mysqli->prepare("UPDATE Vehiculos SET Kilometros = GREATEST(IFNULL(Kilometros, 0), ?) WHERE Dominio = ? LIMIT 1");
+    $stk->bind_param('is', $kmRegreso, $log['Patente']);
+    $stk->execute();
+    $stk->close();
+  }
+
   if ($cerrado < 1) {
     responder(['success' => 0, 'error' => 'NO_SE_PUDO_CERRAR', 'msg' => 'El recorrido ya no estaba activo.']);
   }
