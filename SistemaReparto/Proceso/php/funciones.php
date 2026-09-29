@@ -140,6 +140,13 @@ if (trim((string) $Usuario) === '') {
 
 $infoABM = $Usuario . ' ' . $Fecha . ' ' . $Hora;
 
+// Versiones escapadas para los textos que van pegados en el SQL (un apóstrofo en el
+// nombre del chofer o la sucursal cortaba el UPDATE de TransClientes y la entrega no se grababa).
+$transportistaEsc = $mysqli->real_escape_string((string) $Transportista);
+$sucursalEsc      = $mysqli->real_escape_string((string) $Sucursal);
+$usuarioEsc       = $mysqli->real_escape_string((string) $Usuario);
+$infoABM          = $mysqli->real_escape_string($infoABM);
+
 
 // ==================================================
 // ================  BLOQUE DATOS  ===================
@@ -491,8 +498,8 @@ if (isset($_POST['Datos'])) {
 //             (Eliminado,idCliente,Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
 //              NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
 //          VALUES
-//             ('0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
-//              '{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
+//             ('0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$usuarioEsc}','{$sucursalEsc}','{$csEscNoEntrega}','{$obsEscNoEntrega}',
+//              '{$Entregado}','{$Estado}','{$nomEscNoEntrega}','{$dniEscNoEntrega}','{$Localizacion}','{$Visita}',
 //              '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}')",
 //     'INSERT Seguimiento ConfirmoEntrega'
 //   );
@@ -526,7 +533,7 @@ if (isset($_POST['Datos'])) {
 //          SET Estado        = '{$Estado}',
 //              Entregado     = '{$Entregado}',
 //              Retirado      = '1',
-//              Transportista = '{$Transportista}', 
+//              Transportista = '{$transportistaEsc}', 
 //              NumerodeOrden = '{$NumeroOrden}',
 //              Recorrido     = '{$Recorrido}',
 //              idABM         = '{$idUsuario}',
@@ -706,7 +713,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
           (Eliminado,idCliente,Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
            NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
          VALUES
-          ('0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$csEsc}','{$obsEsc}',
+          ('0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$usuarioEsc}','{$sucursalEsc}','{$csEsc}','{$obsEsc}',
            '0','{$Estado}','{$nomEsc}','{$dniEsc}','{$Localizacion}','{$Visita}',
            '1','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}')",
         'INSERT Seguimiento Padre pickup_ready'
@@ -718,7 +725,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
    SET Estado        = '{$Estado}',
        Entregado     = 0,
        Retirado      = 1,
-       Transportista = '{$Transportista}',
+       Transportista = '{$transportistaEsc}',
        NumerodeOrden = '{$NumeroOrden}',
        Recorrido     = '{$Recorrido}',
        idABM         = '{$idUsuario}',
@@ -793,7 +800,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
           (Eliminado,idCliente,Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
            NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
          VALUES
-          ('0','{$idCli}','{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$baseEsc}','{$obsEsc}',
+          ('0','{$idCli}','{$Fecha}','{$Hora}','{$usuarioEsc}','{$sucursalEsc}','{$baseEsc}','{$obsEsc}',
            '0','{$EstadoItem}','{$nomEsc}','{$dniEsc}','{$locEsc}','1',
            '1','{$idTC}','{$recEsc}','{$EstadoItem_id}','{$NumeroOrden}','{$EstadoItem_id}','{$statusItem}')",
         'INSERT Seguimiento Item pickup_scanned'
@@ -806,7 +813,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
          SET Estado        = '{$EstadoItem}',
              Entregado     = 0,
              Retirado      = 1,
-             Transportista = '{$Transportista}', 
+             Transportista = '{$transportistaEsc}', 
              NumerodeOrden = '{$NumeroOrden}',
              Recorrido     = '{$recEsc}',
              idABM         = '{$idUsuario}',
@@ -924,7 +931,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
         (Eliminado,idCliente,Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
          NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
        SELECT
-        '0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$csEsc}','{$obsEsc}',
+        '0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$usuarioEsc}','{$sucursalEsc}','{$csEsc}','{$obsEsc}',
         '{$Entregado}','{$Estado}','{$nomEsc}','{$dniEsc}','{$Localizacion}','{$Visita}',
         '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}'
        FROM DUAL
@@ -943,7 +950,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
         (Eliminado,idCliente,Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
          NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
        VALUES
-        ('0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$csEsc}','{$obsEsc}',
+        ('0','{$idClienteDestino}','{$Fecha}','{$Hora}','{$usuarioEsc}','{$sucursalEsc}','{$csEsc}','{$obsEsc}',
          '{$Entregado}','{$Estado}','{$nomEsc}','{$dniEsc}','{$Localizacion}','{$Visita}',
          '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}')",
       'INSERT Seguimiento ConfirmoEntrega'
@@ -977,7 +984,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
      SET Estado        = '{$Estado}',
          Entregado     = '{$Entregado}',
          Retirado      = '{$Retirado}',
-         Transportista = '{$Transportista}', 
+         Transportista = '{$transportistaEsc}', 
          NumerodeOrden = '{$NumeroOrden}',
          Recorrido     = '{$Recorrido}',
          idABM         = '{$idUsuario}',
@@ -1095,6 +1102,10 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
   // doble-tap dentro de una ventana de 30s, pero sí permite una nueva
   // "No Entrega" legítima del mismo código en un intento posterior)
   $csEscNoEntrega = $mysqli->real_escape_string($CodigoSeguimiento);
+  // Texto libre del chofer (razones, observación, quién atendió): un apóstrofo cortaba el INSERT
+  $obsEscNoEntrega = $mysqli->real_escape_string((string) $Observaciones);
+  $nomEscNoEntrega = $mysqli->real_escape_string((string) $nombre2);
+  $dniEscNoEntrega = $mysqli->real_escape_string((string) $dni);
   $sqlExisteNoEntrega = "SELECT 1 FROM Seguimiento
            WHERE CodigoSeguimiento = '{$csEscNoEntrega}'
              AND status = '1st_visit_fail'
@@ -1107,8 +1118,8 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
             (Fecha,Hora,Usuario,Sucursal,CodigoSeguimiento,Observaciones,Entregado,Estado,
              NombreCompleto,Dni,Destino,Visitas,Retirado,idTransClientes,Recorrido,Estado_id,NumerodeOrden,state_id,status)
          SELECT
-            '{$Fecha}','{$Hora}','{$Usuario}','{$Sucursal}','{$CodigoSeguimiento}','{$Observaciones}',
-             '{$Entregado}','{$Estado}','{$nombre2}','{$dni}','{$Localizacion}','{$Visita}',
+            '{$Fecha}','{$Hora}','{$usuarioEsc}','{$sucursalEsc}','{$csEscNoEntrega}','{$obsEscNoEntrega}',
+             '{$Entregado}','{$Estado}','{$nomEscNoEntrega}','{$dniEscNoEntrega}','{$Localizacion}','{$Visita}',
              '{$Retirado}','{$idTransClientes}','{$Recorrido}','{$Estado_id}','{$NumeroOrden}','{$Estado_id}','{$status}'
          FROM DUAL
          WHERE NOT EXISTS ({$sqlExisteNoEntrega})",
@@ -1145,7 +1156,7 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
       "UPDATE IGNORE TransClientes 
              SET Estado        = '{$Estado}',
                  Entregado     = '{$Entregado}',
-                 Transportista = '{$Transportista}',
+                 Transportista = '{$transportistaEsc}',
                  NumerodeOrden = '{$NumeroOrden}',
                  Recorrido     = '{$Recorrido}',
                  idABM         = '{$idUsuario}',
