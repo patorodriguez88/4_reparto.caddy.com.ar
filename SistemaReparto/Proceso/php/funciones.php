@@ -138,6 +138,36 @@ if (trim((string) $Usuario) === '') {
   }
 }
 
+// Si el pedido llegó sin la sesión del repartidor (se le cortó en la calle), el
+// movimiento no puede quedar a nombre de 'APP': Externos le paga a cada chofer por
+// Seguimiento.Usuario y esos paquetes no le figuraban (orden 17128, 8 de 27).
+// El paquete está en una Hoja de Ruta: de ahí sale la orden, y de la orden el chofer.
+function completarOrdenYChofer(mysqli $mysqli, string $cs, $numeroOrden, string $usuario): array
+{
+  if ((int) $numeroOrden <= 0 && $cs !== '') {
+    $csE = $mysqli->real_escape_string($cs);
+    // solo la orden en curso (no una Hoja de Ruta de un recorrido anterior del paquete)
+    $r = $mysqli->query("SELECT h.NumerodeOrden FROM HojaDeRuta h
+                           JOIN Logistica l ON l.NumerodeOrden = h.NumerodeOrden AND l.Eliminado = 0
+                                            AND l.Estado IN ('Alta', 'Cargada')
+                          WHERE h.Seguimiento = '{$csE}' AND h.Eliminado = 0 AND h.NumerodeOrden > 0
+                          ORDER BY h.id DESC LIMIT 1");
+    if ($r && ($x = $r->fetch_assoc())) {
+      $numeroOrden = (string) (int) $x['NumerodeOrden'];
+    }
+  }
+  if ($usuario === 'APP' && (int) $numeroOrden > 0) {
+    $r = $mysqli->query("SELECT u.Usuario FROM Logistica l JOIN usuarios u ON u.id = l.idUsuarioChofer
+                          WHERE l.NumerodeOrden = " . (int) $numeroOrden . " AND l.Eliminado = 0
+                            AND TRIM(IFNULL(u.Usuario, '')) <> '' LIMIT 1");
+    if ($r && ($x = $r->fetch_assoc())) {
+      $usuario = $x['Usuario'];
+      error_log("reparto/funciones.php: sin sesión, movimiento de {$cs} atribuido al chofer de la orden {$numeroOrden} ({$usuario})");
+    }
+  }
+  return [$numeroOrden, $usuario];
+}
+
 $infoABM = $Usuario . ' ' . $Fecha . ' ' . $Hora;
 
 // Versiones escapadas para los textos que van pegados en el SQL (un apóstrofo en el
@@ -643,6 +673,10 @@ if (isset($_POST['ConfirmoEntrega'])) {
     responder(['success' => 0, 'error' => 'No se encontró TransClientes para confirmar', 'cs' => $CodigoSeguimiento]);
   }
 
+  [$NumeroOrden, $Usuario] = completarOrdenYChofer($mysqli, (string) $CodigoSeguimiento, $NumeroOrden, (string) $Usuario);
+  $usuarioEsc = $mysqli->real_escape_string((string) $Usuario);
+  $infoABM    = $mysqli->real_escape_string($Usuario . ' ' . $Fecha . ' ' . $Hora);
+
   // FIX (reportado con OFBX3F3FV, dirección "Bernardo O'Higgins..."): este
   // valor se inserta después sin comillas escapadas - un apóstrofe en la
   // dirección rompía el INSERT de Seguimiento y la entrega nunca se
@@ -1101,6 +1135,10 @@ if (isset($_POST['ConfirmoNoEntrega'])) {
   // Insert Seguimiento (atómico: WHERE NOT EXISTS evita el duplicado del
   // doble-tap dentro de una ventana de 30s, pero sí permite una nueva
   // "No Entrega" legítima del mismo código en un intento posterior)
+  [$NumeroOrden, $Usuario] = completarOrdenYChofer($mysqli, (string) $CodigoSeguimiento, $NumeroOrden, (string) $Usuario);
+  $usuarioEsc = $mysqli->real_escape_string((string) $Usuario);
+  $infoABM    = $mysqli->real_escape_string($Usuario . ' ' . $Fecha . ' ' . $Hora);
+
   $csEscNoEntrega = $mysqli->real_escape_string($CodigoSeguimiento);
   // Texto libre del chofer (razones, observación, quién atendió): un apóstrofo cortaba el INSERT
   $obsEscNoEntrega = $mysqli->real_escape_string((string) $Observaciones);
