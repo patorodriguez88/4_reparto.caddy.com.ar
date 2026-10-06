@@ -991,7 +991,13 @@ if (isset($_POST['ConfirmoEntrega'])) {
     );
   }
 
-  if (($Retirado == 1) || ($Entregado == 1)) {
+  // Retiro y entrega (tarea de Jerónimo, 2026-10-06): al RETIRAR la parada ya no se cierra. Queda
+  // Abierta en la misma hoja de ruta y la tarjeta pasa a ser la ENTREGA al destino (el panel la
+  // muestra así porque ahora Retirado=1). Antes se cerraba y el "Entregado" lo tenía que cargar la
+  // oficina a mano (46 de 101 retiros entregados en la misma salida, sept-oct 2026). Lo que no se
+  // entregue en el día pasa al depósito (Recorrido 80) al finalizar el recorrido.
+  // Solo se cierra con la entrega (o el pase a redespacho).
+  if ($RetiradoDB == 1) {
     consultaOError(
       $mysqli,
       "UPDATE HojaDeRuta 

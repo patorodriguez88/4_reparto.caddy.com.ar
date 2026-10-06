@@ -92,8 +92,13 @@ try {
     WHERE h.Recorrido = '{$recEsc}' AND h.NumerodeOrden = {$nOrden}
       AND h.Eliminado = 0 AND h.Devuelto = 0
       AND t.Eliminado = 0 AND t.Entregado = 0 AND t.Devuelto = 0
-      AND IFNULL(t.idColecta,0) > 0 AND t.Retirado = 1
+      AND t.Retirado = 1
       AND t.idClienteDestino <> 18587
+      AND (IFNULL(t.idColecta,0) > 0
+           -- Retiro y entrega: retirado en esta salida y no entregado en el día -> vuelve al depósito
+           OR EXISTS (SELECT 1 FROM Seguimiento r
+                       WHERE r.CodigoSeguimiento = t.CodigoSeguimiento AND r.status = 'pickup_ready'
+                         AND r.NumerodeOrden = {$nOrden} AND (r.Eliminado IS NULL OR r.Eliminado = 0)))
   ");
   while ($mvRes && $mv = $mvRes->fetch_assoc()) {
     $csMv = $mysqli->real_escape_string($mv['CodigoSeguimiento']);

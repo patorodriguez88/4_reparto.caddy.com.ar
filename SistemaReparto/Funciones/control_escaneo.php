@@ -151,6 +151,16 @@ function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): array
                     AND s.status = 'warehouse_validated'
                     AND (s.Eliminado IS NULL OR s.Eliminado = 0)
                   LIMIT 1
+              )
+              -- Retiro y entrega: lo retiró este mismo chofer en ESTA salida, está arriba de la
+              -- camioneta; no pasa por el depósito antes de entregarlo.
+              AND NOT EXISTS (
+                  SELECT 1 FROM Seguimiento r
+                  WHERE r.CodigoSeguimiento = TransClientes.CodigoSeguimiento
+                    AND r.status = 'pickup_ready'
+                    AND r.NumerodeOrden = HojaDeRuta.NumerodeOrden
+                    AND (r.Eliminado IS NULL OR r.Eliminado = 0)
+                  LIMIT 1
               )";
 
     $res = $mysqli->query($sql);
