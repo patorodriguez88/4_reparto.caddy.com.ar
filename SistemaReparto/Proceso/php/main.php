@@ -22,7 +22,15 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 			/*=============================================
 			CREAMOS EL DIRECTORIO DONDE VAMOS A GUARDAR LA FOTO DE LA MULTIMEDIA
 			=============================================*/
-			$directorio = "images/".$_POST['tituloProducto'];
+			// tituloProducto es el código de seguimiento (#card-seguimiento): solo alfanumérico,
+			// para que no se pueda armar una ruta fuera de images/.
+			$codigoFoto = trim(strip_tags($_POST['tituloProducto'] ?? ''));
+			if (!preg_match('/^[A-Za-z0-9]{4,40}$/', $codigoFoto)) {
+				http_response_code(400);
+				echo "Código de seguimiento inválido";
+				exit;
+			}
+			$directorio = "images/".$codigoFoto;
 
 			/*=============================================
 			PRIMERO PREGUNTAMOS SI EXISTE UN DIRECTORIO DE MULTIMEDIA CON ESTA RUTA
