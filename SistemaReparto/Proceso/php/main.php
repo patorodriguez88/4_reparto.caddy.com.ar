@@ -3,7 +3,8 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 	#RECIBIR ARCHIVOS MULTIMEDIA
 #-----------------------------------------------------------
 	if(isset($_FILES["file"])){
-   $hora=date('H:m:s');
+   // Prefijo del nombre de la foto: fecha y hora (antes 'H:m:s', con el mes en lugar de los minutos y ':' en el nombre).
+   $hora=date('Ymd_His_');
 			/*=============================================
 	SUBIR MULTIMEDIA
 	=============================================*/
