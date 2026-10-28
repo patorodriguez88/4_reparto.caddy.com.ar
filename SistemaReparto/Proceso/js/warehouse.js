@@ -449,14 +449,22 @@ function confirmarCarga() {
           // El servidor encontró bultos del recorrido sin escanear que esta lista no tenía
           // (se los sumaron con la pantalla abierta): se recarga la lista para que los escanee.
           if (!ok2 && r2 && r2.reason === "LISTA_DESACTUALIZADA") {
-            const codigos = (r2.pendientes || []).join(", ");
-            const msg = `Te sumaron envíos al recorrido que todavía no escaneaste${codigos ? ": " + codigos : ""}. Actualizamos tu lista: escanealos y volvé a confirmar la carga.`;
+            const pendientes = r2.pendientes || [];
+            const codigos = pendientes.join(", ");
+            const soloBolsines = pendientes.length > 0 && pendientes.every((c) => /^BOL-/i.test(c));
+            const msg = soloBolsines
+              ? `Falta escanear el bolsín de facturas: ${codigos}. Escanealo y volvé a confirmar la carga.`
+              : `Te sumaron envíos al recorrido que todavía no escaneaste${codigos ? ": " + codigos : ""}. Actualizamos tu lista: escanealos y volvé a confirmar la carga.`;
             if (saAvailable()) {
               Swal.fire({ icon: "warning", title: "Faltan bultos por escanear", text: msg, confirmButtonText: "Actualizar lista" }).then(() => cargarLista());
             } else {
               alert(msg);
               cargarLista();
             }
+            return;
+          }
+          if (!ok2 && r2 && r2.reason === "SIN_BOLSIN") {
+            saModal("warning", "Falta el bolsín", r2.error);
             return;
           }
           if (!ok2) {
@@ -570,6 +578,7 @@ function cargarLista() {
           const estadoInicial = yaEscaneado ? "ok" : "pendiente";
           const escaneoVia = String(item.escaneo_via ?? "");
           const esColecta = Number(item.es_colecta) === 1 ? 1 : 0;
+          const esBolsin = Number(item.es_bolsin) === 1 ? 1 : 0; // bolsín de facturas (BOL-0001)
 
           // 1) Normal (por CodigoSeguimiento)
           if (bultos === 1) {
@@ -583,6 +592,7 @@ function cargarLista() {
               ya_escaneado: yaEscaneado ? 1 : 0,
               escaneo_via: escaneoVia,
               es_colecta: esColecta,
+              es_bolsin: esBolsin,
             });
           } else {
             for (let i = 1; i <= bultos; i++) {
@@ -808,7 +818,7 @@ function renderScanned(done) {
         }
 
         if (base && ret === 1 && v.estado !== "alias") {
-          if (!info[base]) info[base] = { tot: 0, ok: 0, pre: false, via: "", viaRaw: "" };
+          if (!info[base]) info[base] = { tot: 0, ok: 0, pre: false, via: "", viaRaw: "", bolsin: Number(v.es_bolsin) === 1 };
           info[base].tot++;
           if (v.estado === "ok") info[base].ok++;
           if (Number(v.ya_escaneado) === 1) {
@@ -847,7 +857,7 @@ function renderScanned(done) {
         if (preSolo) {
           rowCls = "ok pre";
           stIcon = "✓";
-          extra = `<span class="rp-mb">${it.via === "ML" ? "MELI" : "YA ESCANEADO"}</span>`;
+          extra = `<span class="rp-mb">${it.via === "ML" ? "MELI" : it.bolsin ? "BOLSÍN CARGADO" : "YA ESCANEADO"}</span>`;
         } else if (completo) {
           rowCls = "ok";
           stIcon = "✓";
@@ -863,7 +873,7 @@ function renderScanned(done) {
           // depósito todavía: no cuenta como escaneado (ver comentario en
           // warehouse.php), pero avisamos igual para que no parezca que a
           // este bulto nunca lo tocó nadie.
-          const leyenda = it.viaRaw === "RETIRO" ? "retirado, falta depósito" : "falta escanear";
+          const leyenda = it.bolsin ? "bolsín de facturas" : it.viaRaw === "RETIRO" ? "retirado, falta depósito" : "falta escanear";
           extra =
             (it.tot > 1 ? `<span class="rp-mb rp-num">0/${it.tot}</span>` : "") +
             `<span class="rp-who">${leyenda}</span>`;

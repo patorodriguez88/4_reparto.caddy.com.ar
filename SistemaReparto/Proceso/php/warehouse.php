@@ -4,6 +4,7 @@ ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
 require_once "../../Conexion/conexioni.php";
+require_once __DIR__ . '/../../Funciones/bolsines.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 if (isset($_POST['GetLista'])) {
@@ -105,6 +106,22 @@ if (isset($_POST['GetLista'])) {
             'escaneo_via' => $via,
         ];
     }
+
+    // Bolsines de facturas asignados al recorrido: se escanean como un bulto más (BOL-0001).
+    $orden = ordenCargadaChofer($mysqli, (int)($_SESSION['idusuario'] ?? 0));
+    foreach (bolsinesDelRecorrido($mysqli, (string)$recorrido, $orden) as $b) {
+        $cargado = $b['Estado'] === 'En viaje';
+        $items[] = [
+            'base' => $b['Codigo'],
+            'bultos' => 1,
+            'retirado' => 1,
+            'meli_id' => '',
+            'es_colecta' => 0,
+            'es_bolsin' => 1,
+            'ya_escaneado' => $cargado ? 1 : 0,
+            'escaneo_via' => $cargado ? 'BOLSIN' : '',
+        ];
+    }
     $solo_hash = isset($_POST['solo_hash']) ? (int)$_POST['solo_hash'] : 0;
     $hash = md5($recorrido . json_encode($items));
 
@@ -156,6 +173,15 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
         $bases[$b] = true;
     }
     $bases = array_keys($bases);
+
+    // Los bolsines no son envíos: no van a Seguimiento, pasan a "En viaje" con la orden del chofer.
+    $bolsinesCargados = 0;
+    $ordenChofer = ordenCargadaChofer($mysqli, (int)($_SESSION['idusuario'] ?? 0));
+    foreach ($bases as $i => $b) {
+        if (!esCodigoBolsin($b)) continue;
+        unset($bases[$i]);
+        if (cargarBolsin($mysqli, $b, (string)$recorrido, $ordenChofer, (int)($_SESSION['idusuario'] ?? 0), (string)$usuario)) $bolsinesCargados++;
+    }
 
     $fecha = date('Y-m-d');
     $hora  = date('H:i:s');
@@ -229,7 +255,8 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
         'success' => 1,
         'insertados' => $insertados,
         'ya_existian' => $yaExistian,
-        'errores' => $errores
+        'errores' => $errores,
+        'bolsines' => $bolsinesCargados
     ]);
     exit;
 }
@@ -259,21 +286,28 @@ if (isset($_POST['PuedeSalir'])) {
     // tenía arriba y no lo podía entregar desde la app. Ahora se controla acá con los datos
     // actuales, con la misma regla que oculta las tarjetas (candidatosSinEscaneoWarehouse), y si
     // falta algo no se marca la salida: la app recarga la lista para que lo escanee.
-    if (!overrideEscaneo($mysqli, (int)($_SESSION['idusuario'] ?? 0))) {
-        $faltan = candidatosSinEscaneoWarehouse($mysqli, (string)$recorrido);
+    // Bolsines de facturas de Dinter (2026-10-28): se exigen siempre, también con "Omitir control
+    // de escaneo" (eso es para los bultos). Sin bolsín asignado no hay nada que recargar: se avisa.
+    $bolsines = controlBolsines($mysqli, (string)$recorrido, ordenCargadaChofer($mysqli, (int)($_SESSION['idusuario'] ?? 0)));
+    if ($bolsines['sin_bolsin']) {
+        echo json_encode(['success' => 0, 'reason' => 'SIN_BOLSIN', 'error' => mensajeBolsin($bolsines)]);
+        exit;
+    }
+    $faltan = overrideEscaneo($mysqli, (int)($_SESSION['idusuario'] ?? 0)) ? [] : candidatosSinEscaneoWarehouse($mysqli, (string)$recorrido);
+    if ($faltan || $bolsines['pendientes']) {
+        $codigos = $bolsines['pendientes'];
         if ($faltan) {
             $ids = implode(',', array_map('intval', array_keys($faltan)));
-            $codigos = [];
             $rc = $mysqli->query("SELECT CodigoSeguimiento FROM TransClientes WHERE id IN ({$ids}) ORDER BY CodigoSeguimiento");
             while ($rc && $c = $rc->fetch_assoc()) $codigos[] = $c['CodigoSeguimiento'];
-            echo json_encode([
-                'success' => 0,
-                'reason' => 'LISTA_DESACTUALIZADA',
-                'pendientes' => $codigos,
-                'error' => 'Faltan escanear bultos del recorrido.',
-            ]);
-            exit;
         }
+        echo json_encode([
+            'success' => 0,
+            'reason' => 'LISTA_DESACTUALIZADA',
+            'pendientes' => $codigos,
+            'error' => 'Faltan escanear bultos del recorrido.',
+        ]);
+        exit;
     }
 
     $status = 'last_mile';

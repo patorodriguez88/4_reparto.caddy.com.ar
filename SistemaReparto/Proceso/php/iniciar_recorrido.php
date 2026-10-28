@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // session_start() la hace conexioni.php, con el nombre de cookie propio del sistema.
 require_once __DIR__ . "/../../Conexion/conexioni.php";
 require_once __DIR__ . "/../../Funciones/control_escaneo.php";
+require_once __DIR__ . "/../../Funciones/bolsines.php";
 require_once __DIR__ . "/eta.php";
 
 $googleConfigPath = __DIR__ . "/../../Conexion/google_config.php";
@@ -69,6 +70,21 @@ if ($tarjetas === 0) {
     'success' => 0,
     'error'   => 'SIN_TARJETAS_PENDIENTES',
     'msg'     => 'Este recorrido no tiene ninguna parada asignada todavía. Consultá con la oficina antes de arrancar.',
+  ]);
+}
+
+// Recorridos de Dinter (2026-10-28): no arrancan sin el bolsín de facturas escaneado (siempre) ni
+// con paquetes sin escanear en Warehouse (salvo "Omitir control de escaneo" en la orden). Es solo
+// para Dinter: el gate general de escaneo se sacó el 14/9 porque trababa las colectas.
+$msgBolsin = mensajeBolsin(controlBolsines($mysqli, $recorrido, ordenCargadaChofer($mysqli, $userId)));
+if ($msgBolsin !== null) {
+  responder(['success' => 0, 'error' => 'BOLSIN', 'msg' => $msgBolsin]);
+}
+if (recorridoTieneDinter($mysqli, $recorrido) && !overrideEscaneo($mysqli, $userId) && candidatosSinEscaneoWarehouse($mysqli, $recorrido)) {
+  responder([
+    'success' => 0,
+    'error'   => 'WAREHOUSE_PENDIENTE',
+    'msg'     => 'Este recorrido lleva pedidos de Dinter: antes de salir escaneá todos los paquetes en Warehouse y confirmá la carga.',
   ]);
 }
 
