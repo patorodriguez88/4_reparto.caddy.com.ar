@@ -250,6 +250,31 @@ if (isset($_POST['PuedeSalir'])) {
     }
 
     require_once __DIR__ . '/../../Funciones/estados.php';
+    require_once __DIR__ . '/../../Funciones/control_escaneo.php';
+
+    // FIX (2026-10-28, caso 4BJB7KAZT, rec 1478, franco_618): la lista de Warehouse vive en el
+    // teléfono (IndexedDB) y solo se revalida al abrir la pantalla. Si la oficina le suma un envío
+    // al recorrido con la pantalla abierta, puedeSalir() no lo ve, la salida lo marcaba igual
+    // "En Tránsito" y después su tarjeta quedaba oculta (sin warehouse_validated) -> el chofer lo
+    // tenía arriba y no lo podía entregar desde la app. Ahora se controla acá con los datos
+    // actuales, con la misma regla que oculta las tarjetas (candidatosSinEscaneoWarehouse), y si
+    // falta algo no se marca la salida: la app recarga la lista para que lo escanee.
+    if (!overrideEscaneo($mysqli, (int)($_SESSION['idusuario'] ?? 0))) {
+        $faltan = candidatosSinEscaneoWarehouse($mysqli, (string)$recorrido);
+        if ($faltan) {
+            $ids = implode(',', array_map('intval', array_keys($faltan)));
+            $codigos = [];
+            $rc = $mysqli->query("SELECT CodigoSeguimiento FROM TransClientes WHERE id IN ({$ids}) ORDER BY CodigoSeguimiento");
+            while ($rc && $c = $rc->fetch_assoc()) $codigos[] = $c['CodigoSeguimiento'];
+            echo json_encode([
+                'success' => 0,
+                'reason' => 'LISTA_DESACTUALIZADA',
+                'pendientes' => $codigos,
+                'error' => 'Faltan escanear bultos del recorrido.',
+            ]);
+            exit;
+        }
+    }
 
     $status = 'last_mile';
     $st = estadoPorSlug($mysqli, $status);

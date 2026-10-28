@@ -446,6 +446,19 @@ function confirmarCarga() {
         }
 
         marcarEnTransitoBackend(function (ok2, r2) {
+          // El servidor encontró bultos del recorrido sin escanear que esta lista no tenía
+          // (se los sumaron con la pantalla abierta): se recarga la lista para que los escanee.
+          if (!ok2 && r2 && r2.reason === "LISTA_DESACTUALIZADA") {
+            const codigos = (r2.pendientes || []).join(", ");
+            const msg = `Te sumaron envíos al recorrido que todavía no escaneaste${codigos ? ": " + codigos : ""}. Actualizamos tu lista: escanealos y volvé a confirmar la carga.`;
+            if (saAvailable()) {
+              Swal.fire({ icon: "warning", title: "Faltan bultos por escanear", text: msg, confirmButtonText: "Actualizar lista" }).then(() => cargarLista());
+            } else {
+              alert(msg);
+              cargarLista();
+            }
+            return;
+          }
           if (!ok2) {
             saModal("error", "Error", r2.error || "No se pudo registrar En Tránsito");
             return;
