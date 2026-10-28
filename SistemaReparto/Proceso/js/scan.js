@@ -562,7 +562,8 @@ const onSuccess = async (decodedText) => {
       return;
     }
 
-    const normalized = normalizarCodigo(raw);
+    // Bolsín de facturas: el código va en mayúsculas (BOL-0001) aunque se cargue a mano.
+    const normalized = /^bol-/i.test(raw) ? raw.toUpperCase() : normalizarCodigo(raw);
     if (normalized === lastCode && now - lastTime < 1500) return;
 
     lastCode = normalized;

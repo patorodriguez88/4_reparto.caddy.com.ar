@@ -8,6 +8,7 @@ define('ALLOW_NO_SESSION', true);
 
 require_once "../../Conexion/conexioni.php";
 require_once __DIR__ . '/../../Funciones/control_escaneo.php';
+require_once __DIR__ . '/../../Funciones/bolsines.php';
 
 // --------------------------------------------------
 // FUNCIÓN PARA RESPONDER SIEMPRE JSON Y CORTAR
@@ -554,6 +555,14 @@ if (isset($_POST['Paneles'])) {
 
   $esPrimeraParada = true; // la primera de la lista se resalta como "próxima"
 
+  // Bolsín de facturas de Dinter sin escanear (o recorrido de Dinter sin bolsín): los pedidos de
+  // Dinter no se muestran hasta que lo escanee en Warehouse. No depende de "Omitir control de
+  // escaneo" (ver Funciones/bolsines.php).
+  $msgBolsin = mensajeBolsin(controlBolsines($mysqli, (string)$Recorrido, ordenCargadaChofer($mysqli, $idUsuarioGate)));
+  if ($msgBolsin !== null) {
+    echo "<div class='alert alert-warning mb-2'><strong>Falta el bolsín de facturas.</strong> " . htmlspecialchars($msgBolsin) . " Hasta entonces no ves los pedidos de Dinter.</div>";
+  }
+
   while ($row = $BuscarRecorridos->fetch_array(MYSQLI_ASSOC)) {
 
     // Entrega normal de depósito todavía sin escanear en Warehouse (y no
@@ -561,6 +570,9 @@ if (isset($_POST['Paneles'])) {
     // colectas (Retirado=0) nunca entran a $idsPendientesDeEscaneo, así
     // que esto no las afecta.
     if (isset($idsPendientesDeEscaneo[(int)$row['id']])) {
+      continue;
+    }
+    if ($msgBolsin !== null && ($row['Origen'] ?? '') === 'IMPORTACION_DINTER' && (int)$row['Retirado'] === 1) {
       continue;
     }
 
