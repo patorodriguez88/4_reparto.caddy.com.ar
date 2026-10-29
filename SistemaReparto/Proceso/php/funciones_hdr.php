@@ -560,7 +560,7 @@ if (isset($_POST['Paneles'])) {
   // escaneo" (ver Funciones/bolsines.php).
   $msgBolsin = mensajeBolsin(controlBolsines($mysqli, (string)$Recorrido, ordenCargadaChofer($mysqli, $idUsuarioGate)));
   if ($msgBolsin !== null) {
-    echo "<div class='alert alert-warning mb-2'><strong>Falta el bolsín interno.</strong> " . htmlspecialchars($msgBolsin) . " Hasta entonces no ves los pedidos de Dinter.</div>";
+    echo "<div class='alert alert-warning mb-2'><strong>Falta el bolsín interno.</strong> " . htmlspecialchars($msgBolsin) . " Hasta entonces no ves las entregas del recorrido.</div>";
   }
 
   while ($row = $BuscarRecorridos->fetch_array(MYSQLI_ASSOC)) {
@@ -572,7 +572,7 @@ if (isset($_POST['Paneles'])) {
     if (isset($idsPendientesDeEscaneo[(int)$row['id']])) {
       continue;
     }
-    if ($msgBolsin !== null && ($row['Origen'] ?? '') === 'IMPORTACION_DINTER' && (int)$row['Retirado'] === 1) {
+    if ($msgBolsin !== null && (int)$row['Retirado'] === 1) { // entregas; retiros y colectas se siguen viendo
       continue;
     }
 
