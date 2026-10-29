@@ -579,6 +579,7 @@ function cargarLista() {
           const escaneoVia = String(item.escaneo_via ?? "");
           const esColecta = Number(item.es_colecta) === 1 ? 1 : 0;
           const esBolsin = Number(item.es_bolsin) === 1 ? 1 : 0; // bolsín de facturas (BOL-0001)
+          const proveedor = String(item.proveedor ?? "").trim(); // nº de pedido del cliente (etiqueta propia)
 
           // 1) Normal (por CodigoSeguimiento)
           if (bultos === 1) {
@@ -593,6 +594,7 @@ function cargarLista() {
               escaneo_via: escaneoVia,
               es_colecta: esColecta,
               es_bolsin: esBolsin,
+              proveedor: proveedor,
             });
           } else {
             for (let i = 1; i <= bultos; i++) {
@@ -606,6 +608,7 @@ function cargarLista() {
                 ya_escaneado: yaEscaneado ? 1 : 0,
                 escaneo_via: escaneoVia,
                 es_colecta: esColecta,
+                proveedor: proveedor,
               });
             }
           }

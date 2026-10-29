@@ -96,8 +96,14 @@ if (isset($_POST['GetLista'])) {
         // de depósito) es a propósito NO suficiente, ver comentario arriba.
         $yaEscaneado = ($via === 'MANUAL' || $via === 'ML') ? 1 : 0;
 
+        // Número de pedido del cliente (CodigoProveedor): IGALFER, Ferniplast, etc. imprimen su
+        // propia etiqueta con ese número (y _N por bulto) en vez del código de Caddy.
+        $proveedor = trim((string)($r['CodigoProveedor'] ?? ''));
+        if ($proveedor === '0') $proveedor = '';
+
         $items[] = [
             'base' => $r['CodigoSeguimiento'],
+            'proveedor' => $proveedor,
             'bultos' => (int)$r['Cantidad'],
             'retirado' => (int)$r['Retirado'],
             'meli_id' => $meliId,
