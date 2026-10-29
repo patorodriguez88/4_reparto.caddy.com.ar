@@ -447,6 +447,9 @@ function buscarPorProveedor(raw, cb) {
       return;
     }
     if (!items.length) return cb(null);
+    // El número de pedido se repite entre clientes: si cae en dos envíos distintos del recorrido no se
+    // adivina, se pide la etiqueta de Caddy.
+    if (new Set(items.map((i) => i.base)).size > 1) return cb("AMBIGUO");
     if (items.length === 1) return cb(items[0].code);
     if (n) {
       const it = items.find((i) => i.code.endsWith("_" + n));
@@ -461,6 +464,10 @@ function validarPorProveedor(raw) {
   return new Promise((resolve) => {
     buscarPorProveedor(raw, (code) => {
       if (!code) return resolve(null);
+      if (code === "AMBIGUO") {
+        mostrarFeedback("⚠️ Ese número está en 2 envíos del recorrido: escaneá la etiqueta Caddy", "warn");
+        return resolve("ambiguo");
+      }
       validarExacto(code, 1, resolve);
     });
   });
