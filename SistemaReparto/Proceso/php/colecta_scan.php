@@ -457,6 +457,8 @@ function resolverCodigoHijoParaSeguimiento($mysqli, $colectaId, $base, $raw, $ti
 function resolverServicioColecta($mysqli, $colectaId, $padreId, $raw, $ferniplastClienteId = 0)
 {
     $raw = trim((string)$raw);
+    // Etiqueta de la API: el QR grande trae la URL de seguimiento (sola o en un JSON {"id":...}).
+    if (preg_match('/seguimiento\.html\?codigo=([A-Za-z0-9\-]+(?:_\d+)?)/i', $raw, $mq)) $raw = $mq[1];
     $colectaId = (int)$colectaId;
     $padreId   = (int)$padreId;
 

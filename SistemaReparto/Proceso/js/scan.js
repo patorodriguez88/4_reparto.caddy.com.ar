@@ -513,6 +513,14 @@ function validarBulto(rawCode) {
 // Scanner
 // --------------------
 
+// Etiqueta de la API (api.caddy.com.ar/etiqueta.php): el QR grande trae la URL de seguimiento,
+// sola o dentro de un JSON {"id":"https://web.caddy.com.ar/seguimiento.html?codigo=XXX"}. Antes
+// se tomaba como etiqueta de MELI y daba "No pertenece al recorrido". Se usa el código de la URL.
+function codigoDesdeQrCaddy(raw) {
+  const m = String(raw || "").match(/seguimiento\.html\?codigo=([A-Za-z0-9\-]+(?:_\d+)?)/i);
+  return m ? m[1] : raw;
+}
+
 function registrarRechazo(codigo) {
   fetch("Proceso/php/warehouse.php", {
     method: "POST",
@@ -525,7 +533,7 @@ function registrarRechazo(codigo) {
 const onSuccess = async (decodedText) => {
   if (scanLocked) return; // 👈 no procesa nada más
 
-  const raw = (decodedText || "").trim();
+  const raw = codigoDesdeQrCaddy((decodedText || "").trim());
   if (!raw) return;
 
   const now = Date.now();
