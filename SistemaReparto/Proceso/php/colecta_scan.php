@@ -827,12 +827,31 @@ if (isset($_POST['InitColecta'])) {
             'colecta_id'              => $colectaId
         ];
 
+        // FIX (29/10): al volver a abrir la colecta se pisaban los escaneos con solo los de ML y el
+        // contador volvía a cero. Se conservan los escaneos previos de los servicios que siguen en la
+        // colecta (la oficina puede agregar o sacar servicios en la colecta manual) y se suman los de ML.
+        $scansPrevios = [];
+        $stPrev = $mysqli->prepare("SELECT ColectaScans FROM Colecta WHERE id=? LIMIT 1");
+        $stPrev->bind_param("i", $colectaId);
+        $stPrev->execute();
+        $prev = json_decode((string)($stPrev->get_result()->fetch_assoc()['ColectaScans'] ?? ''), true);
+        if (is_array($prev) && is_array($prev['scans'] ?? null)) {
+            $basesVigentes = array_column($serviciosDetalle, 'cs_base');
+            $codigosSeed = array_column($scansSeed, 'code');
+            foreach ($prev['scans'] as $sc) {
+                if (in_array($sc['base'] ?? '', $basesVigentes, true) && !in_array($sc['code'] ?? '', $codigosSeed, true)) {
+                    $scansPrevios[] = $sc;
+                }
+            }
+        }
+
         $payload = [
             'colecta_id' => $colectaId,
             'padre_id'   => $padreId,
             'expected'   => $expected,
-            'scans'      => $scansSeed,
+            'scans'      => array_merge($scansPrevios, $scansSeed),
         ];
+        if (is_array($prev) && !empty($prev['cierre'])) $payload['cierre'] = $prev['cierre']; // no perder el cierre
         $payload['resume'] = calcularResume($payload);
 
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
@@ -1245,6 +1264,36 @@ if (!$info) {
         ");
         $stmtR->bind_param("issdd", $userIdRechazo, $usuario, $raw, $latR, $lngR);
         $stmtR->execute();
+    }
+
+    // Colecta: ¿es un servicio del cliente que no está en esta colecta, o un paquete que no existe en el
+    // sistema (sobrante)? (29/10, colecta manual)
+    if ($colectaId > 0 && $padreId > 0 && $FERNIPLAST_CLIENTE_ID > 0) {
+        $rawU = strtoupper($raw);
+        $baseU = parseCaddyBase($raw);
+        $stCli = $mysqli->prepare("SELECT CodigoSeguimiento FROM TransClientes
+            WHERE idClienteOrigen=? AND Eliminado=0 AND Entregado=0 AND Devuelto=0 AND id<>?
+              AND (SUBSTRING_INDEX(CodigoSeguimiento,'_',1)=? OR CodigoProveedor IN (?, ?))
+            LIMIT 1");
+        $stCli->bind_param("iisss", $FERNIPLAST_CLIENTE_ID, $padreId, $baseU, $raw, $baseU);
+        $stCli->execute();
+        $delCliente = $stCli->get_result()->fetch_assoc();
+        if ($delCliente) {
+            responder(['success' => 0, 'error' => 'NO_ESTA_EN_COLECTA',
+                'detail' => 'Es un envío del cliente (' . $delCliente['CodigoSeguimiento'] . ') pero no está en esta colecta. Pedile a la oficina que lo agregue y volvé a abrir la colecta.']);
+        }
+        try {
+            $mysqli->query("CREATE TABLE IF NOT EXISTS ColectaSobrantes (id INT AUTO_INCREMENT PRIMARY KEY, idColecta INT NOT NULL,
+                Codigo VARCHAR(120) NOT NULL, Usuario VARCHAR(50) NOT NULL, Fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_colecta (idColecta))");
+            $stSob = $mysqli->prepare("INSERT INTO ColectaSobrantes (idColecta, Codigo, Usuario) VALUES (?, ?, ?)");
+            $codSob = mb_substr($raw, 0, 120);
+            $stSob->bind_param("iss", $colectaId, $codSob, $usuario);
+            $stSob->execute();
+        } catch (Throwable $e) {
+            error_log('colecta_scan: no se pudo registrar sobrante ' . $raw . ': ' . $e->getMessage());
+        }
+        responder(['success' => 0, 'error' => 'SOBRANTE',
+            'detail' => 'Ese paquete no está cargado en el sistema. Llevalo igual: quedó registrado para que operaciones lo resuelva.']);
     }
 
     responder([

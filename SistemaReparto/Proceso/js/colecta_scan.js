@@ -527,18 +527,9 @@ console.log("Version 1.16 - 2024-06-18");
     if (!jsonId && looksLikeBase) {
       if (esModoColecta()) {
         const svc = getServicioEsperadoPorBase(base);
-        if (!svc) {
-          swalFire({
-            icon: "error",
-            title: "Servicio fuera de la colecta",
-            text: `El servicio ${base} no pertenece a esta colecta.`,
-            timer: 1400,
-            showConfirmButton: false,
-          });
-          feedbackScan(false);
-          return;
-        }
-
+        // Si no está en lo esperado lo decide el servidor: puede ser un envío del cliente que la
+        // oficina tiene que agregar, o un sobrante (no está cargado) que queda registrado.
+        if (svc) {
         paquetesSvc = parseInt(svc.paquetes ?? 1, 10) || 1;
         qtyExpectedLocal = paquetesSvc;
 
@@ -593,6 +584,7 @@ console.log("Version 1.16 - 2024-06-18");
             feedbackScan(false);
             return;
           }
+        }
         }
       } else {
         // modo envío normal
@@ -660,9 +652,10 @@ console.log("Version 1.16 - 2024-06-18");
     } catch (e) {
       console.error("ColectaBulto error:", { e, res, status: e?.status, responseText: e?.responseText });
       feedbackScan(false);
+      const titulos = { SOBRANTE: "Paquete no cargado", NO_ESTA_EN_COLECTA: "No está en esta colecta" };
       swalFire({
-        icon: "error",
-        title: "No se pudo registrar",
+        icon: titulos[res?.error] ? "warning" : "error",
+        title: titulos[res?.error] || "No se pudo registrar",
         text: res?.detail || res?.error || "Ese código no pertenece a la colecta o no se pudo guardar.",
       });
       return;
