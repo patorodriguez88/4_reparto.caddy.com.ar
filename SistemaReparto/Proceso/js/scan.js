@@ -429,6 +429,43 @@ function validarBultoMeli(meliId) {
   });
 }
 
+// Etiqueta propia del cliente (IGALFER, Ferniplast...): trae su número de pedido (CodigoProveedor),
+// a veces con _N por bulto ("792114_1"), y no el código de Caddy. Se busca en la lista por ese número
+// (viene de GetLista como "proveedor") y devuelve el código de Caddy del bulto, o null.
+function buscarPorProveedor(raw, cb) {
+  const m = String(raw).match(/^(.+?)(?:_(\d+))?$/);
+  const base = m ? m[1] : raw;
+  const n = m && m[2] ? Number(m[2]) : 0;
+  const items = [];
+  const t = db.transaction("expected", "readonly");
+  t.objectStore("expected").openCursor().onsuccess = function (e) {
+    const c = e.target.result;
+    if (c) {
+      const v = c.value;
+      if (String(v.proveedor || "") === base && Number(v.retirado ?? 1) === 1 && v.estado !== "alias") items.push(v);
+      c.continue();
+      return;
+    }
+    if (!items.length) return cb(null);
+    if (items.length === 1) return cb(items[0].code);
+    if (n) {
+      const it = items.find((i) => i.code.endsWith("_" + n));
+      return cb(it ? it.code : null);
+    }
+    // Varios bultos y la etiqueta sin número de bulto: el primero que falte escanear
+    const pendiente = items.find((i) => i.estado !== "ok");
+    cb((pendiente || items[0]).code);
+  };
+}
+function validarPorProveedor(raw) {
+  return new Promise((resolve) => {
+    buscarPorProveedor(raw, (code) => {
+      if (!code) return resolve(null);
+      validarExacto(code, 1, resolve);
+    });
+  });
+}
+
 function validarBulto(rawCode) {
   return new Promise((resolve) => {
     const code = (rawCode || "").trim();
@@ -560,25 +597,34 @@ const onSuccess = async (decodedText) => {
     r = await validarBultoMeli(meliId);
     if (r === "no_pertenece") registrarRechazo(meliId);
   } else {
-    if (/^\d+$/.test(raw)) {
-      mostrarFeedback("❌ Solo etiquetas Caddy (no proveedor)", "warn");
-      return;
+    // Número de pedido del cliente (solo números, con o sin _N): se busca por CodigoProveedor.
+    if (/^\d+(_\d+)?$/.test(raw)) {
+      if (raw === lastCode && now - lastTime < 1500) return;
+      lastCode = raw;
+      lastTime = now;
+      r = await validarPorProveedor(raw);
+      if (r === null) {
+        mostrarFeedback("❌ No pertenece al recorrido", "error");
+        registrarRechazo(raw);
+        return;
+      }
+    } else {
+      // ✅ Validar formato Caddy: BASE o BASE_n (solo letras/números/guión y sufijo opcional)
+      if (!/^[A-Za-z0-9\-]+(_[1-9][0-9]*)?$/.test(raw)) {
+        mostrarFeedback("❌ Formato inválido. Escaneá etiqueta Caddy.", "error");
+        return;
+      }
+
+      // Bolsín de facturas: el código va en mayúsculas (BOL-0001) aunque se cargue a mano.
+      const normalized = /^bol-/i.test(raw) ? raw.toUpperCase() : normalizarCodigo(raw);
+      if (normalized === lastCode && now - lastTime < 1500) return;
+
+      lastCode = normalized;
+      lastTime = now;
+
+      r = await validarBulto(normalized);
+      if (r === "no_pertenece") registrarRechazo(normalized);
     }
-    // ✅ Validar formato Caddy: BASE o BASE_n (solo letras/números/guión y sufijo opcional)
-    if (!/^[A-Za-z0-9\-]+(_[1-9][0-9]*)?$/.test(raw)) {
-      mostrarFeedback("❌ Formato inválido. Escaneá etiqueta Caddy.", "error");
-      return;
-    }
-
-    // Bolsín de facturas: el código va en mayúsculas (BOL-0001) aunque se cargue a mano.
-    const normalized = /^bol-/i.test(raw) ? raw.toUpperCase() : normalizarCodigo(raw);
-    if (normalized === lastCode && now - lastTime < 1500) return;
-
-    lastCode = normalized;
-    lastTime = now;
-
-    r = await validarBulto(normalized);
-    if (r === "no_pertenece") registrarRechazo(normalized);
   }
 
   if (r === "ok") {
