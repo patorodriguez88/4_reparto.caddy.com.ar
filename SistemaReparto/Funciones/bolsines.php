@@ -61,8 +61,10 @@ function cargarBolsin(mysqli $mysqli, string $codigo, string $recorrido, ?int $o
     $st = $mysqli->prepare("UPDATE Bolsines SET Estado = 'En viaje', NumerodeOrden = ?, idUsuarioChofer = ?, FechaEstado = ? WHERE id = ?");
     $st->bind_param('iisi', $orden, $idUsuario, $fecha, $id);
     $st->execute();
-    $st = $mysqli->prepare("INSERT INTO Bolsines_movimientos (idBolsin, Accion, Recorrido, NumerodeOrden, Usuario, Fecha) VALUES (?, 'cargado', ?, ?, ?, ?)");
-    $st->bind_param('isiss', $id, $recorrido, $orden, $usuario, $fecha);
+    // El precinto viene de la asignación (sistema: Logistica/Bolsines.php).
+    $st = $mysqli->prepare("INSERT INTO Bolsines_movimientos (idBolsin, Accion, Recorrido, NumerodeOrden, Precinto, Usuario, Fecha)
+                            SELECT ?, 'cargado', ?, ?, Precinto, ?, ? FROM Bolsines WHERE id = ?");
+    $st->bind_param('isissi', $id, $recorrido, $orden, $usuario, $fecha, $id);
     $st->execute();
     return true;
 }
