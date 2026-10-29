@@ -69,22 +69,24 @@ function cargarBolsin(mysqli $mysqli, string $codigo, string $recorrido, ?int $o
     return true;
 }
 
-// ¿El recorrido lleva pedidos de Dinter (importación) para entregar?
-function recorridoTieneDinter(mysqli $mysqli, string $recorrido): bool
+// ¿El recorrido exige bolsín? Lo marca el operador con el switch "Bolsín" de Logística > Recorridos
+// (Recorridos.RequiereBolsin, 29/10; antes se detectaba por pedidos de Dinter). Solo cuenta si
+// tiene entregas pendientes en la Hoja de Ruta.
+function recorridoRequiereBolsin(mysqli $mysqli, string $recorrido): bool
 {
-    if (!tieneColumna($mysqli, 'TransClientes', 'Origen')) return false;
-    $st = $mysqli->prepare("SELECT 1 FROM HojaDeRuta h
-                            JOIN TransClientes t ON t.id = h.idTransClientes AND t.Eliminado = 0
-                            WHERE h.Recorrido = ? AND h.Estado = 'Abierto' AND h.Eliminado = 0 AND h.Devuelto = 0
-                              AND t.Origen = 'IMPORTACION_DINTER' AND t.Retirado = 1 AND t.Entregado = 0
+    if (!tieneColumna($mysqli, 'Recorridos', 'RequiereBolsin')) return false;
+    $st = $mysqli->prepare("SELECT 1 FROM Recorridos r
+                            JOIN HojaDeRuta h ON h.Recorrido = r.Numero AND h.Estado = 'Abierto' AND h.Eliminado = 0 AND h.Devuelto = 0
+                            JOIN TransClientes t ON t.id = h.idTransClientes AND t.Eliminado = 0 AND t.Retirado = 1 AND t.Entregado = 0
+                            WHERE r.Numero = ? AND r.RequiereBolsin = 1
                             LIMIT 1");
     $st->bind_param('s', $recorrido);
     $st->execute();
     return (bool) $st->get_result()->fetch_row();
 }
 
-// Control de salida: códigos de bolsines asignados sin escanear, y si el recorrido lleva pedidos
-// de Dinter sin ningún bolsín. NO depende de "Omitir control de escaneo": eso es para los bultos;
+// Control de salida: códigos de bolsines asignados sin escanear, y si el recorrido exige bolsín y
+// no tiene ninguno. NO depende de "Omitir control de escaneo": eso es para los bultos;
 // las facturas tienen que salir igual.
 function controlBolsines(mysqli $mysqli, string $recorrido, ?int $orden): array
 {
@@ -95,7 +97,7 @@ function controlBolsines(mysqli $mysqli, string $recorrido, ?int $orden): array
     foreach ($bolsines as $b) {
         if ($b['Estado'] === 'Asignado') $pendientes[] = $b['Codigo'];
     }
-    $sinBolsin = !$bolsines && recorridoTieneDinter($mysqli, $recorrido);
+    $sinBolsin = !$bolsines && recorridoRequiereBolsin($mysqli, $recorrido);
     return ['pendientes' => $pendientes, 'sin_bolsin' => $sinBolsin];
 }
 
@@ -103,7 +105,7 @@ function controlBolsines(mysqli $mysqli, string $recorrido, ?int $orden): array
 function mensajeBolsin(array $control): ?string
 {
     if ($control['sin_bolsin']) {
-        return 'Este recorrido lleva pedidos de Dinter y no tiene bolsín interno asignado. Pedile al depósito que te lo asigne y escanealo en Warehouse.';
+        return 'Este recorrido lleva bolsín interno obligatorio y no tiene ninguno asignado. Pedile al depósito que te lo asigne y escanealo en Warehouse.';
     }
     if ($control['pendientes']) {
         return 'Escaneá en Warehouse el bolsín interno: ' . implode(', ', $control['pendientes']) . '.';

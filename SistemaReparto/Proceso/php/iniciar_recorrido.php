@@ -73,18 +73,19 @@ if ($tarjetas === 0) {
   ]);
 }
 
-// Recorridos de Dinter (2026-10-28): no arrancan sin el bolsín de facturas escaneado (siempre) ni
-// con paquetes sin escanear en Warehouse (salvo "Omitir control de escaneo" en la orden). Es solo
-// para Dinter: el gate general de escaneo se sacó el 14/9 porque trababa las colectas.
+// Recorridos con bolsín obligatorio (switch "Bolsín" en Logística > Recorridos, 2026-10-29): no
+// arrancan sin el bolsín interno escaneado (siempre) ni con paquetes sin escanear en Warehouse (salvo
+// "Omitir control de escaneo" en la orden). Es solo para esos recorridos: el gate general de escaneo
+// se sacó el 14/9 porque trababa las colectas.
 $msgBolsin = mensajeBolsin(controlBolsines($mysqli, $recorrido, ordenCargadaChofer($mysqli, $userId)));
 if ($msgBolsin !== null) {
   responder(['success' => 0, 'error' => 'BOLSIN', 'msg' => $msgBolsin]);
 }
-if (recorridoTieneDinter($mysqli, $recorrido) && !overrideEscaneo($mysqli, $userId) && candidatosSinEscaneoWarehouse($mysqli, $recorrido)) {
+if (recorridoRequiereBolsin($mysqli, $recorrido) && !overrideEscaneo($mysqli, $userId) && candidatosSinEscaneoWarehouse($mysqli, $recorrido)) {
   responder([
     'success' => 0,
     'error'   => 'WAREHOUSE_PENDIENTE',
-    'msg'     => 'Este recorrido lleva pedidos de Dinter: antes de salir escaneá todos los paquetes en Warehouse y confirmá la carga.',
+    'msg'     => 'Este recorrido lleva bolsín interno: antes de salir escaneá todos los paquetes en Warehouse y confirmá la carga.',
   ]);
 }
 
