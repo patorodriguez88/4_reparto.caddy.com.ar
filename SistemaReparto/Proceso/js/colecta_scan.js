@@ -371,6 +371,14 @@ console.log("Version 1.16 - 2024-06-18");
 
     return scannerStopPromise;
   }
+  // Etiqueta de la API (api.caddy.com.ar/etiqueta.php): el QR grande trae la URL de seguimiento,
+  // sola o dentro de un JSON {"id":"https://web.caddy.com.ar/seguimiento.html?codigo=XXX"}; se
+  // usa el código de la URL (si no, se tomaba como id de MELI y no matcheaba).
+  function codigoDesdeQrCaddy(raw) {
+    const m = String(raw || "").match(/seguimiento\.html\?codigo=([A-Za-z0-9\-]+(?:_\d+)?)/i);
+    return m ? m[1] : raw;
+  }
+
   function extraerIdDesdeJson(raw) {
     const t = (raw || "").trim();
     if (!t.startsWith("{") || !t.endsWith("}")) return null;
@@ -476,7 +484,7 @@ console.log("Version 1.16 - 2024-06-18");
     coolingDown = true;
     setTimeout(() => (coolingDown = false), cooldownMs);
 
-    const raw = (decodedText || "").trim();
+    const raw = codigoDesdeQrCaddy((decodedText || "").trim());
     if (!raw) return;
 
     const hasN = raw.includes("_");
