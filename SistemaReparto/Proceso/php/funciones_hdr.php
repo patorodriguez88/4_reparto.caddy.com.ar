@@ -560,7 +560,7 @@ if (isset($_POST['Paneles'])) {
   // escaneo" (ver Funciones/bolsines.php).
   $msgBolsin = mensajeBolsin(controlBolsines($mysqli, (string)$Recorrido, ordenCargadaChofer($mysqli, $idUsuarioGate)));
   if ($msgBolsin !== null) {
-    echo "<div class='alert alert-warning mb-2'><strong>Falta el bolsín de facturas.</strong> " . htmlspecialchars($msgBolsin) . " Hasta entonces no ves los pedidos de Dinter.</div>";
+    echo "<div class='alert alert-warning mb-2'><strong>Falta el bolsín interno.</strong> " . htmlspecialchars($msgBolsin) . " Hasta entonces no ves los pedidos de Dinter.</div>";
   }
 
   while ($row = $BuscarRecorridos->fetch_array(MYSQLI_ASSOC)) {

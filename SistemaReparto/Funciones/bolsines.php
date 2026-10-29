@@ -103,10 +103,10 @@ function controlBolsines(mysqli $mysqli, string $recorrido, ?int $orden): array
 function mensajeBolsin(array $control): ?string
 {
     if ($control['sin_bolsin']) {
-        return 'Este recorrido lleva pedidos de Dinter y no tiene bolsín de facturas asignado. Pedile al depósito que te lo asigne y escanealo en Warehouse.';
+        return 'Este recorrido lleva pedidos de Dinter y no tiene bolsín interno asignado. Pedile al depósito que te lo asigne y escanealo en Warehouse.';
     }
     if ($control['pendientes']) {
-        return 'Escaneá en Warehouse el bolsín de facturas: ' . implode(', ', $control['pendientes']) . '.';
+        return 'Escaneá en Warehouse el bolsín interno: ' . implode(', ', $control['pendientes']) . '.';
     }
     return null;
 }

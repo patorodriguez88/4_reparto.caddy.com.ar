@@ -453,7 +453,7 @@ function confirmarCarga() {
             const codigos = pendientes.join(", ");
             const soloBolsines = pendientes.length > 0 && pendientes.every((c) => /^BOL-/i.test(c));
             const msg = soloBolsines
-              ? `Falta escanear el bolsín de facturas: ${codigos}. Escanealo y volvé a confirmar la carga.`
+              ? `Falta escanear el bolsín interno: ${codigos}. Escanealo y volvé a confirmar la carga.`
               : `Te sumaron envíos al recorrido que todavía no escaneaste${codigos ? ": " + codigos : ""}. Actualizamos tu lista: escanealos y volvé a confirmar la carga.`;
             if (saAvailable()) {
               Swal.fire({ icon: "warning", title: "Faltan bultos por escanear", text: msg, confirmButtonText: "Actualizar lista" }).then(() => cargarLista());
@@ -873,7 +873,7 @@ function renderScanned(done) {
           // depósito todavía: no cuenta como escaneado (ver comentario en
           // warehouse.php), pero avisamos igual para que no parezca que a
           // este bulto nunca lo tocó nadie.
-          const leyenda = it.bolsin ? "bolsín de facturas" : it.viaRaw === "RETIRO" ? "retirado, falta depósito" : "falta escanear";
+          const leyenda = it.bolsin ? "bolsín interno" : it.viaRaw === "RETIRO" ? "retirado, falta depósito" : "falta escanear";
           extra =
             (it.tot > 1 ? `<span class="rp-mb rp-num">0/${it.tot}</span>` : "") +
             `<span class="rp-who">${leyenda}</span>`;
