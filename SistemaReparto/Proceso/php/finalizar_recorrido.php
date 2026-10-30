@@ -269,6 +269,15 @@ try {
     responder(['success' => 0, 'error' => 'NO_SE_PUDO_CERRAR', 'msg' => 'El recorrido ya no estaba activo.']);
   }
 
+  // Cargo del recorrido en la cta. cte. del cliente (Funciones/cargo_recorrido.php). Si falla, el
+  // recorrido igual queda cerrado y la oficina lo carga con "Ingresar Recorridos".
+  try {
+    require_once __DIR__ . '/../../Funciones/cargo_recorrido.php';
+    cargarRecorridoEnCtaCte($mysqli, (int) $idLog, $usuario);
+  } catch (Throwable $e) {
+    error_log('finalizar_recorrido.php cargo recorrido: ' . $e->getMessage());
+  }
+
   responder([
     'success' => 1,
     'resumen' => [
