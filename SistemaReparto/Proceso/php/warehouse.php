@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 require_once "../../Conexion/conexioni.php";
 require_once __DIR__ . '/../../Funciones/bolsines.php';
+require_once __DIR__ . '/../../Funciones/wepoint.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 if (isset($_POST['GetLista'])) {
@@ -257,12 +258,16 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
         else $errores++;
     }
 
+    // Lo que carga el chofer sale del depósito de Wepoint (solo los envíos que Wepoint tenía)
+    $wepoint = avisarSalidaWepoint($mysqli, $bases, (string)$recorrido, (string)$usuario);
+
     echo json_encode([
         'success' => 1,
         'insertados' => $insertados,
         'ya_existian' => $yaExistian,
         'errores' => $errores,
-        'bolsines' => $bolsinesCargados
+        'bolsines' => $bolsinesCargados,
+        'wepoint' => $wepoint
     ]);
     exit;
 }
