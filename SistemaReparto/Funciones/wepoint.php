@@ -1,70 +1,65 @@
 <?php
-// Salida de bultos del depósito de Wepoint: cuando el chofer escanea en Warehouse lo que carga, se
-// le avisa a Wepoint (POST /api/v2/integraciones/caddy/salidas) para que esos bultos salgan de su
-// depósito y dejen de contar estadía. Solo se mandan los envíos que se le avisaron a Wepoint al
-// entrar (TransClientes.wepoint_id). Si Wepoint no responde, la carga del chofer sigue igual.
-// URL y token en Conexion/wepoint_config.php (fuera del repo; ver wepoint_config.example.php).
+// Salida de bultos del depósito de Wepoint: lo que el chofer carga en Warehouse se anota en la cola
+// wepoint_cola (misma base que el sistema) y el sistema se lo manda a Wepoint por cron cada minuto,
+// con reintentos (sistema: Logistica/Proceso/php/wepoint_lib.php). La carga del chofer no espera a
+// Wepoint. Solo los envíos que pasaron por Wepoint (escaneados en CrossDocking o avisados).
 
-function wepointConfig(): array
+/** Misma definición que wepoint_cola_tabla() del sistema: la crea quien llegue primero. */
+function wepointColaTabla(mysqli $mysqli): void
 {
-    static $config = null;
-    if ($config === null) {
-        $archivo = __DIR__ . '/../Conexion/wepoint_config.php';
-        if (is_file($archivo)) {
-            require_once $archivo;
-        }
-        $config = [
-            'url' => rtrim(defined('WEPOINT_API_URL') ? WEPOINT_API_URL : '', '/'),
-            'token' => defined('WEPOINT_API_TOKEN') ? WEPOINT_API_TOKEN : '',
-        ];
-    }
-    return $config;
+    $mysqli->query("CREATE TABLE IF NOT EXISTS wepoint_cola (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tipo VARCHAR(10) NOT NULL,
+        id_tc INT NOT NULL,
+        codigo VARCHAR(100) NOT NULL,
+        serie VARCHAR(100) NOT NULL,
+        fecha DATE NOT NULL,
+        recorrido VARCHAR(20) NULL,
+        chofer VARCHAR(100) NULL,
+        estado VARCHAR(12) NOT NULL DEFAULT 'pendiente',
+        intentos INT NOT NULL DEFAULT 0,
+        proximo_intento DATETIME NULL,
+        ultimo_error VARCHAR(500) NULL,
+        nro_orden VARCHAR(30) NULL,
+        usuario VARCHAR(100) NULL,
+        creado_en DATETIME NOT NULL,
+        enviado_en DATETIME NULL,
+        UNIQUE KEY uq_wepoint_cola (tipo, serie, fecha),
+        KEY ix_wepoint_cola_estado (estado, proximo_intento)
+    )");
 }
 
-/** @return array{ok:bool,egresados?:array,mensaje?:string}|null null si no había nada de Wepoint */
-function avisarSalidaWepoint(mysqli $mysqli, array $bases, string $recorrido, string $chofer): ?array
+/** @return int cuántos envíos se anotaron para salir de Wepoint */
+function encolarSalidaWepoint(mysqli $mysqli, array $bases, string $recorrido, string $chofer): int
 {
     $bases = array_values(array_filter(array_map('strval', $bases)));
     if (!$bases) {
-        return null;
+        return 0;
     }
 
     $marcas = implode(',', array_fill(0, count($bases), '?'));
-    $st = $mysqli->prepare("SELECT DISTINCT CodigoSeguimiento FROM TransClientes
-                            WHERE CodigoSeguimiento IN ($marcas) AND wepoint_id > 0 AND Eliminado = 0");
+    $st = $mysqli->prepare("SELECT id, CodigoSeguimiento FROM TransClientes
+                            WHERE CodigoSeguimiento IN ($marcas) AND Eliminado = 0
+                              AND (wepoint_id > 0 OR Wepoint_status = 'Ingreso')");
     $st->bind_param(str_repeat('s', count($bases)), ...$bases);
     $st->execute();
-    $deWepoint = array_column($st->get_result()->fetch_all(MYSQLI_ASSOC), 'CodigoSeguimiento');
+    $envios = $st->get_result()->fetch_all(MYSQLI_ASSOC);
     $st->close();
-    if (!$deWepoint) {
-        return null;
+    if (!$envios) {
+        return 0;
     }
 
-    $config = wepointConfig();
-    if ($config['url'] === '' || $config['token'] === '') {
-        error_log('Salida a Wepoint: falta Conexion/wepoint_config.php');
-        return ['ok' => false, 'mensaje' => 'Falta configurar Wepoint'];
+    wepointColaTabla($mysqli);
+    $ins = $mysqli->prepare("INSERT INTO wepoint_cola (tipo, id_tc, codigo, serie, fecha, recorrido, chofer, usuario, creado_en)
+        VALUES ('salida', ?, ?, ?, CURDATE(), ?, ?, ?, NOW())
+        ON DUPLICATE KEY UPDATE proximo_intento = IF(estado = 'error', NOW(), proximo_intento)");
+    foreach ($envios as $e) {
+        $idTc = (int)$e['id'];
+        $codigo = (string)$e['CodigoSeguimiento'];
+        $ins->bind_param('isssss', $idTc, $codigo, $codigo, $recorrido, $chofer, $chofer);
+        $ins->execute();
     }
+    $ins->close();
 
-    $ch = curl_init($config['url'] . '/api/v2/integraciones/caddy/salidas');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_TIMEOUT => 8,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode(['codigos' => $deWepoint, 'recorrido' => $recorrido, 'chofer' => $chofer], JSON_UNESCAPED_UNICODE),
-        CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/json', 'Authorization: Bearer ' . $config['token']],
-    ]);
-    $resp = curl_exec($ch);
-    $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err = curl_error($ch);
-    curl_close($ch);
-
-    $json = json_decode((string)$resp, true);
-    if ($http < 200 || $http >= 300 || !is_array($json)) {
-        error_log("Salida a Wepoint (recorrido $recorrido): HTTP $http $err " . substr((string)$resp, 0, 300));
-        return ['ok' => false, 'mensaje' => 'Wepoint no respondió'];
-    }
-
-    return ['ok' => true, 'egresados' => $json['data']['egresados'] ?? []];
+    return count($envios);
 }
