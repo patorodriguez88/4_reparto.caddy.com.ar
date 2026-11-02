@@ -258,8 +258,8 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
         else $errores++;
     }
 
-    // Lo que carga el chofer sale del depósito de Wepoint (solo los envíos que Wepoint tenía)
-    $wepoint = avisarSalidaWepoint($mysqli, $bases, (string)$recorrido, (string)$usuario);
+    // Lo que carga el chofer sale del depósito de Wepoint (se le avisa por la cola, sin esperar)
+    $wepoint = encolarSalidaWepoint($mysqli, $bases, (string)$recorrido, (string)$usuario);
 
     echo json_encode([
         'success' => 1,
