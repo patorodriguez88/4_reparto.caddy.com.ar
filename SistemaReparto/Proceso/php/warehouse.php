@@ -369,9 +369,11 @@ if (isset($_POST['PuedeSalir'])) {
 
     $insertados = 0;
     $yaExistian = 0;
+    $basesRecorrido = [];
 
     while ($r = $rs->fetch_assoc()) {
         $base = (string)$r['base'];
+        $basesRecorrido[] = $base;
 
         // anti duplicado por base + status
         $chk = $mysqli->prepare("
@@ -415,10 +417,15 @@ if (isset($_POST['PuedeSalir'])) {
         if ($ins->execute()) $insertados++;
     }
 
+    // Sale todo el recorrido, también lo que no se escaneó en Warehouse (Flex leído con la app de
+    // Meli, "omitir control de escaneo"): lo que estaba en Wepoint sale de su depósito.
+    $wepoint = encolarSalidaWepoint($mysqli, $basesRecorrido, (string)$recorrido, (string)$usuario);
+
     echo json_encode([
         'success' => 1,
         'insertados' => $insertados,
         'ya_existian' => $yaExistian,
+        'wepoint' => $wepoint,
         'status' => $status,
         'estado' => $Estado
     ]);
