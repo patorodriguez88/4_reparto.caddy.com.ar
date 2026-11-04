@@ -149,6 +149,8 @@ function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): array
                   SELECT 1 FROM Seguimiento s
                   WHERE SUBSTRING_INDEX(s.CodigoSeguimiento, '_', 1) = SUBSTRING_INDEX(TransClientes.CodigoSeguimiento, '_', 1)
                     AND s.status = 'warehouse_validated'
+                    -- de esta salida: el escaneo de una visita anterior no cuenta (ver GetLista en warehouse.php)
+                    AND s.NumerodeOrden = HojaDeRuta.NumerodeOrden
                     AND (s.Eliminado IS NULL OR s.Eliminado = 0)
                   LIMIT 1
               )

@@ -37,6 +37,14 @@ if (isset($_POST['GetLista'])) {
     // pickup_ready y pickup_not_scanned NO cuentan como escaneado (el segundo
     // es justamente "colecta cerrada sin escanear").
     //
+    // FIX (2026-11-04): el warehouse_validated tiene que ser de ESTA orden
+    // (Seguimiento.NumerodeOrden = la de la hoja de ruta abierta). Antes
+    // valía uno de cualquier fecha, y en una segunda visita el bulto aparecía
+    // "YA ESCANEADO" por el escaneo de la primera salida aunque hoy no lo
+    // hubiera escaneado nadie (caso: TCFDTIPCE y VIHSI0VKX de IGALFER,
+    // escaneados el 29/10 con la orden 17589, no entregados el 30/10, y el
+    // 4/11 salían con la 17637 marcados como ya escaneados).
+    //
     // FIX (2026-09-14): antes 'RETIRO' entraba en el mismo bucket que
     // 'MANUAL' -> la lista mostraba el bulto en verde con el tag "YA
     // ESCANEADO" (ya_escaneado=1), pero el gate de salida (que exige
@@ -51,7 +59,7 @@ if (isset($_POST['GetLista'])) {
                CASE WHEN (t.idColecta IS NULL OR t.idColecta = 0) THEN 0 ELSE 1 END AS es_colecta,
                (
                    SELECT CASE
-                       WHEN SUM(s.status = 'warehouse_validated') > 0 THEN 'MANUAL'
+                       WHEN SUM(s.status = 'warehouse_validated' AND s.NumerodeOrden = h.NumerodeOrden) > 0 THEN 'MANUAL'
                        WHEN SUM(s.status = 'pickup_scanned' AND s.Usuario = 'MercadoLibre') > 0 THEN 'ML'
                        WHEN SUM(s.status = 'pickup_scanned') > 0 THEN 'RETIRO'
                        ELSE ''
@@ -196,7 +204,8 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
     $obs = "Validado en warehouse (confirmación de carga)";
 
     // prepareds reusables
-    $sqlChk = $mysqli->prepare("SELECT id FROM Seguimiento WHERE CodigoSeguimiento=? AND status='warehouse_validated' AND Eliminado=0 LIMIT 1");
+    // Anti duplicado por orden: el escaneo de una visita anterior no cuenta (ver GetLista).
+    $sqlChk = $mysqli->prepare("SELECT id FROM Seguimiento WHERE CodigoSeguimiento=? AND status='warehouse_validated' AND NumerodeOrden=? AND Eliminado=0 LIMIT 1");
 
     $sqlT = $mysqli->prepare("SELECT id, idClienteDestino, DomicilioDestino AS Destino, NumerodeOrden
                               FROM TransClientes
@@ -217,15 +226,6 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
 
     foreach ($bases as $base) {
 
-        // anti duplicado
-        $sqlChk->bind_param("s", $base);
-        $sqlChk->execute();
-        $chk = $sqlChk->get_result();
-        if ($chk && $chk->num_rows > 0) {
-            $yaExistian++;
-            continue;
-        }
-
         // buscar TransClientes
         $sqlT->bind_param("s", $base);
         $sqlT->execute();
@@ -236,6 +236,15 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
         $idCliente       = (int)($tr['idClienteDestino'] ?? 0);
         $destino         = (string)($tr['Destino'] ?? '');
         $nroOrden        = (string)($tr['NumerodeOrden'] ?? '');
+
+        // anti duplicado
+        $sqlChk->bind_param("ss", $base, $nroOrden);
+        $sqlChk->execute();
+        $chk = $sqlChk->get_result();
+        if ($chk && $chk->num_rows > 0) {
+            $yaExistian++;
+            continue;
+        }
 
         $sqlIns->bind_param(
             "ssssssssiisis",
