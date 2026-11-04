@@ -1659,13 +1659,11 @@ if ($isColecta) {
         'obs'            => 'Retirado del cliente (Colecta)',
         'retirado'       => 1
     ]);
-    // FIX (2026-09-16, mismo caso Ferniplast): upsertSeguimiento() solo
-    // escribe el log (Seguimiento.Retirado) - nunca tocaba
-    // TransClientes.Retirado. Antes esto quedaba diferido hasta
-    // ColectaCerrar (ya corregido más arriba), pero el padre físicamente
-    // YA se retiró en este momento (primer escaneo de la colecta) - se
-    // marca acá, en tiempo real, en vez de esperar al cierre.
-    $mysqli->query("UPDATE TransClientes SET Retirado=1 WHERE id=" . (int)$padreId . " AND Eliminado=0 LIMIT 1");
+    // TransClientes.Retirado del padre NO se marca acá: lo marca el cierre de la
+    // colecta (ColectaCerrar). Con Retirado=1 la tarjeta deja de ser COLECTA y
+    // pasa a "entregar en depósito", así que si el chofer salía de la colecta a
+    // mitad de camino ya no la podía volver a abrir y parecía cerrada (VENEX
+    // 4/11, colecta 8974: 6 de 22 escaneados).
 
     // =====================================
     // COLECTA: HIJO (pickup_scanned) por bulto
