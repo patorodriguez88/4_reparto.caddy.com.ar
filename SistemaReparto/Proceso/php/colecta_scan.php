@@ -248,6 +248,42 @@ function leerResumeColecta($mysqli, $colectaId)
  * 3) el fallback (lo que venia de la app, que a veces es 0 o el de otro
  * recorrido). Devuelve int.
  */
+/**
+ * Colecta AUTOMÁTICA (Flex): suma los Flex pendientes del cliente que quedaron afuera porque los
+ * marcaron Flex, los aceptaron o entraron por la API después de generar la colecta (caso VENEX
+ * 4/11: la colecta se generó con 4 y otros 18 se marcaron Flex después; la app decía "No está en
+ * esta colecta"). Mismo criterio que generarColecta() del sistema (Ventas/Procesos/php/colecta.php)
+ * más un tope de 7 días. No toca colectas manuales (las arma la oficina a mano) ni cerradas.
+ * Devuelve cuántos sumó.
+ */
+function sumarFlexPendientesColecta($mysqli, $colectaId, $padreId)
+{
+    $colectaId = (int)$colectaId;
+    $padreId = (int)$padreId;
+    if ($colectaId <= 0 || $padreId <= 0) return 0;
+
+    $tieneManual = $mysqli->query("SHOW COLUMNS FROM Colecta LIKE 'Manual'");
+    $selManual = ($tieneManual && $tieneManual->num_rows > 0) ? 'Manual' : '0 AS Manual';
+    $c = $mysqli->query("SELECT Fecha, {$selManual}, ColectaScans FROM Colecta WHERE id = {$colectaId} AND Eliminado = 0 LIMIT 1")->fetch_assoc();
+    if (!$c || (int)$c['Manual'] === 1) return 0;
+    $prev = json_decode((string)($c['ColectaScans'] ?? ''), true);
+    if (is_array($prev) && !empty($prev['cierre'])) return 0;
+
+    $p = $mysqli->query("SELECT idClienteOrigen FROM TransClientes WHERE id = {$padreId} LIMIT 1")->fetch_assoc();
+    $idCliente = (int)($p['idClienteOrigen'] ?? 0);
+    if ($idCliente <= 0) return 0;
+
+    $fecha = (!empty($c['Fecha']) && $c['Fecha'] !== '0000-00-00') ? $c['Fecha'] : date('Y-m-d');
+    $st = $mysqli->prepare("UPDATE TransClientes SET idColecta = ?
+        WHERE idClienteOrigen = ? AND Flex = 1 AND id <> ?
+          AND Entregado = 0 AND Devuelto = 0 AND Eliminado = 0
+          AND (idColecta IS NULL OR idColecta = 0) AND idClienteDestino <> 18587
+          AND Fecha BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND ?");
+    $st->bind_param("iiiss", $colectaId, $idCliente, $padreId, $fecha, $fecha);
+    $st->execute();
+    return $st->affected_rows;
+}
+
 function resolverNroOrdenTC($mysqli, $idTransClientes, $fallback = 0)
 {
     $idTransClientes = (int)$idTransClientes;
@@ -725,6 +761,9 @@ if (isset($_POST['InitColecta'])) {
         // Cantidad declarada por operador (para auditoría)
         $paquetesOperador = (int)($c['Cantidad_m'] ?? 0);
         if ($paquetesOperador <= 0) $paquetesOperador = (int)($c['Cantidad'] ?? 0);
+
+        // Los Flex del cliente que quedaron afuera de la colecta automática entran ahora.
+        sumarFlexPendientesColecta($mysqli, $colectaId, $padreId);
 
         // Servicios asignados a esa colecta (excluyo padre)
         $stT = $mysqli->prepare("SELECT id, CodigoSeguimiento, Cantidad, shipments_id, CodigoProveedor, Flex, ClienteDestino
@@ -1278,6 +1317,10 @@ if (!$info) {
         $stCli->bind_param("iisss", $FERNIPLAST_CLIENTE_ID, $padreId, $baseU, $raw, $baseU);
         $stCli->execute();
         $delCliente = $stCli->get_result()->fetch_assoc();
+        if ($delCliente && sumarFlexPendientesColecta($mysqli, $colectaId, $padreId) > 0) {
+            responder(['success' => 0, 'error' => 'NO_ESTA_EN_COLECTA',
+                'detail' => 'Había envíos Flex del cliente que no estaban en esta colecta (' . $delCliente['CodigoSeguimiento'] . ' entre ellos): ya los sumamos. Cerrá y volvé a abrir la colecta, y escaneá de nuevo.']);
+        }
         if ($delCliente) {
             responder(['success' => 0, 'error' => 'NO_ESTA_EN_COLECTA',
                 'detail' => 'Es un envío del cliente (' . $delCliente['CodigoSeguimiento'] . ') pero no está en esta colecta. Pedile a la oficina que lo agregue y volvé a abrir la colecta.']);
