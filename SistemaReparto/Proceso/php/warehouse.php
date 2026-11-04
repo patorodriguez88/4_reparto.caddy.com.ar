@@ -174,8 +174,12 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
     $basesJson = $_POST['bases'] ?? '[]';
     $basesArr = json_decode($basesJson, true);
 
+    // Sin bases nuevas no hay nada que registrar, pero no es un error: todo lo del recorrido ya estaba
+    // validado (p.ej. el chofer vuelve a apretar "Confirmar carga" después de haberla confirmado, o
+    // todo venía confirmado por MELI). Sigue el paso de En Tránsito, que no duplica (Franco 4/11,
+    // recorrido 1050: "Error sin bases" con la carga ya confirmada).
     if (!is_array($basesArr) || count($basesArr) === 0) {
-        echo json_encode(['success' => 0, 'error' => 'Sin bases']);
+        echo json_encode(['success' => 1, 'insertados' => 0, 'yaExistian' => 0, 'errores' => 0]);
         exit;
     }
 
@@ -384,13 +388,15 @@ if (isset($_POST['PuedeSalir'])) {
         $base = (string)$r['base'];
         $basesRecorrido[] = $base;
 
-        // anti duplicado por base + status
+        // anti duplicado por base + status + orden: en una segunda visita el En Tránsito de la salida
+        // anterior no cuenta (mismo criterio que warehouse_validated en GetLista).
+        $nroOrdenChk = (string)($r['nroOrden'] ?? '');
         $chk = $mysqli->prepare("
       SELECT id FROM Seguimiento
-      WHERE CodigoSeguimiento=? AND status=? AND Eliminado=0
+      WHERE CodigoSeguimiento=? AND status=? AND NumerodeOrden=? AND Eliminado=0
       LIMIT 1
     ");
-        $chk->bind_param("ss", $base, $status);
+        $chk->bind_param("sss", $base, $status, $nroOrdenChk);
         $chk->execute();
         $cr = $chk->get_result();
         if ($cr && $cr->num_rows > 0) {
