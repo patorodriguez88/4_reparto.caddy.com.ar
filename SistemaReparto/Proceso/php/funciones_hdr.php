@@ -563,6 +563,17 @@ if (isset($_POST['Paneles'])) {
     echo "<div class='alert alert-warning mb-2'><strong>Falta el bolsín interno.</strong> " . htmlspecialchars($msgBolsin) . " Hasta entonces no ves las entregas del recorrido.</div>";
   }
 
+  // Ejemplares de diarios por kiosco (Asignaciones, las carga la oficina). Una sola consulta: la tabla no
+  // tiene índices y son pocas fechas. Clave: cliente de origen, número del kiosco y fecha.
+  $asignacionesRecientes = [];
+  $resAsig = $mysqli->query("SELECT a.Relacion, a.idProveedor, a.Fecha, a.Edicion, a.Cantidad, p.Nombre
+      FROM Asignaciones a
+      LEFT JOIN AsignacionesProductos p ON p.CodigoProducto = a.CodigoProducto AND p.Relacion = a.Relacion
+      WHERE a.Fecha BETWEEN CURDATE() - INTERVAL 15 DAY AND CURDATE() + INTERVAL 15 DAY");
+  while ($resAsig && $a = $resAsig->fetch_assoc()) {
+    $asignacionesRecientes[(int)$a['Relacion']][(int)$a['idProveedor']][$a['Fecha']][] = $a;
+  }
+
   while ($row = $BuscarRecorridos->fetch_array(MYSQLI_ASSOC)) {
 
     // Entrega normal de depósito todavía sin escanear en Warehouse (y no
@@ -580,6 +591,7 @@ if (isset($_POST['Paneles'])) {
     // solo verificando que ninguna query reviente.
     // ----------------------------------------------
     $Cantidad = (int)($row['Cantidad'] ?? 1); // ✅ SIEMPRE, para retiro y entrega
+    $listaAsignaciones = [];
 
     if ($row['Retirado'] == 0) {
 
@@ -676,6 +688,9 @@ if (isset($_POST['Paneles'])) {
       $idProveedor = $sqlBuscoidProveedor->fetch_array(MYSQLI_ASSOC) ?: [];
 
       $idP = (!empty($idProveedor['idProveedor'])) ? '[' . $idProveedor['idProveedor'] . ']' : '';
+      // La fecha de entrega del envío, o hoy si el reparto se corrió de día
+      $asigKiosco = $asignacionesRecientes[(int)($row['idClienteOrigen'] ?? 0)][(int)($idProveedor['idProveedor'] ?? 0)] ?? [];
+      $listaAsignaciones = $asigKiosco[(string)($row['FechaEntrega'] ?? '')] ?? $asigKiosco[date('Y-m-d')] ?? [];
       $Retirado = 1;
       $Servicio = 'Entrega';
       $color = 'success';
@@ -863,13 +878,11 @@ if (isset($_POST['Paneles'])) {
             <table class="table table-sm table-borderless mb-0 mt-2" style="font-size:12px">
               <thead><tr><th>Producto</th><th>Ed.</th><th class="text-end">Cant.</th></tr></thead>
               <tbody>
-                <?php foreach ($listaAsignaciones as $asig):
-                  $codigo = $asig['CodigoProducto'] ?? '';
-                  $prod = $asigProductos[$codigo][$relacion] ?? []; ?>
+                <?php foreach ($listaAsignaciones as $asig): ?>
                   <tr>
-                    <td><?= htmlspecialchars($prod['Nombre'] ?? 'Sin nombre') ?></td>
+                    <td><?= htmlspecialchars($asig['Nombre'] ?? 'Sin nombre') ?></td>
                     <td><?= htmlspecialchars((string)($asig['Edicion'] ?? '')) ?></td>
-                    <td class="text-end"><?= htmlspecialchars((string)($asig['Cantidad'] ?? '')) ?></td>
+                    <td class="text-end fw-bold"><?= htmlspecialchars((string)($asig['Cantidad'] ?? '')) ?></td>
                   </tr>
                 <?php endforeach; ?>
               </tbody>
