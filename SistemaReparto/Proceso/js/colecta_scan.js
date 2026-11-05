@@ -487,6 +487,13 @@ console.log("Version 1.16 - 2024-06-18");
     const raw = codigoDesdeQrCaddy((decodedText || "").trim());
     if (!raw) return;
 
+    // Las etiquetas de cliente (IGALFER) traen además el QR de la dirección y el de las coordenadas: la
+    // cámara los lee igual, pero no son el código del paquete. No es un error: se sigue escaneando.
+    if (/^geo:/i.test(raw) || (raw[0] !== "{" && /\s/.test(raw) && raw.includes(","))) {
+      fbColecta("dup", "Ese QR no es del paquete: apuntá al código de barras");
+      return;
+    }
+
     const hasN = raw.includes("_");
 
     // anti-rebote (aplica igual para manual, pero no molesta)

@@ -1235,6 +1235,12 @@ $bultoPost = trim((string)($_POST['bulto'] ?? ''));
 if ($raw === '')  $raw = $bultoPost;
 if ($raw === '')  $raw = $basePost;
 
+// QR de dirección o de coordenadas de la etiqueta del cliente (IGALFER): no es un paquete, no va a sobrantes.
+// La app ya no los manda; esto queda por los teléfonos con el js viejo en caché.
+if (preg_match('/^geo:/i', $raw) || ($raw !== '' && $raw[0] !== '{' && preg_match('/\s/', $raw) && strpos($raw, ',') !== false)) {
+    responder(['success' => 0, 'error' => 'Ese QR no es del paquete', 'detail' => 'Es el QR de la dirección o de las coordenadas. Apuntá al código de barras de la etiqueta.']);
+}
+
 $cantidad = (int)($_POST['cantidad'] ?? 1);
 
 if ($cantidad <= 0) $cantidad = 1;
