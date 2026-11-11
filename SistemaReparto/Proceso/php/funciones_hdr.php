@@ -443,11 +443,14 @@ if (isset($_POST['Paneles'])) {
   ini_set('display_errors', 1);
 
 
+  // Sin orden Cargada (cerró la anterior y todavía no le cargaron otra): no se cierra la
+  // sesión como antes, se muestra el aviso y la app toma la orden nueva sola.
   if (empty($_SESSION['RecorridoAsignado'])) {
-    session_destroy();
-    header('Content-Type: application/json; charset=utf-8');
-    http_response_code(401);
-    echo json_encode(['forceLogout' => true, 'reason' => 'NO_RECORRIDO_ASIGNADO']);
+    echo '<div class="col-12 rp"><div class="rp-empty rp-sin-orden">'
+      . '<span class="rp-empty-t">Sin orden cargada</span>'
+      . 'No tenés ningún recorrido cargado en este momento.<br>'
+      . 'Cuando la oficina te cargue la orden, aparece acá sola.'
+      . '</div></div>';
     exit;
   }
   $Recorrido = $_SESSION['RecorridoAsignado'];

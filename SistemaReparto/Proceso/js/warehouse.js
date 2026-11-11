@@ -79,6 +79,17 @@ $(document).on("click", "#wh-salir", function (e) {
     },
   });
 });
+let whSinOrdenAvisado = false;
+
+// Con la pantalla abierta también se revisa cada 1 minuto si cambió la orden (antes solo al
+// abrir o al volver a la app, y el chofer seguía escaneando contra la lista anterior).
+setInterval(function () {
+  if (document.visibilityState !== "visible") return;
+  try {
+    cargarHeaderWarehouse();
+  } catch (e) {}
+}, 60 * 1000);
+
 let renderRunning = false;
 let renderQueued = false;
 let __allScannedToastShown = false;
@@ -91,14 +102,16 @@ function cargarHeaderWarehouse() {
     data: { Datos: 1 },
   })
     .done(function (jsonData) {
-      // Le cambiaron el recorrido al chofer a mitad de turno: la sesión quedó
-      // con el viejo y esta pantalla mostraría datos que no son. Lo mandamos a
-      // reingresar.
-      if (jsonData && jsonData.RecorridoCambio) {
-        saModal("warning", "Te cambiaron el recorrido", "Volvé a ingresar para cargar el nuevo.");
-        setTimeout(function () {
-          window.location.href = "hdr.html?b=20260906c";
-        }, 1500);
+      // Sin orden Cargada (la cerraron y todavía no le cargaron otra): no hay nada que
+      // escanear; vuelve a Recorrido, que muestra "Sin orden cargada" sin cerrar la sesión.
+      if (jsonData && jsonData.success == 2) {
+        if (!whSinOrdenAvisado) {
+          whSinOrdenAvisado = true;
+          saModal("info", "Sin orden cargada", "No tenés ningún recorrido cargado. Cuando te carguen la orden, la vas a ver en Recorrido.");
+          setTimeout(function () {
+            window.location.href = "hdr.html?b=20260906c";
+          }, 2500);
+        }
         return;
       }
       if (jsonData && jsonData.success == 1) {
@@ -129,12 +142,23 @@ function cargarHeaderWarehouse() {
         // esperar ese segundo round-trip.
         if (db) {
           try {
-            const reqRecorridoLocal = tx("meta").get("recorrido");
-            reqRecorridoLocal.onsuccess = function () {
+            // También la ORDEN (2026-11-11): una segunda salida del mismo recorrido trae
+            // otra orden y otro escaneo; antes no se detectaba y quedaba la lista anterior.
+            const metaStore = tx("meta");
+            const reqRecorridoLocal = metaStore.get("recorrido");
+            const reqOrdenLocal = metaStore.get("orden");
+            reqOrdenLocal.onsuccess = function () {
               const recorridoLocal = reqRecorridoLocal.result ? String(reqRecorridoLocal.result.value) : "";
+              const ordenLocal = reqOrdenLocal.result ? String(reqOrdenLocal.result.value) : "";
               const recorridoServidor = String(jsonData.Recorrido || "");
-              if (recorridoLocal !== "" && recorridoServidor !== "" && recorridoLocal !== recorridoServidor) {
-                console.log("🔁 Recorrido cambió (otro usuario/turno en este teléfono) → recargando de una");
+              const ordenServidor = String(jsonData.NOrden || "");
+              const cambioRecorrido = recorridoLocal !== "" && recorridoServidor !== "" && recorridoLocal !== recorridoServidor;
+              const cambioOrden = ordenLocal !== "" && ordenServidor !== "" && ordenLocal !== ordenServidor;
+              if (cambioRecorrido || cambioOrden) {
+                console.log("🔁 Cambió la orden/recorrido → recargando la lista de una");
+                if (cambioOrden && !cambioRecorrido) {
+                  saToast("info", `Nueva orden cargada (H${ordenServidor}). Actualizando la lista…`, 2500);
+                }
                 cargarLista();
               }
             };
@@ -617,6 +641,7 @@ function cargarLista() {
         });
 
         meta.put({ key: "recorrido", value: res.recorrido });
+        meta.put({ key: "orden", value: res.orden ? String(res.orden) : "" });
         meta.put({ key: "total", value: totalEntregas });
         meta.put({ key: "hash", value: res.hash });
 

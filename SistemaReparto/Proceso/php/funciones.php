@@ -218,23 +218,9 @@ if (isset($_POST['Datos'])) {
     $nOrden = $row['NumerodeOrden'];
     $Recorrido = $row['Recorrido'];
 
-    // El recorrido Cargado del chofer cambió respecto al que se fijó al
-    // loguearse (RecorridoAsignado se setea SOLO en admision.php). El resto de
-    // los endpoints -warehouse, panel HdR, colecta, iniciar recorrido- siguen
-    // usando $_SESSION['RecorridoAsignado'], así que quedan apuntando al viejo
-    // (caso 2026-09-08: al chofer del rec. 1500 le armaron el 1467 a mitad de
-    // turno y la pantalla de escaneo mostraba 0/0). Forzamos reingreso para que
-    // admision.php reasigne todo limpio.
-    $recorridoSesion = (string) ($_SESSION['RecorridoAsignado'] ?? '');
-    if ($recorridoSesion !== '' && $recorridoSesion !== (string) $Recorrido) {
-      responder([
-        'success'           => 1,
-        'RecorridoCambio'   => 1,
-        'RecorridoAnterior' => $recorridoSesion,
-        'Recorrido'         => (string) $Recorrido,
-        'NOrden'            => $nOrden,
-      ]);
-    }
+    // La sesión ya quedó con esta orden (conexioni.php::sincronizarOrdenSesion, en cada
+    // pedido). Si cambió respecto de la que tenía la pantalla, el front lo detecta
+    // comparando NOrden y recarga solo, sin pedir que vuelva a ingresar.
     // CANTIDAD TOTAL
     $sqlCantidadTotal = consultaOError(
       $mysqli,
@@ -324,7 +310,7 @@ if (isset($_POST['Datos'])) {
     // Hora real de inicio del recorrido (botón "Iniciar Recorrido" o
     // auto-detección por GPS) - NULL si todavía no arrancó.
     $sqlLog = $mysqli->query(
-      "SELECT HoraSalidaReal FROM Logistica
+      "SELECT HoraSalidaReal, Fecha FROM Logistica
        WHERE idUsuarioChofer = '{$idUsuario}' AND Estado = 'Cargada' AND Eliminado = 0
        ORDER BY id DESC
        LIMIT 1"
@@ -363,6 +349,9 @@ if (isset($_POST['Datos'])) {
       // El front lo usa para NO exigir escaneo al aceptar un retiro/colecta.
       'OmitirEscaneo'      => overrideEscaneo($mysqli, (int) $idUsuario) ? 1 : 0,
       'HoraSalidaReal'     => $rowLog['HoraSalidaReal'] ?? null,
+      // Fecha de la orden: si es de un día anterior y sigue Cargada, la app avisa que hay
+      // una orden sin cerrar.
+      'FechaOrden'         => $rowLog['Fecha'] ?? null,
       'PausaActiva'        => $rowPausa ?: null,
       // round() puede serializar con ruido binario (15.4000...552713...) según
       // el serialize_precision del servidor - se manda como string ya
@@ -371,10 +360,14 @@ if (isset($_POST['Datos'])) {
       'TiempoPendienteMin' => $tiempoPendienteMin > 0 ? $tiempoPendienteMin : null,
     ]);
   } else {
+    // Logueado pero sin orden Cargada (todavía no se la cargaron, o ya la cerró): la app
+    // queda abierta en "Sin orden cargada" y toma la nueva sola cuando la carguen.
     responder([
-      'success' => 2,
-      'usuario' => $idUsuario,
-      'norden'  => $row['NumerodeOrden'] ?? null
+      'success'  => 2,
+      'SinOrden' => 1,
+      'usuario'  => $idUsuario,
+      'Usuario'  => $Transportista,
+      'norden'   => null
     ]);
   }
 }

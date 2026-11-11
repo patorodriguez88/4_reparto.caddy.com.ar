@@ -255,5 +255,31 @@ if (!defined('ALLOW_NO_SESSION') || ALLOW_NO_SESSION !== true) {
 
         // Sesión OK → refresco tiempo
         $_SESSION['tiempo'] = time();
+
+        sincronizarOrdenSesion($mysqli);
     }
+}
+
+// La orden del chofer se lee en cada pedido, no solo al loguearse (2026-11-11). Antes el
+// recorrido y el nº de orden quedaban fijos en la sesión desde el login: si cerraba una
+// orden y le cargaban otra, Warehouse, tarjetas, colecta e Iniciar recorrido seguían con
+// la anterior hasta volver a ingresar (y si era el mismo recorrido, nunca se enteraba).
+// El chofer ve SOLO su orden 'Cargada'; si no tiene, la sesión queda sin recorrido
+// ("Sin orden cargada") pero sigue logueado.
+function sincronizarOrdenSesion(mysqli $mysqli): void
+{
+    $uid = (int) ($_SESSION['idusuario'] ?? 0);
+    if ($uid <= 0) return;
+    try {
+        $r = $mysqli->query("SELECT Recorrido, NumerodeOrden FROM Logistica
+                              WHERE idUsuarioChofer = {$uid} AND Estado = 'Cargada' AND Eliminado = 0
+                              ORDER BY id DESC LIMIT 1");
+    } catch (Throwable $e) {
+        error_log('sincronizarOrdenSesion: ' . $e->getMessage());
+        return; // ante un error de base no se toca la sesión
+    }
+    if (!$r) return;
+    $row = $r->fetch_assoc();
+    $_SESSION['RecorridoAsignado'] = $row ? (string) $row['Recorrido'] : '';
+    $_SESSION['hdr']               = $row ? (string) $row['NumerodeOrden'] : '';
 }
