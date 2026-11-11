@@ -138,7 +138,8 @@ if (isset($_POST['GetLista'])) {
         ];
     }
     $solo_hash = isset($_POST['solo_hash']) ? (int)$_POST['solo_hash'] : 0;
-    $hash = md5($recorrido . json_encode($items));
+    // La orden entra en el hash: una segunda salida del mismo recorrido invalida la lista guardada.
+    $hash = md5($recorrido . '|' . (int) $orden . json_encode($items));
 
     if ($solo_hash === 1) {
         echo json_encode([
@@ -151,6 +152,7 @@ if (isset($_POST['GetLista'])) {
     echo json_encode([
         'success' => 1,
         'recorrido' => $recorrido,
+        'orden' => $orden, // para que la app detecte una orden nueva del mismo recorrido
         'hash' => $hash,
         'items' => $items
     ]);

@@ -800,11 +800,6 @@ function initApp() {
     dataType: "json",
   })
     .done(function (jsonData) {
-      // Le cambiaron el recorrido al chofer (RecorridoAsignado viejo en sesión).
-      if (jsonData && jsonData.RecorridoCambio) {
-        cerrarSesionForzada("RECORRIDO_CAMBIO");
-        return;
-      }
       // Si tu backend manda forceLogout
       if (jsonData && jsonData.forceLogout) {
         // ✅ Si es la primera carga o no hay usuario, NO muestres cartel
@@ -820,8 +815,12 @@ function initApp() {
         cerrarSesionForzada(jsonData.reason || "SESSION_EXPIRED");
         return;
       }
-      // ✅ Hay sesión -> arrancamos
-      if (jsonData && jsonData.success == 1) {
+      // ✅ Hay sesión -> arrancamos. success 2 = logueado pero sin orden Cargada: antes
+      // volvía a la pantalla de ingreso; ahora queda en "Sin orden cargada" y toma la
+      // orden sola cuando la carguen.
+      const sinOrden = jsonData && jsonData.success == 2;
+      if (jsonData && (jsonData.success == 1 || sinOrden)) {
+        window.ordenEnPantalla = ordenDeRespuesta(jsonData);
         showBottomnav();
         // OJO: no forzar #screen-operacion acá. initApp() resuelve async y si
         // el usuario cargó/recargó la app en #cuenta o #totales, mostrar
@@ -848,10 +847,14 @@ function initApp() {
         // Si querés usar esos datos del he
         // ader acá también:
 
-        $("#badge-total").html(jsonData.Total);
-        $("#badge-sinentregar").html(jsonData.Abiertos);
-        $("#badge-entregados").html(jsonData.Cerrados);
-        pintarEstadoRecorrido(jsonData);
+        if (sinOrden) {
+          mostrarSinOrden();
+        } else {
+          $("#badge-total").html(jsonData.Total);
+          $("#badge-sinentregar").html(jsonData.Abiertos);
+          $("#badge-entregados").html(jsonData.Cerrados);
+          pintarEstadoRecorrido(jsonData);
+        }
 
         if (window.AppStatus) {
           AppStatus.postStatus({ stage: "session_ok" });
@@ -1665,13 +1668,19 @@ function cargarHeader() {
     url: "Proceso/php/funciones.php",
     dataType: "json",
   }).done(function (jsonData) {
-    // El backend detectó que le cambiaron el recorrido al chofer a mitad de
-    // turno: RecorridoAsignado quedó viejo y hay que reingresar.
-    if (jsonData && jsonData.RecorridoCambio) {
-      cerrarSesionForzada("RECORRIDO_CAMBIO");
+    if (!jsonData || (jsonData.success != 1 && jsonData.success != 2)) return;
+    const nueva = ordenDeRespuesta(jsonData);
+    const anterior = window.ordenEnPantalla;
+    window.ordenEnPantalla = nueva;
+    const cambio = anterior !== undefined && anterior !== nueva;
+
+    if (jsonData.success == 2) {
+      mostrarSinOrden();
+      if (cambio) avisarCambioDeOrden(anterior, null, jsonData);
       return;
     }
-    if (jsonData && jsonData.success == 1) {
+    if (cambio) avisarCambioDeOrden(anterior, nueva, jsonData);
+    if (jsonData.success == 1) {
       $("#hdr-header").html(`Rec. ${jsonData.Recorrido} · H${jsonData.NOrden}`);
       $("#badge-total").html(jsonData.Total);
       $("#badge-sinentregar").html(jsonData.Abiertos);
@@ -1714,6 +1723,101 @@ function actualizarRelojEnRuta() {
   const duracionTxt = formatearDuracion(Date.now() - horaSalidaRealActual.getTime());
   $("#en-ruta-texto").text(`En ruta desde ${horaTxt} · ${duracionTxt}`);
 }
+
+// ===== Orden sin cerrar (2026-11-11) =====
+// La orden nunca se cierra sola: si ya no quedan paradas, la app le pide al chofer que la
+// finalice (cartel fijo + un recordatorio cada 10 min), y si la orden es de un día
+// anterior y sigue abierta, lo avisa. La oficina ve las mismas órdenes en sistema.
+function hoyCordoba() {
+  try {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Cordoba" });
+  } catch (e) {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function avisarOrdenSinCerrar(jsonData, sinPendientes) {
+  const fecha = String(jsonData.FechaOrden || "");
+  const deOtroDia = fecha !== "" && fecha < hoyCordoba();
+  let txt = "";
+  if (deOtroDia) {
+    const [a, m, d] = fecha.split("-");
+    txt = `Tenés la orden H${jsonData.NOrden} del ${d}/${m} sin cerrar.` +
+      (sinPendientes ? " Finalizá el recorrido." : " Avisá a la oficina.");
+  } else if (sinPendientes) {
+    txt = "Terminaste todas las paradas. Finalizá el recorrido para cerrar la orden.";
+  }
+  $("#aviso-orden-abierta-txt").text(txt);
+  $("#aviso-orden-abierta").toggle(txt !== "");
+
+  if (!sinPendientes) return;
+  // Recordatorio con botón, como mucho cada 10 minutos por orden (no en cada refresco).
+  const clave = "aviso_finalizar_" + jsonData.NOrden;
+  let ultimo = 0;
+  try {
+    ultimo = Number(sessionStorage.getItem(clave) || 0);
+  } catch (e) {}
+  if (Date.now() - ultimo < 10 * 60 * 1000) return;
+  if (Swal.isVisible()) return; // no pisar otro cartel abierto
+  try {
+    sessionStorage.setItem(clave, String(Date.now()));
+  } catch (e) {}
+  Swal.fire({
+    icon: "info",
+    title: "Recorrido terminado",
+    text: "No te quedan paradas pendientes. Finalizá el recorrido para cerrar la orden.",
+    showCancelButton: true,
+    confirmButtonText: "Finalizar ahora",
+    cancelButtonText: "Después",
+  }).then(function (r) {
+    if (r.isConfirmed) $("#btn-finalizar-recorrido").trigger("click");
+  });
+}
+
+// ===== La app sigue en vivo la orden Cargada del chofer (2026-11-11) =====
+// El servidor actualiza la sesión con la orden real en cada pedido (conexioni.php). Acá se
+// compara la orden que muestra la pantalla con la que devuelve Datos: si la cerraron o le
+// cargaron otra (aunque sea del mismo recorrido), se recargan header y tarjetas sin cerrar
+// la sesión. Se consulta al abrir, al volver a la app y cada 1 minuto con la app visible.
+window.ordenEnPantalla = undefined; // undefined = todavía no se cargó; null = sin orden
+
+function ordenDeRespuesta(jsonData) {
+  return jsonData && jsonData.success == 1 && jsonData.NOrden ? String(jsonData.NOrden) : null;
+}
+
+function mostrarSinOrden() {
+  $("#hdr-header").html("Sin orden cargada");
+  $("#badge-total, #badge-sinentregar, #badge-entregados").html("0");
+  $("#btn-iniciar-recorrido, #btn-finalizar-recorrido, #banner-en-ruta, #card-resumen-recorrido, #aviso-orden-abierta").hide();
+  $("#btn-parar-ruta").hide();
+  window.omitirEscaneo = false;
+}
+
+function avisarCambioDeOrden(anterior, nueva, jsonData) {
+  let titulo, texto;
+  if (nueva === null) {
+    titulo = "Orden cerrada";
+    texto = `La orden H${anterior} quedó cerrada. Cuando te carguen la próxima aparece sola.`;
+  } else {
+    titulo = "Nueva orden cargada";
+    texto = `Te cargaron el recorrido ${jsonData.Recorrido} (orden H${nueva}).`;
+  }
+  if (!Swal.isVisible()) {
+    Swal.fire({ icon: "info", title: titulo, text: texto, timer: 6000 });
+  }
+  // Si estaba con una tarjeta abierta, no se la cierro de golpe: las tarjetas se
+  // refrescan al volver a la lista. Si estaba en la lista, se recargan ya.
+  if (!$("#card-envio").is(":visible")) {
+    paneles(null, false);
+  }
+}
+
+setInterval(function () {
+  if (document.visibilityState !== "visible") return;
+  if (window.ordenEnPantalla === undefined) return; // todavía no hay sesión iniciada
+  if ($("body").hasClass("login-lock")) return;
+  if (typeof cargarHeader === "function") cargarHeader();
+}, 60 * 1000);
 
 // Estado "detenido" del banner (recorrido todavía no iniciado):
 // icono de stop + hora actual + contador en 00:00:00.
@@ -1769,6 +1873,7 @@ function pintarEstadoRecorrido(jsonData) {
   if (sinPendientes) {
     $("#btn-iniciar-recorrido").hide();
   }
+  avisarOrdenSinCerrar(jsonData, sinPendientes);
 
   const pendientes = jsonData.Abiertos || 0;
   if (pendientes > 0) {
@@ -2236,6 +2341,7 @@ $(document).on("click", "#ingreso", function (e) {
           location.hash = "operacion";
         }
 
+        window.ordenEnPantalla = undefined; // login nuevo: no avisar "cambio de orden"
         cargarHeader().done(() => {
           paneles(null, false);
           asegurarMenuWarehouse();
