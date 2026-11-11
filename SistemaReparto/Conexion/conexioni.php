@@ -255,9 +255,13 @@ if (!defined('ALLOW_NO_SESSION') || ALLOW_NO_SESSION !== true) {
 
         // Sesión OK → refresco tiempo
         $_SESSION['tiempo'] = time();
-
-        sincronizarOrdenSesion($mysqli);
     }
+}
+
+// Fuera del bloque de arriba a propósito: funciones.php y funciones_hdr.php (tarjetas, entregas)
+// definen ALLOW_NO_SESSION y también tienen que ver la orden real del chofer.
+if (!empty($_SESSION['idusuario']) && !empty($_SESSION['Usuario'])) {
+    sincronizarOrdenSesion($mysqli);
 }
 
 // La orden del chofer se lee en cada pedido, no solo al loguearse (2026-11-11). Antes el
