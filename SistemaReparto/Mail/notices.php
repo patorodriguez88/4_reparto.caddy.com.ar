@@ -109,6 +109,20 @@ function notificationExists(mysqli $mysqli, int $idCliente, string $cs, string $
     $row = stmt_fetch_assoc($stmt);
     return $row ?: null;
 }
+function clienteOrigenAvisaDestinatario(mysqli $mysqli, string $cs): bool
+{
+    try {
+        $stmt = $mysqli->prepare("SELECT c.AvisarDestinatario
+                                  FROM TransClientes tc JOIN Clientes c ON c.id = tc.idClienteOrigen
+                                  WHERE tc.CodigoSeguimiento = ? AND tc.Eliminado = '0' LIMIT 1");
+        $stmt->bind_param("s", $cs);
+        $stmt->execute();
+        $row = stmt_fetch_assoc($stmt);
+        return !$row || (int)$row['AvisarDestinatario'] !== 0;
+    } catch (Throwable $e) {
+        return true;
+    }
+}
 function getEstadoFlagsBySlug(mysqli $mysqli, string $slug): array
 {
     $stmt = $mysqli->prepare("SELECT Estado, Notificacion_origen, Notificacion_destino 
@@ -167,6 +181,11 @@ if ($avisos === 1 && $flags['origen'] !== 1) {
 }
 if ($avisos === 2 && $flags['destino'] !== 1) {
     respond(1, 'SKIPPED', 'Notificación DESTINO deshabilitada para este estado', ['slug' => $slug, 'label' => $label, 'avisos' => $avisos]);
+}
+// El cliente de origen puede pedir que Caddy no les escriba a sus destinatarios (Clientes.AvisarDestinatario = 0,
+// en Clientes → Webhook): los avisa él, por ejemplo con el webhook de estados. Sin la columna, se avisa como siempre.
+if ($avisos === 2 && !clienteOrigenAvisaDestinatario($mysqli, $cs)) {
+    respond(1, 'SKIPPED', 'El cliente de origen les avisa a sus destinatarios por su cuenta', ['slug' => $slug, 'label' => $label, 'avisos' => $avisos]);
 }
 
 $Fecha   = date("Y-m-d");
