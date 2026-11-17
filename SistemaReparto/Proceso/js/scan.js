@@ -324,7 +324,7 @@ function validarExacto(code, retiradoObjetivo, resolve) {
     const ret = Number(item.retirado ?? 1);
 
     if (ret !== Number(retiradoObjetivo)) {
-      mostrarFeedback("⚠️ Este QR no es una ENTREGA", "warn");
+      mostrarFeedback("⚠️ Es un RETIRO pendiente: todavía figura sin retirar del cliente. Avisá a la oficina.", "warn");
       return resolve("no_corresponde");
     }
 
@@ -529,6 +529,12 @@ function validarBulto(rawCode) {
         // Cantidad=1 guardado como BASE
         return validarExacto(base, retiradoObjetivo, resolve);
       }
+      // Es del recorrido pero todavía es un RETIRO (no se retiró del cliente): avisarlo así.
+      // Antes caía en "Envío con múltiples bultos: escaneá X_1, X_2" (tarea 70, SSAZ6345O, rec. 12).
+      if (itemBase) {
+        mostrarFeedback("⚠️ Es un RETIRO pendiente: todavía figura sin retirar del cliente. Avisá a la oficina.", "warn");
+        return resolve("no_corresponde");
+      }
 
       // b) Si no existe BASE, probamos alias _1
       expected0.get(alias1).onsuccess = function (e2) {
@@ -563,6 +569,33 @@ function validarBulto(rawCode) {
 function codigoDesdeQrCaddy(raw) {
   const m = String(raw || "").match(/seguimiento\.html\?codigo=([A-Za-z0-9\-]+(?:_\d+)?)/i);
   return m ? m[1] : raw;
+}
+
+// Un código "no pertenece" puede ser un envío que la oficina sumó al recorrido DESPUÉS de que el
+// chofer abrió la lista (tarea 70: 1KYX5Q536 lo cargaron a las 8:04 al rec. 8 y se rechazó 3 veces).
+// Se compara el hash con el servidor (como mucho cada 30 s) y, si cambió, se avisa. No se recarga
+// sola porque recargar la lista borra lo ya escaneado en el teléfono.
+let ultimoChequeoLista = 0;
+function avisarSiListaCambio() {
+  const ahora = Date.now();
+  if (ahora - ultimoChequeoLista < 30000) return;
+  ultimoChequeoLista = ahora;
+  try {
+    const req = db.transaction("meta", "readonly").objectStore("meta").get("hash");
+    req.onsuccess = function () {
+      const localHash = req.result ? req.result.value : "";
+      $.ajax({
+        url: "Proceso/php/warehouse.php",
+        type: "POST",
+        dataType: "json",
+        data: { GetLista: 1, solo_hash: 1 },
+        success: function (res) {
+          if (!res || res.success !== 1 || !res.hash || !localHash || res.hash === localHash) return;
+          mostrarFeedback("🔄 Tu recorrido cambió desde que abriste la lista: este envío puede haberse sumado recién. Avisá a la oficina.", "warn");
+        },
+      });
+    };
+  } catch (e) {}
 }
 
 function registrarRechazo(codigo) {
@@ -630,7 +663,10 @@ const onSuccess = async (decodedText) => {
       lastTime = now;
 
       r = await validarBulto(normalized);
-      if (r === "no_pertenece") registrarRechazo(normalized);
+      if (r === "no_pertenece") {
+        registrarRechazo(normalized);
+        avisarSiListaCambio();
+      }
     }
   }
 
