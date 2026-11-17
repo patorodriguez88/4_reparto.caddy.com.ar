@@ -73,6 +73,11 @@ if (isset($_POST['GetLista'])) {
         WHERE h.Recorrido = ?
             AND h.Estado = 'Abierto'
             AND h.Eliminado = 0
+            -- Devueltos fuera (como en Paneles, candidatosSinEscaneoWarehouse y
+            -- el resto de la app). Hay HdR viejas que quedaron 'Abierto' con
+            -- Devuelto=1 y al cargar la orden les ponen el nº del día: el chofer
+            -- las veía para escanear (tarea 79, rec. 3, 12 envíos de 2025).
+            AND h.Devuelto = 0
             AND t.Eliminado = 0
             AND (
                 (t.idColecta IS NULL OR t.idColecta = 0)
