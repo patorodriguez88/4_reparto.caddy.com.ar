@@ -1152,9 +1152,10 @@ if (isset($_POST['ColectaCerrar'])) {
             $bSw = explode('_', strtoupper(trim((string)$sw['CodigoSeguimiento'])))[0];
             if ($bSw === '') continue;
             $bSwEsc = $mysqli->real_escape_string($bSw);
+            $bSwLike = addcslashes($bSwEsc, '%_') . '\\_%'; // Código exacto o con sufijo de bulto, con el índice (SUBSTRING_INDEX recorría la tabla entera; 2026-11-18)
             $chkSw = $mysqli->query(
                 "SELECT 1 FROM Seguimiento
-                  WHERE SUBSTRING_INDEX(CodigoSeguimiento,'_',1) = '{$bSwEsc}'
+                  WHERE (CodigoSeguimiento = '{$bSwEsc}' OR CodigoSeguimiento LIKE '{$bSwLike}')
                     AND status IN ('pickup_scanned','pickup_not_scanned')
                     AND (Eliminado IS NULL OR Eliminado = 0) LIMIT 1"
             );

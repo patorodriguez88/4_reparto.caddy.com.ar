@@ -779,6 +779,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
       if ($baseCS === '') continue;
 
       $baseEsc = $mysqli->real_escape_string($baseCS);
+      $baseLike = addcslashes($baseEsc, '%_') . '\\_%'; // Código exacto o con sufijo de bulto, con el índice (SUBSTRING_INDEX recorría la tabla entera; 2026-11-18)
 
       // buscar TransClientes por base
       $sqlTC = consultaOError(
@@ -786,7 +787,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
         "SELECT id, idClienteDestino, DomicilioOrigen, Recorrido
          FROM TransClientes
          WHERE Eliminado=0
-           AND SUBSTRING_INDEX(CodigoSeguimiento,'_',1) = '{$baseEsc}'
+           AND (CodigoSeguimiento = '{$baseEsc}' OR CodigoSeguimiento LIKE '{$baseLike}')
          ORDER BY id DESC
          LIMIT 1",
         'TC por base etiqueta'
@@ -847,7 +848,7 @@ if (isset($_POST['ConfirmoEntrega'])) {
              infoABM       = '{$infoABM}',
              FechaEntrega  = '{$Fecha}'
          WHERE Eliminado=0
-           AND SUBSTRING_INDEX(CodigoSeguimiento,'_',1) = '{$baseEsc}'",
+           AND (CodigoSeguimiento = '{$baseEsc}' OR CodigoSeguimiento LIKE '{$baseLike}')",
         'UPDATE TransClientes Item retiro'
       );
 

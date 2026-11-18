@@ -58,11 +58,12 @@ function escaneoOk(mysqli $mysqli, string $cs): bool
     if ($base === '') return false;
 
     $baseEsc = $mysqli->real_escape_string($base);
+    $baseLike = addcslashes($baseEsc, '%_') . '\\_%'; // Código exacto o con sufijo de bulto, con el índice (SUBSTRING_INDEX recorría la tabla entera; 2026-11-18)
     $inList  = "'" . implode("','", CONTROL_ESCANEO_STATUSES) . "'";
 
     $sql = "SELECT 1
             FROM Seguimiento
-            WHERE SUBSTRING_INDEX(CodigoSeguimiento, '_', 1) = '{$baseEsc}'
+            WHERE (CodigoSeguimiento = '{$baseEsc}' OR CodigoSeguimiento LIKE '{$baseLike}')
               AND status IN ({$inList})
               AND (Eliminado IS NULL OR Eliminado = 0)
             LIMIT 1";
@@ -130,12 +131,58 @@ function bultosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): int
  * (y los hijos de colecta ya retirados, no confirmados por MELI) tienen que
  * quedar ocultas hasta que Warehouse las valide.
  */
+/**
+ * Escaneos de Seguimiento de varios envíos en UNA consulta que usa el índice de CodigoSeguimiento:
+ * busca cada código exacto (BASE) o con sufijo de bulto (BASE_n) escrito literal.
+ *
+ * FIX (2026-11-18, app lenta / trabada): antes cada parada hacía su propia subconsulta con
+ * SUBSTRING_INDEX(s.CodigoSeguimiento, '_', 1) = ..., que no puede usar el índice y recorría
+ * Seguimiento entero (~1 millón de filas) por parada: 31 s para un recorrido de 78 paradas, en
+ * Paneles (tarjetas), GetLista y PuedeSalir de Warehouse. Con varios choferes a la vez se ocupaban
+ * todos los procesos de PHP y hasta version.php tardaba un minuto. Mismo resultado, ~1 s.
+ *
+ * @param string[] $bases CodigoSeguimiento de TransClientes (sin sufijo)
+ * @return array<string, array{wv: array<string,bool>, ml: bool, retiro: bool}> por base en mayúsculas:
+ *         wv = NumerodeOrden con warehouse_validated; ml = pickup_scanned de MercadoLibre;
+ *         retiro = algún pickup_scanned
+ */
+function escaneosPorBase(mysqli $mysqli, array $bases): array
+{
+    $bases = array_values(array_unique(array_filter(array_map(fn($b) => strtoupper(trim((string)$b)), $bases), fn($b) => $b !== '')));
+    $out = [];
+    foreach (array_chunk($bases, 200) as $chunk) {
+        $conds = [];
+        foreach ($chunk as $b) {
+            $e = $mysqli->real_escape_string($b);
+            $conds[] = "s.CodigoSeguimiento = '{$e}'";
+            $conds[] = "s.CodigoSeguimiento LIKE '" . addcslashes($e, '%_') . "\\_%'";
+        }
+        $res = $mysqli->query("SELECT s.CodigoSeguimiento, s.status, s.Usuario, s.NumerodeOrden FROM Seguimiento s
+            WHERE (" . implode(' OR ', $conds) . ")
+              AND s.status IN ('warehouse_validated', 'pickup_scanned')
+              AND (s.Eliminado IS NULL OR s.Eliminado = 0)");
+        while ($res && $r = $res->fetch_assoc()) {
+            $cs = strtoupper((string)$r['CodigoSeguimiento']);
+            $base = strpos($cs, '_') !== false ? strstr($cs, '_', true) : $cs;
+            $out[$base] = $out[$base] ?? ['wv' => [], 'ml' => false, 'retiro' => false];
+            if ($r['status'] === 'warehouse_validated') {
+                $out[$base]['wv'][(string)$r['NumerodeOrden']] = true;
+            } else {
+                $out[$base]['retiro'] = true;
+                if ((string)$r['Usuario'] === 'MercadoLibre') $out[$base]['ml'] = true;
+            }
+        }
+    }
+    return $out;
+}
+
 function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): array
 {
     if (trim($recorrido) === '') return [];
     $recEsc = $mysqli->real_escape_string($recorrido);
 
-    $sql = "SELECT TransClientes.id, TransClientes.idColecta, TransClientes.Cantidad
+    $sql = "SELECT TransClientes.id, TransClientes.idColecta, TransClientes.Cantidad,
+                   TransClientes.CodigoSeguimiento, HojaDeRuta.NumerodeOrden
             FROM HojaDeRuta
             INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
             WHERE HojaDeRuta.Estado = 'Abierto'
@@ -145,15 +192,7 @@ function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): array
               AND TransClientes.Eliminado = '0'
               AND TransClientes.Retirado = 1
               AND TransClientes.idClienteDestino <> 18587
-              AND NOT EXISTS (
-                  SELECT 1 FROM Seguimiento s
-                  WHERE SUBSTRING_INDEX(s.CodigoSeguimiento, '_', 1) = SUBSTRING_INDEX(TransClientes.CodigoSeguimiento, '_', 1)
-                    AND s.status = 'warehouse_validated'
-                    -- de esta salida: el escaneo de una visita anterior no cuenta (ver GetLista en warehouse.php)
-                    AND s.NumerodeOrden = HojaDeRuta.NumerodeOrden
-                    AND (s.Eliminado IS NULL OR s.Eliminado = 0)
-                  LIMIT 1
-              )
+              -- El warehouse_validated de ESTA salida se mira abajo con escaneosPorBase() (con índice)
               -- Retiro y entrega: lo retiró este mismo chofer en ESTA salida, está arriba de la
               -- camioneta; no pasa por el depósito antes de entregarlo.
               AND NOT EXISTS (
@@ -168,9 +207,15 @@ function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): array
     $res = $mysqli->query($sql);
     if (!$res) return [];
 
+    $filas = $res->fetch_all(MYSQLI_ASSOC);
+    // Ya escaneado en Warehouse en esta salida: el escaneo de una visita anterior no cuenta (ver GetLista)
+    $escaneos = escaneosPorBase($mysqli, array_column($filas, 'CodigoSeguimiento'));
+
     $candidatos = [];
     $idsColecta = [];
-    while ($row = $res->fetch_assoc()) {
+    foreach ($filas as $row) {
+        $base = strtoupper((string)$row['CodigoSeguimiento']);
+        if (isset($escaneos[$base]['wv'][(string)$row['NumerodeOrden']])) continue;
         $idTr = (int)$row['id'];
         $idCol = (int)($row['idColecta'] ?? 0);
         $bultos = (int)($row['Cantidad'] ?? 1);
