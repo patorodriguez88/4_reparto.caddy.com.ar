@@ -6,6 +6,7 @@ error_reporting(E_ALL);
 require_once "../../Conexion/conexioni.php";
 require_once __DIR__ . '/../../Funciones/bolsines.php';
 require_once __DIR__ . '/../../Funciones/wepoint.php';
+require_once __DIR__ . '/../../Funciones/control_escaneo.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 if (isset($_POST['GetLista'])) {
@@ -55,19 +56,8 @@ if (isset($_POST['GetLista'])) {
     // el cliente) pero sin escaneo de depósito.
     $st = $mysqli->prepare("
         SELECT t.Retirado, t.CodigoSeguimiento, t.Cantidad, t.shipments_id,
-               t.CodigoProveedor,
-               CASE WHEN (t.idColecta IS NULL OR t.idColecta = 0) THEN 0 ELSE 1 END AS es_colecta,
-               (
-                   SELECT CASE
-                       WHEN SUM(s.status = 'warehouse_validated' AND s.NumerodeOrden = h.NumerodeOrden) > 0 THEN 'MANUAL'
-                       WHEN SUM(s.status = 'pickup_scanned' AND s.Usuario = 'MercadoLibre') > 0 THEN 'ML'
-                       WHEN SUM(s.status = 'pickup_scanned') > 0 THEN 'RETIRO'
-                       ELSE ''
-                   END
-                   FROM Seguimiento s
-                   WHERE SUBSTRING_INDEX(s.CodigoSeguimiento, '_', 1) = SUBSTRING_INDEX(t.CodigoSeguimiento, '_', 1)
-                     AND (s.Eliminado IS NULL OR s.Eliminado = 0)
-               ) AS escaneo_via
+               t.CodigoProveedor, h.NumerodeOrden,
+               CASE WHEN (t.idColecta IS NULL OR t.idColecta = 0) THEN 0 ELSE 1 END AS es_colecta
         FROM HojaDeRuta h
         INNER JOIN TransClientes t ON t.id = h.idTransClientes
         WHERE h.Recorrido = ?
@@ -88,10 +78,19 @@ if (isset($_POST['GetLista'])) {
 
     $st->bind_param("s", $recorrido);
     $st->execute();
-    $sql = $st->get_result();
+    $filas = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    // escaneo_via con UNA consulta con índice para todo el recorrido (escaneosPorBase, en
+    // Funciones/control_escaneo.php). Antes era una subconsulta por parada que recorría Seguimiento
+    // entero: 31 s en un recorrido de 78 paradas (2026-11-18). Mismo criterio:
+    // MANUAL = warehouse_validated de ESTA salida; ML = pickup_scanned de MercadoLibre; RETIRO = otro pickup_scanned.
+    $escaneos = escaneosPorBase($mysqli, array_column($filas, 'CodigoSeguimiento'));
 
     $items = [];
-    while ($r = $sql->fetch_assoc()) {
+    foreach ($filas as $r) {
+        $e = $escaneos[strtoupper((string)$r['CodigoSeguimiento'])] ?? null;
+        $r['escaneo_via'] = !$e ? ''
+            : (isset($e['wv'][(string)$r['NumerodeOrden']]) ? 'MANUAL' : ($e['ml'] ? 'ML' : ($e['retiro'] ? 'RETIRO' : '')));
 
         $meliId = (string)($r['shipments_id'] ?? '');
         if ($meliId === '0') $meliId = '';
