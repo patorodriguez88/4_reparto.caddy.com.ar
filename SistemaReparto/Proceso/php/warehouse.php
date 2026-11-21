@@ -217,10 +217,19 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
     // Anti duplicado por orden: el escaneo de una visita anterior no cuenta (ver GetLista).
     $sqlChk = $mysqli->prepare("SELECT id FROM Seguimiento WHERE CodigoSeguimiento=? AND status='warehouse_validated' AND NumerodeOrden=? AND Eliminado=0 LIMIT 1");
 
-    $sqlT = $mysqli->prepare("SELECT id, idClienteDestino, DomicilioDestino AS Destino, NumerodeOrden
-                              FROM TransClientes
-                              WHERE CodigoSeguimiento=? AND Eliminado=0
-                              ORDER BY id DESC LIMIT 1");
+    // FIX (21/11/2026, rec 1314, orden 17813): la orden sale de la HOJA DE RUTA abierta de este
+    // recorrido, igual que en GetLista y en el control de salida (candidatosSinEscaneoWarehouse).
+    // Un envío que la oficina suma al recorrido con la orden ya abierta queda con
+    // TransClientes.NumerodeOrden = 0: se grababa el warehouse_validated con orden 0, la salida lo
+    // buscaba con la de la hoja de ruta, no lo encontraba y pedía escanearlo de nuevo, en loop.
+    $sqlT = $mysqli->prepare("SELECT t.id, t.idClienteDestino, t.DomicilioDestino AS Destino,
+                                     COALESCE(NULLIF((SELECT h.NumerodeOrden FROM HojaDeRuta h
+                                                       WHERE h.idTransClientes = t.id AND h.Recorrido = ?
+                                                         AND h.Estado = 'Abierto' AND h.Eliminado = 0 AND h.Devuelto = 0
+                                                       ORDER BY h.id DESC LIMIT 1), 0), t.NumerodeOrden) AS NumerodeOrden
+                              FROM TransClientes t
+                              WHERE t.CodigoSeguimiento=? AND t.Eliminado=0
+                              ORDER BY t.id DESC LIMIT 1");
 
     $sqlIns = $mysqli->prepare("INSERT INTO Seguimiento
       (Fecha, Hora, Usuario, Sucursal, CodigoSeguimiento, Observaciones, Entregado, Estado,
@@ -237,7 +246,8 @@ if (isset($_POST['RegistrarWarehouseBatch'])) {
     foreach ($bases as $base) {
 
         // buscar TransClientes
-        $sqlT->bind_param("s", $base);
+        $recorridoStr = (string)$recorrido;
+        $sqlT->bind_param("ss", $recorridoStr, $base);
         $sqlT->execute();
         $rt = $sqlT->get_result();
         $tr = $rt ? $rt->fetch_assoc() : null;
@@ -356,7 +366,7 @@ if (isset($_POST['PuedeSalir'])) {
            t.id AS idTransClientes,
            t.idClienteDestino AS idCliente,
            t.DomicilioDestino AS destino,
-           t.NumerodeOrden AS nroOrden
+           COALESCE(NULLIF(h.NumerodeOrden, 0), t.NumerodeOrden) AS nroOrden -- la de la hoja de ruta (ver RegistrarWarehouseBatch)
     FROM HojaDeRuta h
     INNER JOIN TransClientes t ON t.id = h.idTransClientes
     WHERE h.Estado='Abierto'
