@@ -115,6 +115,8 @@ function cargarHeaderWarehouse() {
         return;
       }
       if (jsonData && jsonData.success == 1) {
+        // Servicios que le sumaron con la pantalla abierta (avisos.js): sonido, vibración, cartel y campanita.
+        if (typeof detectarServiciosNuevos === "function") detectarServiciosNuevos(jsonData, false);
         $("#hdr-header").html(`H: ${jsonData.NOrden} R: ${jsonData.Recorrido}`);
         $("#badge-total").html(jsonData.Total);
         $("#badge-sinentregar").html(jsonData.Abiertos);
@@ -1108,3 +1110,10 @@ $(document).on("click", ".wh-trash-btn", function () {
     if (!row) closeAll(null);
   });
 })();
+
+// Chequeo cada 30 s con la pantalla visible (23/11/2026): orden nueva y servicios que le sumaron
+// (avisos.js). Antes Warehouse solo consultaba al abrir y al volver a la app.
+setInterval(function () {
+  if (document.visibilityState !== "visible") return;
+  if (typeof cargarHeaderWarehouse === "function") cargarHeaderWarehouse();
+}, 30 * 1000);
