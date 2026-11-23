@@ -282,8 +282,28 @@ function bloquearScanPorActualizacion(bloquear) {
     $("#info-alert-modal").modal({ backdrop: "static", keyboard: false });
     $("#info-alert-modal").modal("show");
   } else {
-    $("#info-alert-modal").modal("hide");
+    cerrarModalActualizando();
   }
+}
+
+// FIX (23/11/2026, rec 1314, orden 17813): el modal "Actualizando tu recorrido…" quedaba arriba para
+// siempre aunque la lista ya se había cargado (el contador mostraba 2/3 detrás). Bootstrap 5 IGNORA
+// modal("hide") si llega mientras el modal todavía está en la animación de apertura, y para ese
+// momento cargarLista() ya había cancelado el desbloqueo de seguridad de 20 s. Pasa cuando la lista
+// vuelve rápido o cuando dos cargas se pisan al abrir Warehouse. Ahora: si está abriendo, se cierra
+// apenas termina de abrir; y si igual quedó visible, se saca a mano (modal, fondo y bloqueo del body).
+function cerrarModalActualizando() {
+  const $m = $("#info-alert-modal");
+  $m.one("shown.bs.modal", function () {
+    if (!cargaListaEnCurso) $m.modal("hide");
+  });
+  $m.modal("hide");
+  setTimeout(function () {
+    if (cargaListaEnCurso || !$m.is(":visible")) return;
+    $m.removeClass("show").css("display", "none").attr("aria-hidden", "true").removeAttr("aria-modal role");
+    $(".modal-backdrop").remove();
+    $("body").removeClass("modal-open").css({ overflow: "", paddingRight: "" });
+  }, 800);
 }
 
 function validarCacheConBackend(done) {
@@ -535,7 +555,16 @@ function guardarBulto(code, base, retirado) {
     retirado: retirado, // 👈 0=RETIRO, 1=ENTREGA
   });
 }
+// Una sola carga a la vez: al abrir Warehouse con una orden nueva la pedían dos caminos juntos
+// (validarCacheConBackend y cargarHeaderWarehouse) y las dos limpiaban y reescribían IndexedDB.
+// La que ya está en curso trae la lista actual del servidor, así que la segunda no hace falta.
+let cargaListaEnCurso = false;
 function cargarLista() {
+  if (cargaListaEnCurso) {
+    console.log("cargarLista: ya hay una carga en curso, no se repite");
+    return;
+  }
+  cargaListaEnCurso = true;
   bloquearScanPorActualizacion(true);
 
   // FIX (2026-09-22, reportado por Sánchez - recorrido 1470, colecta
@@ -549,6 +578,7 @@ function cargarLista() {
   let listoCargarLista = false;
   const desbloqueoDeSeguridad = setTimeout(() => {
     if (listoCargarLista) return;
+    cargaListaEnCurso = false;
     bloquearScanPorActualizacion(false);
     saModal(
       "error",
@@ -558,6 +588,7 @@ function cargarLista() {
   }, 20000);
   function terminarCargarLista() {
     listoCargarLista = true;
+    cargaListaEnCurso = false;
     clearTimeout(desbloqueoDeSeguridad);
   }
 
