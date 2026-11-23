@@ -1690,8 +1690,144 @@ function cargarHeader() {
       // está prendido, aceptar retiro/colecta no exige haber escaneado.
       window.omitirEscaneo = String(jsonData.OmitirEscaneo) === "1";
       pintarEstadoRecorrido(jsonData);
+      detectarServiciosNuevos(jsonData, cambio);
     }
   });
+}
+
+// ==================================================
+// SERVICIOS NUEVOS EN EL RECORRIDO (23/11/2026): cuando la oficina le suma un servicio a la orden,
+// el chofer se entera en el momento (con la app abierta): sonido, vibración, cartel y queda en la
+// campanita. Datos manda los servicios abiertos de la orden; acá se comparan con los que el teléfono
+// ya conocía (localStorage, por orden). La primera vez que se ve una orden se guarda sin avisar.
+// ==================================================
+const RP_AVISOS_KEY = "rp_avisos";
+
+function rpLeerAvisos() {
+  try { return JSON.parse(localStorage.getItem(RP_AVISOS_KEY) || "[]"); } catch (e) { return []; }
+}
+function rpGuardarAvisos(lista) {
+  try { localStorage.setItem(RP_AVISOS_KEY, JSON.stringify(lista.slice(0, 30))); } catch (e) {}
+  pintarBadgeAvisos();
+}
+function pintarBadgeAvisos() {
+  const n = rpLeerAvisos().filter((a) => !a.leido).length;
+  const $bell = $("#btnInstallBell");
+  let $b = $bell.find(".rp-avisos-badge");
+  if (!$b.length) {
+    $bell.css("position", "relative");
+    $b = $('<span class="rp-avisos-badge"></span>').css({
+      position: "absolute", top: "8px", right: "2px", minWidth: "18px", height: "18px", padding: "0 5px",
+      borderRadius: "9px", background: "#fa5c7c", color: "#fff", fontSize: "11px", fontWeight: 800,
+      lineHeight: "18px", textAlign: "center", display: "none",
+    });
+    $bell.append($b);
+  }
+  $b.text(n).toggle(n > 0);
+}
+
+// Sonido corto de aviso (el AudioContext se habilita con el primer toque en la pantalla).
+let rpAudioCtx = null;
+$(document).one("touchstart click", function () {
+  try { rpAudioCtx = rpAudioCtx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+});
+function sonidoAviso() {
+  try {
+    const ctx = rpAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    rpAudioCtx = ctx;
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    [880, 1175, 880].forEach(function (f, i) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.frequency.value = f;
+      g.gain.setValueAtTime(0.25, now + i * 0.18);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.18 + 0.15);
+      osc.connect(g).connect(ctx.destination);
+      osc.start(now + i * 0.18);
+      osc.stop(now + i * 0.18 + 0.16);
+    });
+  } catch (e) {}
+}
+
+function detectarServiciosNuevos(jsonData, cambioDeOrden) {
+  const servicios = Array.isArray(jsonData.Servicios) ? jsonData.Servicios : null;
+  if (!servicios || !jsonData.NOrden) return;
+  const key = "rp_servicios_" + jsonData.NOrden;
+  const actuales = servicios.map((s) => String(s.c));
+  let conocidos = null;
+  try { conocidos = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) {}
+  try { localStorage.setItem(key, JSON.stringify(actuales)); } catch (e) {}
+  pintarBadgeAvisos();
+  // Primera vez que se ve esta orden (o recién cambió: eso ya lo avisa avisarCambioDeOrden): solo se guarda.
+  if (!Array.isArray(conocidos) || cambioDeOrden) return;
+
+  const nuevos = servicios.filter((s) => conocidos.indexOf(String(s.c)) === -1);
+  if (!nuevos.length) return;
+
+  const esc = (t) => $("<div>").text(t == null ? "" : String(t)).html();
+  const ahora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const avisos = rpLeerAvisos();
+  nuevos.forEach(function (s) {
+    avisos.unshift({
+      ts: Date.now(), hora: ahora, leido: false,
+      titulo: (Number(s.r) === 0 ? "Nuevo retiro: " : "Nueva entrega: ") + s.c,
+      detalle: (s.n || "") + (s.d ? " · " + s.d : ""),
+      entrega: Number(s.r) === 1,
+    });
+  });
+  rpGuardarAvisos(avisos);
+
+  sonidoAviso();
+  try { if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) {}
+
+  const hayEntregas = nuevos.some((s) => Number(s.r) === 1);
+  const lista = nuevos.map(function (s) {
+    return "<li><b>" + esc(s.c) + "</b> · " + (Number(s.r) === 0 ? "Retiro" : "Entrega") +
+      "<br><small>" + esc(s.n) + (s.d ? " · " + esc(s.d) : "") + "</small></li>";
+  }).join("");
+  if (window.Swal && !Swal.isVisible()) {
+    Swal.fire({
+      icon: "info",
+      title: nuevos.length === 1 ? "Te sumaron un servicio" : `Te sumaron ${nuevos.length} servicios`,
+      html: "<ul style='text-align:left;margin:6px 0;padding-left:18px'>" + lista + "</ul>" +
+        (hayEntregas ? "<small>Las entregas hay que escanearlas en Warehouse.</small>" : ""),
+      confirmButtonText: hayEntregas ? "Ir a Warehouse" : "Entendido",
+      showCancelButton: hayEntregas,
+      cancelButtonText: "Después",
+    }).then(function (r) {
+      rpGuardarAvisos(rpLeerAvisos().map((a) => Object.assign(a, { leido: true })));
+      if (hayEntregas && r.isConfirmed) irAWarehouse();
+    });
+  }
+  // Si está en la lista de tarjetas, se refresca (un retiro nuevo ya tiene tarjeta).
+  if (!$("#card-envio").is(":visible") && typeof paneles === "function") paneles(null, false);
+}
+
+// Campanita: lista de avisos. Devuelve false si no hay avisos y no se pidió forzar (así, con la app
+// sin instalar, la campanita sigue ofreciendo "Instalar app"). La llama pwa.js.
+function abrirAvisosChofer(forzar) {
+  const avisos = rpLeerAvisos();
+  if (!avisos.length && !forzar) return false;
+  if (!window.Swal) return false;
+  const esc = (t) => $("<div>").text(t == null ? "" : String(t)).html();
+  const html = avisos.length
+    ? "<ul style='text-align:left;margin:0;padding-left:0;list-style:none'>" + avisos.map(function (a) {
+        return "<li style='padding:8px 0;border-bottom:1px solid #eee" + (a.leido ? ";opacity:.6" : "") + "'>" +
+          "<b>" + esc(a.titulo) + "</b> <small style='color:#888'>" + esc(a.hora) + "</small><br><small>" + esc(a.detalle) + "</small></li>";
+      }).join("") + "</ul>"
+    : "<div style='color:#888'>No tenés avisos.</div>";
+  Swal.fire({
+    title: "Avisos",
+    html: html,
+    confirmButtonText: "Cerrar",
+    showDenyButton: avisos.length > 0,
+    denyButtonText: "Borrar todo",
+  }).then(function (r) {
+    if (r.isDenied) return rpGuardarAvisos([]);
+    rpGuardarAvisos(rpLeerAvisos().map((a) => Object.assign(a, { leido: true })));
+  });
+  return true;
 }
 
 // Reloj de "tiempo en ruta" al lado de "En ruta desde HH:MM" - se actualiza
@@ -1818,7 +1954,7 @@ setInterval(function () {
   if (window.ordenEnPantalla === undefined) return; // todavía no hay sesión iniciada
   if ($("body").hasClass("login-lock")) return;
   if (typeof cargarHeader === "function") cargarHeader();
-}, 60 * 1000);
+}, 30 * 1000); // 30 s (antes 60): el aviso de servicios nuevos sale de acá
 
 // Estado "detenido" del banner (recorrido todavía no iniciado):
 // icono de stop + hora actual + contador en 00:00:00.

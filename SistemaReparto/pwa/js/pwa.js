@@ -122,6 +122,9 @@ $(document).on("click", "#btnInstallBell", async function (e) {
   e.preventDefault();
   e.stopPropagation();
 
+  // Avisos del chofer (servicios que le sumaron, funciones_hdr.js): si hay, la campanita los muestra.
+  if (typeof abrirAvisosChofer === "function" && abrirAvisosChofer(false)) return;
+
   // Marcar cooldown (no insistir 7 días)
   localStorage.setItem("install_offer_last", String(Date.now()));
   // refreshInstallDot();
@@ -178,6 +181,8 @@ function lockBellClickIfInstalled() {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation(); // corta handlers ya registrados
+      // Instalada ya no hay nada que instalar: la campanita es la de avisos (23/11/2026).
+      if (typeof abrirAvisosChofer === "function") abrirAvisosChofer(true);
       return false;
     },
   );
