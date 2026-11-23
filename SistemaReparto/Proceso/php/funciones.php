@@ -296,6 +296,28 @@ if (isset($_POST['Datos'])) {
     );
     $Pendiente = $sqlPendiente->fetch_array(MYSQLI_ASSOC);
 
+    // Servicios abiertos de la orden (23/11/2026): la app compara con los que ya conocía y, si la
+    // oficina le sumó alguno, avisa en el momento (sonido, vibración, cartel y campanita). Mismo
+    // filtro que los contadores de arriba (por orden, que tiene índice). c = código, r = 1 entrega /
+    // 0 retiro, n = cliente, d = dirección.
+    $servicios = [];
+    $sqlServ = $mysqli->query(
+      "SELECT TransClientes.CodigoSeguimiento AS c, TransClientes.Retirado AS r,
+              IF(TransClientes.Retirado = 0, TransClientes.RazonSocial, TransClientes.ClienteDestino) AS n,
+              IF(TransClientes.Retirado = 0, TransClientes.DomicilioOrigen, TransClientes.DomicilioDestino) AS d
+       FROM HojaDeRuta
+       INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
+       WHERE HojaDeRuta.Recorrido = '{$Recorrido}'
+         AND HojaDeRuta.NumerodeOrden = '{$nOrden}'
+         AND HojaDeRuta.Eliminado = 0
+         AND HojaDeRuta.Devuelto = 0
+         AND HojaDeRuta.Estado = 'Abierto'
+         AND TransClientes.Eliminado = 0"
+    );
+    while ($sqlServ && $s = $sqlServ->fetch_assoc()) {
+      $servicios[] = ['c' => (string) $s['c'], 'r' => (int) $s['r'], 'n' => (string) $s['n'], 'd' => (string) $s['d']];
+    }
+
     $paradasPendientes = (int) $TotalNoEntregados['Cantidad'];
     $timeDelivered = 5.0;
     $sqlVar = $mysqli->query("SELECT Valor FROM Variables WHERE Nombre = 'TiempoPorParada' LIMIT 1");
@@ -353,6 +375,7 @@ if (isset($_POST['Datos'])) {
       // una orden sin cerrar.
       'FechaOrden'         => $rowLog['Fecha'] ?? null,
       'PausaActiva'        => $rowPausa ?: null,
+      'Servicios'          => $servicios,
       // round() puede serializar con ruido binario (15.4000...552713...) según
       // el serialize_precision del servidor - se manda como string ya
       // formateado a un decimal; el JS lo castea igual con Number().
