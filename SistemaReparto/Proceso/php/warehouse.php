@@ -145,12 +145,16 @@ if (isset($_POST['GetLista'])) {
     $solo_hash = isset($_POST['solo_hash']) ? (int)$_POST['solo_hash'] : 0;
     // La orden entra en el hash: una segunda salida del mismo recorrido invalida la lista guardada.
     $hash = md5($recorrido . '|' . (int) $orden . json_encode($items));
+    // Carga ya confirmada (En Tránsito de la orden o recorrido arrancado, sin nada pendiente): la app
+    // apaga "Confirmar carga". Va aparte del hash: se lee en cada apertura sin recargar la lista.
+    $confirmada = cargaConfirmada($mysqli, (string)$recorrido) ? 1 : 0;
 
     if ($solo_hash === 1) {
         echo json_encode([
             'success' => 1,
             'recorrido' => $recorrido,
             'hash' => $hash,
+            'carga_confirmada' => $confirmada,
         ]);
         exit;
     }
@@ -159,6 +163,7 @@ if (isset($_POST['GetLista'])) {
         'recorrido' => $recorrido,
         'orden' => $orden, // para que la app detecte una orden nueva del mismo recorrido
         'hash' => $hash,
+        'carga_confirmada' => $confirmada,
         'items' => $items
     ]);
     exit;

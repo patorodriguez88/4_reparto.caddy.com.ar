@@ -159,14 +159,17 @@ function escaneosPorBase(mysqli $mysqli, array $bases): array
         }
         $res = $mysqli->query("SELECT s.CodigoSeguimiento, s.status, s.Usuario, s.NumerodeOrden FROM Seguimiento s
             WHERE (" . implode(' OR ', $conds) . ")
-              AND s.status IN ('warehouse_validated', 'pickup_scanned')
+              AND s.status IN ('warehouse_validated', 'pickup_scanned', 'last_mile')
               AND (s.Eliminado IS NULL OR s.Eliminado = 0)");
         while ($res && $r = $res->fetch_assoc()) {
             $cs = strtoupper((string)$r['CodigoSeguimiento']);
             $base = strpos($cs, '_') !== false ? strstr($cs, '_', true) : $cs;
-            $out[$base] = $out[$base] ?? ['wv' => [], 'ml' => false, 'retiro' => false];
+            $out[$base] = $out[$base] ?? ['wv' => [], 'lm' => [], 'ml' => false, 'retiro' => false];
             if ($r['status'] === 'warehouse_validated') {
                 $out[$base]['wv'][(string)$r['NumerodeOrden']] = true;
+            } elseif ($r['status'] === 'last_mile') {
+                // En Tránsito = salida confirmada de esa orden (registrarSalidaEnTransito)
+                $out[$base]['lm'][(string)$r['NumerodeOrden']] = true;
             } else {
                 $out[$base]['retiro'] = true;
                 if ((string)$r['Usuario'] === 'MercadoLibre') $out[$base]['ml'] = true;
@@ -176,9 +179,36 @@ function escaneosPorBase(mysqli $mysqli, array $bases): array
     return $out;
 }
 
-function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): array
+function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido, bool $exigirSalida = false): array
 {
-    if (trim($recorrido) === '') return [];
+    return estadoEscaneoRecorrido($mysqli, $recorrido, $exigirSalida)['candidatos'];
+}
+
+/**
+ * ¿La carga del recorrido quedó confirmada? Sí cuando no falta escanear ni confirmar nada y la salida
+ * está registrada (En Tránsito de esta orden) o el recorrido ya arrancó. Si después le suman un envío,
+ * vuelve a false hasta que lo escaneen y confirmen. Lo usa Warehouse para apagar "Confirmar carga".
+ */
+function cargaConfirmada(mysqli $mysqli, string $recorrido): bool
+{
+    $e = estadoEscaneoRecorrido($mysqli, $recorrido, true);
+    return !$e['candidatos'] && $e['salida'];
+}
+
+/**
+ * Entregas del recorrido que todavía no pueden tener tarjeta.
+ *
+ * $exigirSalida (Paneles, 23/11/2026, Patricio: "para darle entidad al escaneo"): además de escaneada
+ * en Warehouse, la entrega tiene que tener la carga confirmada (En Tránsito de esta orden) o el
+ * recorrido ya arrancado (HoraSalidaReal: lo que ya está en la calle no se esconde). Esas quedan con
+ * 'escaneado' => true para no contarlas como "sin escanear". Retiros, colectas, retiro+entrega del
+ * mismo chofer y lo confirmado por MELI no entran nunca; con "Omitir control de escaneo" no se llama.
+ *
+ * @return array{candidatos: array<int,array>, salida: bool} salida = hay En Tránsito de la orden o arrancó
+ */
+function estadoEscaneoRecorrido(mysqli $mysqli, string $recorrido, bool $exigirSalida = false): array
+{
+    if (trim($recorrido) === '') return ['candidatos' => [], 'salida' => false];
     $recEsc = $mysqli->real_escape_string($recorrido);
 
     $sql = "SELECT TransClientes.id, TransClientes.idColecta, TransClientes.Cantidad,
@@ -205,25 +235,39 @@ function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): array
               )";
 
     $res = $mysqli->query($sql);
-    if (!$res) return [];
+    if (!$res) return ['candidatos' => [], 'salida' => false];
 
     $filas = $res->fetch_all(MYSQLI_ASSOC);
     // Ya escaneado en Warehouse en esta salida: el escaneo de una visita anterior no cuenta (ver GetLista)
     $escaneos = escaneosPorBase($mysqli, array_column($filas, 'CodigoSeguimiento'));
 
+    // Órdenes que ya arrancaron (HoraSalidaReal): cuentan como salida confirmada.
+    $arrancadas = [];
+    $ordenes = array_unique(array_filter(array_map('intval', array_column($filas, 'NumerodeOrden'))));
+    if ($ordenes) {
+        $rA = $mysqli->query("SELECT NumerodeOrden FROM Logistica WHERE Eliminado = 0 AND HoraSalidaReal IS NOT NULL
+                              AND NumerodeOrden IN (" . implode(',', $ordenes) . ")");
+        while ($rA && $a = $rA->fetch_assoc()) $arrancadas[(string)$a['NumerodeOrden']] = true;
+    }
+
+    $salida = (bool)$arrancadas;
     $candidatos = [];
     $idsColecta = [];
     foreach ($filas as $row) {
         $base = strtoupper((string)$row['CodigoSeguimiento']);
-        if (isset($escaneos[$base]['wv'][(string)$row['NumerodeOrden']])) continue;
+        $ord = (string)$row['NumerodeOrden'];
+        $confirmada = isset($escaneos[$base]['lm'][$ord]) || isset($arrancadas[$ord]);
+        if ($confirmada) $salida = true;
+        $escaneado = isset($escaneos[$base]['wv'][$ord]);
+        if ($escaneado && (!$exigirSalida || $confirmada)) continue;
         $idTr = (int)$row['id'];
         $idCol = (int)($row['idColecta'] ?? 0);
         $bultos = (int)($row['Cantidad'] ?? 1);
         if ($bultos < 1) $bultos = 1;
-        $candidatos[$idTr] = ['id' => $idTr, 'idColecta' => $idCol, 'bultos' => $bultos];
+        $candidatos[$idTr] = ['id' => $idTr, 'idColecta' => $idCol, 'bultos' => $bultos, 'escaneado' => $escaneado];
         if ($idCol > 0) $idsColecta[$idCol] = true;
     }
-    if (!$candidatos) return [];
+    if (!$candidatos) return ['candidatos' => [], 'salida' => $salida];
 
     // ml_confirmado por idTransCliente, leyendo el JSON de cada Colecta
     // involucrada una sola vez (no por bulto).
@@ -248,7 +292,7 @@ function candidatosSinEscaneoWarehouse(mysqli $mysqli, string $recorrido): array
         unset($candidatos[$idTr]); // MELI ya lo confirmo -> no hace falta reescanear, no queda oculto
     }
 
-    return $candidatos;
+    return ['candidatos' => $candidatos, 'salida' => $salida];
 }
 
 /**

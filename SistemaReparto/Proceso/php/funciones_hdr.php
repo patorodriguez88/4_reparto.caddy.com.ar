@@ -486,20 +486,26 @@ if (isset($_POST['Paneles'])) {
   // antes de este cambio).
   // ==================================================
   $idUsuarioGate = (int)($_SESSION['idusuario'] ?? 0);
+  // 23/11/2026: la entrega escaneada tiene tarjeta recién con la carga confirmada (En Tránsito de la
+  // orden) o el recorrido ya arrancado - ver estadoEscaneoRecorrido(). Con el override no se filtra nada.
   $idsPendientesDeEscaneo = overrideEscaneo($mysqli, $idUsuarioGate)
       ? []
-      : candidatosSinEscaneoWarehouse($mysqli, $Recorrido);
+      : candidatosSinEscaneoWarehouse($mysqli, $Recorrido, true);
   // Entregas sin escanear (no tienen tarjeta): la app muestra la cantidad sobre el ícono Warehouse y
   // avisa una vez si son nuevas (le sumaron envíos con el recorrido ya en marcha). Va por header para
   // no ensuciar la lista de tarjetas (23/11/2026, reemplaza el cartel de la tarea 92).
   if (!headers_sent()) {
     $codigosSinEscanear = [];
-    if ($idsPendientesDeEscaneo) {
-      $idsH = implode(',', array_map('intval', array_keys($idsPendientesDeEscaneo)));
+    // Solo lo que de verdad falta escanear (lo escaneado que espera la confirmación no cuenta).
+    $sinEscanear = array_filter($idsPendientesDeEscaneo, fn($c) => empty($c['escaneado']));
+    if ($sinEscanear) {
+      $idsH = implode(',', array_map('intval', array_keys($sinEscanear)));
       $rH = $mysqli->query("SELECT CodigoSeguimiento FROM TransClientes WHERE id IN ({$idsH}) ORDER BY CodigoSeguimiento");
       while ($rH && $h = $rH->fetch_assoc()) $codigosSinEscanear[] = preg_replace('/[^A-Za-z0-9_-]/', '', (string)$h['CodigoSeguimiento']);
     }
     header('X-Sin-Escanear: ' . count($codigosSinEscanear));
+    // Escaneadas que esperan "Confirmar carga" (no tienen tarjeta todavía): la app avisa que confirme.
+    header('X-Falta-Confirmar: ' . (count($idsPendientesDeEscaneo) - count($sinEscanear)));
     header('X-Sin-Escanear-Codigos: ' . implode(',', $codigosSinEscanear));
   }
 

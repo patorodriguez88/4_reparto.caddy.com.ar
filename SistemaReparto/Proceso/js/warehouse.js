@@ -328,6 +328,7 @@ function validarCacheConBackend(done) {
           return;
         }
         const remoteHash = res.hash || "";
+        setCargaConfirmada(res.carga_confirmada);
         done(localHash !== "" && localHash === remoteHash);
       },
       error: function (xhr) {
@@ -516,6 +517,7 @@ function confirmarCarga() {
             return;
           }
 
+          setCargaConfirmada(1);
           saModal("success", "Listo", "Carga confirmada correctamente");
         });
       },
@@ -606,6 +608,7 @@ function cargarLista() {
       }
 
       $("#wh-recorrido").text(res.recorrido);
+      window.cargaConfirmada = Number(res.carga_confirmada) === 1;
 
       limpiarDB(() => {
         // ✅ UNA sola transacción para todo
@@ -792,6 +795,14 @@ function pintarHUD(total, ok) {
   // falten bultos (el chofer confirma desde el modal de puedeSalir()).
   const forzar = !completo && !!window.omitirEscaneo && total > 0;
 
+  // Carga ya confirmada (23/11/2026): el botón queda apagado. Lo dice el servidor (carga_confirmada en
+  // GetLista); si la oficina suma un envío vuelve a 0 y el botón se prende para confirmar de nuevo.
+  if (window.cargaConfirmada && (completo || forzar)) {
+    $("#btn-confirmar").prop("disabled", true).removeClass("ready").text("Carga confirmada ✓");
+    $("#btn-scan").toggle(!completo);
+    return;
+  }
+
   // botón confirmar
   $("#btn-confirmar")
     .prop("disabled", !completo && !forzar)
@@ -800,6 +811,11 @@ function pintarHUD(total, ok) {
 
   // botón de escaneo: se esconde cuando ya está todo
   $("#btn-scan").toggle(!completo);
+}
+
+function setCargaConfirmada(valor) {
+  window.cargaConfirmada = Number(valor) === 1;
+  if (typeof db !== "undefined" && db) actualizarHUD(1);
 }
 
 function actualizarHUD(retiradoObjetivo = 1) {
