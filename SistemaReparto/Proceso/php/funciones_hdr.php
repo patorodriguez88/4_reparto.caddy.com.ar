@@ -489,6 +489,19 @@ if (isset($_POST['Paneles'])) {
   $idsPendientesDeEscaneo = overrideEscaneo($mysqli, $idUsuarioGate)
       ? []
       : candidatosSinEscaneoWarehouse($mysqli, $Recorrido);
+  // Entregas sin escanear (no tienen tarjeta): la app muestra la cantidad sobre el ícono Warehouse y
+  // avisa una vez si son nuevas (le sumaron envíos con el recorrido ya en marcha). Va por header para
+  // no ensuciar la lista de tarjetas (23/11/2026, reemplaza el cartel de la tarea 92).
+  if (!headers_sent()) {
+    $codigosSinEscanear = [];
+    if ($idsPendientesDeEscaneo) {
+      $idsH = implode(',', array_map('intval', array_keys($idsPendientesDeEscaneo)));
+      $rH = $mysqli->query("SELECT CodigoSeguimiento FROM TransClientes WHERE id IN ({$idsH}) ORDER BY CodigoSeguimiento");
+      while ($rH && $h = $rH->fetch_assoc()) $codigosSinEscanear[] = preg_replace('/[^A-Za-z0-9_-]/', '', (string)$h['CodigoSeguimiento']);
+    }
+    header('X-Sin-Escanear: ' . count($codigosSinEscanear));
+    header('X-Sin-Escanear-Codigos: ' . implode(',', $codigosSinEscanear));
+  }
 
   $Retirado_ = '';
 
@@ -564,38 +577,6 @@ if (isset($_POST['Paneles'])) {
   $msgBolsin = mensajeBolsin(controlBolsines($mysqli, (string)$Recorrido, ordenCargadaChofer($mysqli, $idUsuarioGate)));
   if ($msgBolsin !== null) {
     echo "<div class='alert alert-warning mb-2'><strong>Falta el bolsín interno.</strong> " . htmlspecialchars($msgBolsin) . " Hasta entonces no ves las entregas del recorrido.</div>";
-  }
-
-  // Entregas del recorrido ocultas por no estar escaneadas en Warehouse (tarea Caddy 92, rec. 1478,
-  // Q85KYFB0P): antes desaparecían sin aviso y el chofer veía "1 pendiente" pero "Sin envíos por ahora",
-  // sin forma de darles un estado. Siguen ocultas (regla del 15/9), pero ahora se dice cuáles son y
-  // cómo verlas.
-  if ($search == '' && $idsPendientesDeEscaneo) {
-    $idsOcultos = implode(',', array_map('intval', array_keys($idsPendientesDeEscaneo)));
-    $resOcultos = $mysqli->query("SELECT CodigoSeguimiento, CodigoProveedor, RazonSocial, ClienteDestino, Cantidad
-                                    FROM TransClientes WHERE id IN ({$idsOcultos}) ORDER BY CodigoSeguimiento");
-    $lineas = [];
-    while ($resOcultos && $o = $resOcultos->fetch_assoc()) {
-      $prov = trim((string)$o['CodigoProveedor']);
-      $bultos = max(1, (int)$o['Cantidad']);
-      $lineas[] = '<li><strong>' . htmlspecialchars((string)$o['CodigoSeguimiento']) . '</strong>'
-        . ($prov !== '' && $prov !== '0' ? ' (pedido ' . htmlspecialchars($prov) . ')' : '')
-        . ' · ' . htmlspecialchars((string)$o['RazonSocial']) . ' → ' . htmlspecialchars((string)$o['ClienteDestino'])
-        . ' · ' . $bultos . ($bultos === 1 ? ' bulto' : ' bultos') . '</li>';
-    }
-    if ($lineas) {
-      // irAWarehouse() fuerza a recargar la lista de Warehouse desde el servidor (el envío pudo
-      // sumarse después de que el chofer la abrió).
-      $n = count($lineas);
-      echo "<div class='col-12 rp'><div class='alert alert-warning mb-2'>"
-        . "<strong>" . ($n === 1 ? "1 envío sin escanear" : "{$n} envíos sin escanear") . "</strong><br>"
-        . ($n === 1 ? "Este envío del recorrido no se ve hasta que lo escanees" : "Estos envíos del recorrido no se ven hasta que los escanees")
-        . " en Warehouse (todos los bultos):"
-        . "<ul class='mb-2 mt-1 ps-3'>" . implode('', $lineas) . "</ul>"
-        . "<a href='warehouse.html' onclick='irAWarehouse(); return false;' class='btn btn-sm btn-warning'>Ir a Warehouse</a>"
-        . " <small class='d-block mt-1'>Si no lo tenés arriba de la camioneta, avisá a la oficina.</small>"
-        . "</div></div>";
-    }
   }
 
   // Ejemplares de diarios por kiosco (Asignaciones, las carga la oficina). Una sola consulta: la tabla no

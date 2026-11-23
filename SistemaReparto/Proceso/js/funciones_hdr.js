@@ -989,7 +989,8 @@ function paneles(a, refrescarTotales = false) {
       }
     },
 
-    success: function (responseText) {
+    success: function (responseText, _status, xhr) {
+      actualizarSinEscanear(xhr);
       const tResponse = performance.now();
       console.log("🟩 Paneles response received (ms):", (tResponse - tStart).toFixed(0));
 
@@ -2186,6 +2187,65 @@ $(document).on("click", "#btn-finalizar-recorrido", function () {
   });
 });
 
+// ==================================================
+// ENTREGAS SIN ESCANEAR (23/11/2026): no tienen tarjeta. En vez de un cartel en la lista, un número
+// sobre el ícono Warehouse de la barra de abajo y un aviso corto UNA vez por envío nuevo (p.ej. la
+// oficina le sumó un envío con el recorrido ya en marcha). Lo manda Paneles en el header X-Sin-Escanear.
+// ==================================================
+function actualizarSinEscanear(xhr) {
+  if (!xhr || !xhr.getResponseHeader) return;
+  const n = parseInt(xhr.getResponseHeader("X-Sin-Escanear") || "0", 10) || 0;
+  const codigos = (xhr.getResponseHeader("X-Sin-Escanear-Codigos") || "").split(",").filter(Boolean);
+  const $nav = $('.app-bottomnav .nav-item[data-action="warehouse"]');
+  let $b = $nav.find(".rp-nav-badge");
+  if (!$b.length) {
+    $nav.css("position", "relative");
+    $b = $('<span class="rp-nav-badge"></span>').css({
+      position: "absolute", top: "2px", left: "50%", marginLeft: "6px", minWidth: "18px", height: "18px",
+      padding: "0 5px", borderRadius: "9px", background: "#fa5c7c", color: "#fff", fontSize: "11px",
+      fontWeight: 800, lineHeight: "18px", textAlign: "center", display: "none",
+    });
+    $nav.append($b);
+  }
+  $b.text(n).toggle(n > 0);
+
+  let vistos = [];
+  try { vistos = JSON.parse(sessionStorage.getItem("rp_sin_escanear_vistos") || "[]"); } catch (e) {}
+  const nuevos = codigos.filter((c) => vistos.indexOf(c) === -1);
+  try { sessionStorage.setItem("rp_sin_escanear_vistos", JSON.stringify(vistos.concat(nuevos).slice(-200))); } catch (e) {}
+  if (nuevos.length && window.Swal) {
+    Swal.fire({
+      toast: true, position: "top", timer: 5000, showConfirmButton: false, icon: "info",
+      title: nuevos.length === 1
+        ? "Tenés 1 envío para escanear en Warehouse"
+        : `Tenés ${nuevos.length} envíos para escanear en Warehouse`,
+    });
+  }
+}
+
+// No deja arrancar con entregas sin escanear (iniciar_recorrido.php): se dice cuáles son y se ofrece ir a
+// Warehouse. Si alguna no está, la oficina la saca del recorrido.
+function avisoNoArranca(jsonData) {
+  const esc = (t) => $("<div>").text(t == null ? "" : String(t)).html();
+  const lista = (jsonData.pendientes || []).map(function (p) {
+    const pedido = p.pedido ? " · pedido " + esc(p.pedido) : "";
+    return "<li><b>" + esc(p.codigo) + "</b>" + pedido + "<br><small>" + esc(p.cliente) + " → " + esc(p.destino) +
+      " · " + esc(p.bultos) + (Number(p.bultos) === 1 ? " bulto" : " bultos") + "</small></li>";
+  }).join("");
+  Swal.fire({
+    icon: "warning",
+    title: "Todavía no podés arrancar",
+    html: esc(jsonData.msg) +
+      "<ul style='text-align:left;margin:10px 0 6px;padding-left:18px'>" + lista + "</ul>" +
+      "<small>Si alguno no está en la camioneta, avisá a la oficina para que lo saque del recorrido.</small>",
+    confirmButtonText: "Ir a Warehouse",
+    showCancelButton: true,
+    cancelButtonText: "Cerrar",
+  }).then(function (r) {
+    if (r.isConfirmed) irAWarehouse();
+  });
+}
+
 $(document).on("click", "#btn-iniciar-recorrido", function () {
   const $btn = $(this);
   $btn.prop("disabled", true).html('<i class="mdi mdi-loading mdi-spin"></i> Iniciando...');
@@ -2198,7 +2258,9 @@ $(document).on("click", "#btn-iniciar-recorrido", function () {
       data: { lat, lng },
     })
       .done(function (jsonData) {
-        if (!jsonData || jsonData.success !== 1) {
+        if (jsonData && jsonData.error === "WAREHOUSE_PENDIENTE") {
+          avisoNoArranca(jsonData);
+        } else if (!jsonData || jsonData.success !== 1) {
           Swal.fire({
             icon: "error",
             title: "No se pudo iniciar el recorrido",

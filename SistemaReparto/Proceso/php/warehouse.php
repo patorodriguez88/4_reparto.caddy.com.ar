@@ -7,6 +7,7 @@ require_once "../../Conexion/conexioni.php";
 require_once __DIR__ . '/../../Funciones/bolsines.php';
 require_once __DIR__ . '/../../Funciones/wepoint.php';
 require_once __DIR__ . '/../../Funciones/control_escaneo.php';
+require_once __DIR__ . '/../../Funciones/salida_recorrido.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 if (isset($_POST['GetLista'])) {
@@ -330,136 +331,30 @@ if (isset($_POST['PuedeSalir'])) {
     // de escaneo" (eso es para los bultos). Sin bolsín asignado no hay nada que recargar: se avisa.
     $bolsines = controlBolsines($mysqli, (string)$recorrido, ordenCargadaChofer($mysqli, (int)($_SESSION['idusuario'] ?? 0)));
     if ($bolsines['sin_bolsin']) {
+        registrarBloqueoReparto($mysqli, 'confirmar_carga', (string)$recorrido, 'sin_bolsin', [], (string)mensajeBolsin($bolsines));
         echo json_encode(['success' => 0, 'reason' => 'SIN_BOLSIN', 'error' => mensajeBolsin($bolsines)]);
         exit;
     }
     $faltan = overrideEscaneo($mysqli, (int)($_SESSION['idusuario'] ?? 0)) ? [] : candidatosSinEscaneoWarehouse($mysqli, (string)$recorrido);
     if ($faltan || $bolsines['pendientes']) {
         $codigos = $bolsines['pendientes'];
-        if ($faltan) {
-            $ids = implode(',', array_map('intval', array_keys($faltan)));
-            $rc = $mysqli->query("SELECT CodigoSeguimiento FROM TransClientes WHERE id IN ({$ids}) ORDER BY CodigoSeguimiento");
-            while ($rc && $c = $rc->fetch_assoc()) $codigos[] = $c['CodigoSeguimiento'];
-        }
+        $detalle = detalleSinEscaneo($mysqli, $faltan);
+        foreach ($detalle as $d) $codigos[] = $d['codigo'];
+        // Queda asentado para la oficina (Logística > Órdenes > Control de la orden).
+        registrarBloqueoReparto($mysqli, 'confirmar_carga', (string)$recorrido, $faltan ? 'sin_escanear' : 'bolsin', array_merge($bolsines['pendientes'], $detalle));
         echo json_encode([
             'success' => 0,
             'reason' => 'LISTA_DESACTUALIZADA',
             'pendientes' => $codigos,
+            'detalle' => $detalle,
             'error' => 'Faltan escanear bultos del recorrido.',
         ]);
         exit;
     }
 
-    $status = 'last_mile';
-    $st = estadoPorSlug($mysqli, $status);
-    if (!$st || empty($st['id'])) {
-        echo json_encode(['success' => 0, 'error' => 'Estado last_mile no existe en BD', 'slug' => $status]);
-        exit;
-    }
+    $salida = registrarSalidaEnTransito($mysqli, (string)$recorrido, (string)$usuario, (string)$sucursal);
 
-    $Estado_id = (int)$st['id'];
-    $Estado    = (string)$st['Estado'];
-
-    // Traigo bases (solo entregas) del recorrido abierto
-    $q = $mysqli->prepare("
-    SELECT DISTINCT SUBSTRING_INDEX(t.CodigoSeguimiento,'_',1) AS base,
-           t.id AS idTransClientes,
-           t.idClienteDestino AS idCliente,
-           t.DomicilioDestino AS destino,
-           COALESCE(NULLIF(h.NumerodeOrden, 0), t.NumerodeOrden) AS nroOrden -- la de la hoja de ruta (ver RegistrarWarehouseBatch)
-    FROM HojaDeRuta h
-    INNER JOIN TransClientes t ON t.id = h.idTransClientes
-    WHERE h.Estado='Abierto'
-      AND h.Eliminado=0
-      AND h.Devuelto=0
-      AND h.Recorrido=?
-      AND t.Eliminado=0
-      AND t.Retirado=1
-  ");
-    $q->bind_param("s", $recorrido);
-    $q->execute();
-    $rs = $q->get_result();
-
-    $fecha = date('Y-m-d');
-    $hora  = date('H:i:s');
-
-    $ins = $mysqli->prepare("
-    INSERT INTO Seguimiento
-    (Fecha, Hora, Usuario, Sucursal, CodigoSeguimiento, Observaciones,
-     Entregado, Estado, Destino, Avisado, idCliente, Retirado, Visitas,
-     idTransClientes, TimeStamp, Recorrido, Devuelto, Webhook, state_id,
-     NumerodeOrden, status, Eliminado)
-    VALUES
-    (?, ?, ?, ?, ?, ?,
-     0, ?, ?, 0, ?, 1, 0,
-     ?, NOW(), ?, 0, 0, ?,
-     ?, ?, 0)
-  ");
-
-    $insertados = 0;
-    $yaExistian = 0;
-    $basesRecorrido = [];
-
-    while ($r = $rs->fetch_assoc()) {
-        $base = (string)$r['base'];
-        $basesRecorrido[] = $base;
-
-        // anti duplicado por base + status + orden: en una segunda visita el En Tránsito de la salida
-        // anterior no cuenta (mismo criterio que warehouse_validated en GetLista).
-        $nroOrdenChk = (string)($r['nroOrden'] ?? '');
-        $chk = $mysqli->prepare("
-      SELECT id FROM Seguimiento
-      WHERE CodigoSeguimiento=? AND status=? AND NumerodeOrden=? AND Eliminado=0
-      LIMIT 1
-    ");
-        $chk->bind_param("sss", $base, $status, $nroOrdenChk);
-        $chk->execute();
-        $cr = $chk->get_result();
-        if ($cr && $cr->num_rows > 0) {
-            $yaExistian++;
-            continue;
-        }
-
-        $obs = "Salida de warehouse – En Tránsito";
-
-        $destino = (string)($r['destino'] ?? '');
-        $idCliente = (int)($r['idCliente'] ?? 0);
-        $idTrans   = (int)($r['idTransClientes'] ?? 0);
-        $nroOrden  = (string)($r['nroOrden'] ?? '');
-
-        $ins->bind_param(
-            "ssssssssii" . "s" . "i" . "ss",
-            $fecha,
-            $hora,
-            $usuario,
-            $sucursal,
-            $base,
-            $obs,
-            $Estado,
-            $destino,
-            $idCliente,
-            $idTrans,
-            $recorrido,
-            $Estado_id,
-            $nroOrden,
-            $status
-        );
-
-        if ($ins->execute()) $insertados++;
-    }
-
-    // Sale todo el recorrido, también lo que no se escaneó en Warehouse (Flex leído con la app de
-    // Meli, "omitir control de escaneo"): lo que estaba en Wepoint sale de su depósito.
-    $wepoint = encolarSalidaWepoint($mysqli, $basesRecorrido, (string)$recorrido, (string)$usuario);
-
-    echo json_encode([
-        'success' => 1,
-        'insertados' => $insertados,
-        'ya_existian' => $yaExistian,
-        'wepoint' => $wepoint,
-        'status' => $status,
-        'estado' => $Estado
-    ]);
+    echo json_encode($salida);
     exit;
 }
 
