@@ -149,6 +149,19 @@ function detectarInicioRecorrido(mysqli $mysqli, int $userId, string $recorrido,
          WHERE id = {$log['id']} AND HoraSalidaReal IS NULL LIMIT 1"
     );
 
+    // Salió del depósito (23/11/2026): con todo escaneado queda registrada la salida igual que con el
+    // botón (En Tránsito + egreso de Wepoint). Si se fue con entregas sin escanear, no se le puede
+    // frenar, pero queda el bloqueo "salió sin escanear" para que la oficina lo vea en Control de la
+    // orden; esas entregas siguen sin tarjeta hasta que las escanee.
+    require_once __DIR__ . "/../../Funciones/control_escaneo.php";
+    require_once __DIR__ . "/../../Funciones/salida_recorrido.php";
+    $faltan = overrideEscaneo($mysqli, $userId) ? [] : candidatosSinEscaneoWarehouse($mysqli, $recorrido);
+    if ($faltan) {
+        registrarBloqueoReparto($mysqli, 'salio_sin_escanear', $recorrido, 'sin_escanear', detalleSinEscaneo($mysqli, $faltan));
+    } else {
+        registrarSalidaEnTransito($mysqli, $recorrido, (string)($_SESSION['Usuario'] ?? ''), (string)($_SESSION['Sucursal'] ?? ''));
+    }
+
     if (defined('GOOGLE_API_KEY_SERVER')) {
         recalcularEtas($mysqli, $recorrido, $lat, $lng, $ahora);
     }

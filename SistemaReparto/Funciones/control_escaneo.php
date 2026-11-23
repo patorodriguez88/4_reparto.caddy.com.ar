@@ -330,3 +330,63 @@ function logBypassEscaneo(array $data): void
         FILE_APPEND | LOCK_EX
     );
 }
+
+/**
+ * Datos para mostrar las entregas que faltan escanear (código, pedido del cliente, cliente, destino,
+ * bultos), a partir de lo que devuelve candidatosSinEscaneoWarehouse().
+ */
+function detalleSinEscaneo(mysqli $mysqli, array $candidatos): array
+{
+    if (!$candidatos) return [];
+    $ids = implode(',', array_map('intval', array_keys($candidatos)));
+    $res = $mysqli->query("SELECT id, CodigoSeguimiento, CodigoProveedor, RazonSocial, ClienteDestino, Cantidad
+                             FROM TransClientes WHERE id IN ({$ids}) ORDER BY CodigoSeguimiento");
+    $out = [];
+    while ($res && $r = $res->fetch_assoc()) {
+        $prov = trim((string)$r['CodigoProveedor']);
+        $out[] = [
+            'id' => (int)$r['id'],
+            'codigo' => (string)$r['CodigoSeguimiento'],
+            'pedido' => ($prov !== '' && $prov !== '0') ? $prov : '',
+            'cliente' => (string)$r['RazonSocial'],
+            'destino' => (string)$r['ClienteDestino'],
+            'bultos' => max(1, (int)$r['Cantidad']),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Deja asentado que el chofer quedó trabado (no pudo confirmar la carga o arrancar el recorrido) y por
+ * qué, en la tabla RepartoBloqueos: la oficina lo ve en Logística > Órdenes > Control de la orden
+ * (23/11/2026). Sin la tabla (migración sin correr) no hace nada; nunca corta el flujo del chofer.
+ * $accion: 'confirmar_carga' | 'iniciar_recorrido'. $motivo: 'sin_escanear' | 'bolsin' | ...
+ */
+function registrarBloqueoReparto(mysqli $mysqli, string $accion, string $recorrido, string $motivo, array $detalle = [], string $mensaje = ''): void
+{
+    try {
+        static $hayTabla = null;
+        if ($hayTabla === null) {
+            $r = $mysqli->query("SHOW TABLES LIKE 'RepartoBloqueos'");
+            $hayTabla = $r && $r->num_rows > 0;
+        }
+        if (!$hayTabla) return;
+        if (!function_exists('ordenCargadaChofer')) require_once __DIR__ . '/bolsines.php';
+
+        $idUsuario = (int)($_SESSION['idusuario'] ?? 0);
+        $usuario = (string)($_SESSION['Usuario'] ?? '');
+        $orden = (int)(ordenCargadaChofer($mysqli, $idUsuario) ?? 0);
+        $codigos = implode(', ', array_map(fn($d) => is_array($d) ? (string)($d['codigo'] ?? '') : (string)$d, $detalle));
+        $cantidad = count($detalle);
+        $fecha = date('Y-m-d');
+        $hora = date('H:i:s');
+        $st = $mysqli->prepare("INSERT INTO RepartoBloqueos (Fecha, Hora, idUsuario, Usuario, Recorrido, NumerodeOrden, Accion, Motivo, Cantidad, Codigos, Mensaje)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        if (!$st) return;
+        $st->bind_param('ssissississ', $fecha, $hora, $idUsuario, $usuario, $recorrido, $orden, $accion, $motivo, $cantidad, $codigos, $mensaje);
+        $st->execute();
+        $st->close();
+    } catch (Throwable $e) {
+        error_log('registrarBloqueoReparto: ' . $e->getMessage());
+    }
+}

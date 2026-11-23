@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 require_once __DIR__ . "/../../Conexion/conexioni.php";
 require_once __DIR__ . "/../../Funciones/control_escaneo.php";
 require_once __DIR__ . "/../../Funciones/bolsines.php";
+require_once __DIR__ . "/../../Funciones/salida_recorrido.php";
 require_once __DIR__ . "/eta.php";
 
 $googleConfigPath = __DIR__ . "/../../Conexion/google_config.php";
@@ -57,35 +58,47 @@ if ($recorrido === '') {
   responder(['success' => 0, 'error' => 'SIN_RECORRIDO']);
 }
 
-// GATE DURO (2026-09-14): antes exigía 0 bultos sin escanear en Warehouse -
-// eso trababa casi todas las rutas con colecta (ver docblock de
-// tarjetasPendientes() en control_escaneo.php) y la oficina terminaba
-// prendiendo el override a mano todos los días. Ahora el único requisito
-// para arrancar es que el recorrido tenga alguna tarjeta/parada asignada -
-// el escaneo de depósito sigue existiendo y se sigue viendo en Warehouse,
-// pero deja de bloquear la salida.
+// Si el recorrido ya había arrancado (botón tocado de nuevo, app recargada) no se vuelve a controlar:
+// lo que la oficina sume después se avisa en Warehouse, no traba al chofer en la calle.
+$resYa = $mysqli->query("SELECT HoraSalidaReal FROM Logistica WHERE idUsuarioChofer = {$userId} AND Estado = 'Cargada' AND Eliminado = 0 LIMIT 1");
+$yaArranco = $resYa && ($filaYa = $resYa->fetch_assoc()) && !empty($filaYa['HoraSalidaReal']);
+
+// Bolsín interno (switch "Bolsín" en Logística > Recorridos): sin escanearlo no se arranca.
+$msgBolsin = $yaArranco ? null : mensajeBolsin(controlBolsines($mysqli, $recorrido, ordenCargadaChofer($mysqli, $userId)));
+if ($msgBolsin !== null) {
+  registrarBloqueoReparto($mysqli, 'iniciar_recorrido', $recorrido, 'bolsin', [], $msgBolsin);
+  responder(['success' => 0, 'error' => 'BOLSIN', 'msg' => $msgBolsin]);
+}
+
+// REGLA (23/11/2026, Patricio): no se arranca el recorrido con entregas sin escanear en Warehouse,
+// en ningún recorrido. Las tarjetas son solo lo escaneado (y los retiros/colectas, que se escanean en
+// el cliente). Si un paquete no está, la oficina lo saca del recorrido o prende "Omitir control de
+// escaneo" desde Logística > Órdenes > Control. Cada intento trabado queda en RepartoBloqueos.
+// (Del 14/9 al 23/11 esto no bloqueaba: el chofer salía igual y las entregas sin escanear quedaban
+// ocultas todo el día; la oficina las terminaba cerrando a mano.)
+if (!$yaArranco && !overrideEscaneo($mysqli, $userId)) {
+  $faltan = candidatosSinEscaneoWarehouse($mysqli, $recorrido);
+  if ($faltan) {
+    $detalle = detalleSinEscaneo($mysqli, $faltan);
+    $n = count($detalle);
+    registrarBloqueoReparto($mysqli, 'iniciar_recorrido', $recorrido, 'sin_escanear', $detalle);
+    responder([
+      'success'    => 0,
+      'error'      => 'WAREHOUSE_PENDIENTE',
+      'msg'        => ($n === 1 ? 'Falta escanear 1 entrega' : "Faltan escanear {$n} entregas") . ' en Warehouse antes de arrancar.',
+      'pendientes' => $detalle,
+    ]);
+  }
+}
+
+// Sin ninguna parada asignada no tiene sentido arrancar (va después del control de escaneo: si todo
+// está sin escanear, el problema es ese y no que "no tenga paradas").
 $tarjetas = tarjetasPendientes($mysqli, $recorrido);
 if ($tarjetas === 0) {
   responder([
     'success' => 0,
     'error'   => 'SIN_TARJETAS_PENDIENTES',
     'msg'     => 'Este recorrido no tiene ninguna parada asignada todavía. Consultá con la oficina antes de arrancar.',
-  ]);
-}
-
-// Recorridos con bolsín obligatorio (switch "Bolsín" en Logística > Recorridos, 2026-10-29): no
-// arrancan sin el bolsín interno escaneado (siempre) ni con paquetes sin escanear en Warehouse (salvo
-// "Omitir control de escaneo" en la orden). Es solo para esos recorridos: el gate general de escaneo
-// se sacó el 14/9 porque trababa las colectas.
-$msgBolsin = mensajeBolsin(controlBolsines($mysqli, $recorrido, ordenCargadaChofer($mysqli, $userId)));
-if ($msgBolsin !== null) {
-  responder(['success' => 0, 'error' => 'BOLSIN', 'msg' => $msgBolsin]);
-}
-if (recorridoRequiereBolsin($mysqli, $recorrido) && !overrideEscaneo($mysqli, $userId) && candidatosSinEscaneoWarehouse($mysqli, $recorrido)) {
-  responder([
-    'success' => 0,
-    'error'   => 'WAREHOUSE_PENDIENTE',
-    'msg'     => 'Este recorrido lleva bolsín interno: antes de salir escaneá todos los paquetes en Warehouse y confirmá la carga.',
   ]);
 }
 
@@ -119,6 +132,15 @@ try {
      LIMIT 1"
   );
 
+  // Todo escaneado (o con "Omitir control"): la salida queda registrada aunque el chofer no haya
+  // apretado "Confirmar carga" en Warehouse (En Tránsito + egreso de Wepoint; no duplica).
+  try {
+    $salida = registrarSalidaEnTransito($mysqli, $recorrido, (string)($_SESSION['Usuario'] ?? ''), (string)($_SESSION['Sucursal'] ?? ''));
+  } catch (Throwable $e) {
+    error_log('iniciar_recorrido salida: ' . $e->getMessage()); // no frena el arranque
+    $salida = [];
+  }
+
   $recalculado = false;
   if (defined('GOOGLE_API_KEY_SERVER')) {
     $recalculado = recalcularEtas($mysqli, $recorrido, $lat, $lng, $ahora);
@@ -128,6 +150,7 @@ try {
     'success' => 1,
     'yaHabiaArrancado' => $yaHabiaArrancado,
     'recalculado' => $recalculado,
+    'salida' => $salida['insertados'] ?? 0,
   ]);
 } catch (Throwable $e) {
   responder(['success' => 0, 'error' => 'INICIAR_RECORRIDO_ERROR', 'detail' => $e->getMessage()], 500);
