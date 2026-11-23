@@ -2207,7 +2207,19 @@ function actualizarSinEscanear(xhr) {
     });
     $nav.append($b);
   }
-  $b.text(n).toggle(n > 0);
+  // Escaneado todo pero sin "Confirmar carga": las entregas no tienen tarjeta hasta confirmar (23/11/2026).
+  const faltaConfirmar = parseInt(xhr.getResponseHeader("X-Falta-Confirmar") || "0", 10) || 0;
+  $b.text(n > 0 ? n : "!").toggle(n > 0 || faltaConfirmar > 0);
+  if (n === 0 && faltaConfirmar > 0 && window.Swal && !sessionStorage.getItem("rp_falta_confirmar_aviso")) {
+    try { sessionStorage.setItem("rp_falta_confirmar_aviso", "1"); } catch (e) {}
+    Swal.fire({
+      toast: true, position: "top", timer: 6000, showConfirmButton: false, icon: "info",
+      title: "Confirmá la carga en Warehouse para ver tus entregas",
+    });
+  }
+  if (faltaConfirmar === 0) {
+    try { sessionStorage.removeItem("rp_falta_confirmar_aviso"); } catch (e) {}
+  }
 
   let vistos = [];
   try { vistos = JSON.parse(sessionStorage.getItem("rp_sin_escanear_vistos") || "[]"); } catch (e) {}
