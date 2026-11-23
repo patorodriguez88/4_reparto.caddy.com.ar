@@ -566,6 +566,38 @@ if (isset($_POST['Paneles'])) {
     echo "<div class='alert alert-warning mb-2'><strong>Falta el bolsín interno.</strong> " . htmlspecialchars($msgBolsin) . " Hasta entonces no ves las entregas del recorrido.</div>";
   }
 
+  // Entregas del recorrido ocultas por no estar escaneadas en Warehouse (tarea Caddy 92, rec. 1478,
+  // Q85KYFB0P): antes desaparecían sin aviso y el chofer veía "1 pendiente" pero "Sin envíos por ahora",
+  // sin forma de darles un estado. Siguen ocultas (regla del 15/9), pero ahora se dice cuáles son y
+  // cómo verlas.
+  if ($search == '' && $idsPendientesDeEscaneo) {
+    $idsOcultos = implode(',', array_map('intval', array_keys($idsPendientesDeEscaneo)));
+    $resOcultos = $mysqli->query("SELECT CodigoSeguimiento, CodigoProveedor, RazonSocial, ClienteDestino, Cantidad
+                                    FROM TransClientes WHERE id IN ({$idsOcultos}) ORDER BY CodigoSeguimiento");
+    $lineas = [];
+    while ($resOcultos && $o = $resOcultos->fetch_assoc()) {
+      $prov = trim((string)$o['CodigoProveedor']);
+      $bultos = max(1, (int)$o['Cantidad']);
+      $lineas[] = '<li><strong>' . htmlspecialchars((string)$o['CodigoSeguimiento']) . '</strong>'
+        . ($prov !== '' && $prov !== '0' ? ' (pedido ' . htmlspecialchars($prov) . ')' : '')
+        . ' · ' . htmlspecialchars((string)$o['RazonSocial']) . ' → ' . htmlspecialchars((string)$o['ClienteDestino'])
+        . ' · ' . $bultos . ($bultos === 1 ? ' bulto' : ' bultos') . '</li>';
+    }
+    if ($lineas) {
+      // irAWarehouse() fuerza a recargar la lista de Warehouse desde el servidor (el envío pudo
+      // sumarse después de que el chofer la abrió).
+      $n = count($lineas);
+      echo "<div class='col-12 rp'><div class='alert alert-warning mb-2'>"
+        . "<strong>" . ($n === 1 ? "1 envío sin escanear" : "{$n} envíos sin escanear") . "</strong><br>"
+        . ($n === 1 ? "Este envío del recorrido no se ve" : "Estos envíos del recorrido no se ven")
+        . " hasta que lo escanees en Warehouse (todos los bultos):"
+        . "<ul class='mb-2 mt-1 ps-3'>" . implode('', $lineas) . "</ul>"
+        . "<a href='warehouse.html' onclick='irAWarehouse(); return false;' class='btn btn-sm btn-warning'>Ir a Warehouse</a>"
+        . " <small class='d-block mt-1'>Si no lo tenés arriba de la camioneta, avisá a la oficina.</small>"
+        . "</div></div>";
+    }
+  }
+
   // Ejemplares de diarios por kiosco (Asignaciones, las carga la oficina). Una sola consulta: la tabla no
   // tiene índices y son pocas fechas. Clave: cliente de origen, número del kiosco y fecha.
   $asignacionesRecientes = [];
