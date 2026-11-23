@@ -589,8 +589,8 @@ if (isset($_POST['Paneles'])) {
       $n = count($lineas);
       echo "<div class='col-12 rp'><div class='alert alert-warning mb-2'>"
         . "<strong>" . ($n === 1 ? "1 envío sin escanear" : "{$n} envíos sin escanear") . "</strong><br>"
-        . ($n === 1 ? "Este envío del recorrido no se ve" : "Estos envíos del recorrido no se ven")
-        . " hasta que lo escanees en Warehouse (todos los bultos):"
+        . ($n === 1 ? "Este envío del recorrido no se ve hasta que lo escanees" : "Estos envíos del recorrido no se ven hasta que los escanees")
+        . " en Warehouse (todos los bultos):"
         . "<ul class='mb-2 mt-1 ps-3'>" . implode('', $lineas) . "</ul>"
         . "<a href='warehouse.html' onclick='irAWarehouse(); return false;' class='btn btn-sm btn-warning'>Ir a Warehouse</a>"
         . " <small class='d-block mt-1'>Si no lo tenés arriba de la camioneta, avisá a la oficina.</small>"
