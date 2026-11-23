@@ -85,9 +85,13 @@ function baseYaRegistrada(base, cb) {
   r.onsuccess = () => cb(!!r.result);
 }
 
-function marcarBaseRegistrada(base) {
+function marcarBaseRegistrada(base, done) {
   const t = db.transaction("bases_done", "readwrite");
   t.objectStore("bases_done").put({ base: base, ts: Date.now() });
+  if (typeof done === "function") {
+    t.oncomplete = () => done();
+    t.onerror = () => done();
+  }
 }
 
 // Toast simple arriba
@@ -374,11 +378,18 @@ function validarExacto(code, retiradoObjetivo, resolve) {
         origen: eraAlias ? "alias" : "directo",
       });
     };
-    t.oncomplete = function () {
+    // FIX (23/11/2026, rec 1002 orden 17830 y rec 1314 orden 17813): actualizarEstado() se llamaba
+    // ACÁ, antes de anotar el envío en bases_done. Con el último bulto veía todo completo y disparaba
+    // confirmarCargaAutomatica(), que mandaba bases_done SIN ese último envío: el servidor validaba
+    // 38 de 39, la salida no pasaba y al volver a Warehouse la lista recargada lo mostraba sin escanear.
+    // Ahora el contador (y la confirmación automática) corre recién cuando bases_done ya quedó grabado.
+    function terminar() {
       try {
         actualizarEstado(1);
       } catch (e) {}
-
+      resolve("ok");
+    }
+    t.oncomplete = function () {
       // buscamos el real para obtener base consistente
       const tx2 = db.transaction("expected", "readonly");
       tx2.objectStore("expected").get(realCode).onsuccess = function (e3) {
@@ -392,13 +403,11 @@ function validarExacto(code, retiradoObjetivo, resolve) {
             beepOk();
           }
 
-          if (ya) return resolve("ok");
+          if (ya) return terminar();
 
           baseCompleto(base, retiradoObjetivo, (completo) => {
-            if (completo) {
-              marcarBaseRegistrada(base);
-            }
-            resolve("ok");
+            if (completo) return marcarBaseRegistrada(base, terminar);
+            terminar();
           });
         });
       };
