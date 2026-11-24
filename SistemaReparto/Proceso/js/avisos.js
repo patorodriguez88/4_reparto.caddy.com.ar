@@ -75,11 +75,28 @@ function detectarServiciosNuevos(jsonData, cambioDeOrden) {
   let conocidos = null;
   try { conocidos = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) {}
   try { localStorage.setItem(key, JSON.stringify(actuales)); } catch (e) {}
+  // Conciliación silenciosa: un aviso "Nuevo …" de esta orden cuyo servicio ya no está, se tacha
+  // (cubre lo que se sacó con la app cerrada o antes de este cambio). Avisos sin orden = viejos de hoy.
+  const orden = String(jsonData.NOrden);
+  let tocados = false;
+  const ahoraC = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const avisosC = rpLeerAvisos().map(function (a) {
+    const cs = a.c || String(a.titulo || "").split(": ").pop();
+    if (!a.sacado && (!a.orden || a.orden === orden) && /^Nuev/.test(a.titulo || "") && actuales.indexOf(cs) === -1) {
+      tocados = true;
+      return Object.assign(a, { sacado: true, sacadoHora: ahoraC });
+    }
+    return a;
+  });
+  if (tocados) rpGuardarAvisos(avisosC);
   pintarBadgeAvisos();
   // Primera vez que se ve esta orden (o recién cambió: eso ya lo avisa avisarCambioDeOrden): solo se guarda.
   if (!Array.isArray(conocidos) || cambioDeOrden) return;
 
   const nuevos = servicios.filter((s) => conocidos.indexOf(String(s.c)) === -1);
+  // Sacados del recorrido: ya no están en la orden (uno entregado sigue, cerrado; ver Datos).
+  const sacados = conocidos.filter((c) => actuales.indexOf(String(c)) === -1);
+  if (sacados.length) avisarServiciosSacados(sacados);
   if (!nuevos.length) return;
 
   const esc = (t) => $("<div>").text(t == null ? "" : String(t)).html();
@@ -87,7 +104,7 @@ function detectarServiciosNuevos(jsonData, cambioDeOrden) {
   const avisos = rpLeerAvisos();
   nuevos.forEach(function (s) {
     avisos.unshift({
-      ts: Date.now(), hora: ahora, leido: false,
+      ts: Date.now(), hora: ahora, leido: false, c: String(s.c), orden: String(jsonData.NOrden),
       titulo: (Number(s.r) === 0 ? "Nuevo retiro: " : "Nueva entrega: ") + s.c,
       detalle: (s.n || "") + (s.d ? " · " + s.d : ""),
       entrega: Number(s.r) === 1,
@@ -122,6 +139,42 @@ function detectarServiciosNuevos(jsonData, cambioDeOrden) {
   if (!$("#card-envio").is(":visible") && typeof paneles === "function") paneles(null, false);
 }
 
+// Le sacaron servicios del recorrido: el aviso de "Nuevo …" de ese servicio queda tachado con "Te lo
+// sacaron del recorrido" (no se borra: si ya lo había visto, entiende qué pasó). Si no tenía aviso
+// (era de la orden original) se agrega uno, con cartel: tiene que saber que ese paquete no lo lleva.
+function avisarServiciosSacados(sacados) {
+  const ahora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const avisos = rpLeerAvisos();
+  const sinAviso = [];
+  sacados.forEach(function (cs) {
+    // (la conciliación de detectarServiciosNuevos puede haberlo tachado recién: igual cuenta como que tenía aviso)
+    const delServicio = avisos.filter((a) => (a.c || String(a.titulo || "").split(": ").pop()) === cs);
+    if (delServicio.length) {
+      delServicio.forEach((a) => Object.assign(a, { sacado: true, sacadoHora: a.sacadoHora || ahora, leido: false }));
+    } else {
+      sinAviso.push(cs);
+      avisos.unshift({ ts: Date.now(), hora: ahora, leido: false, c: cs, sacado: true, sacadoHora: ahora,
+        titulo: "Te sacaron del recorrido: " + cs, detalle: "Si lo tenés arriba, devolvelo al depósito." });
+    }
+  });
+  rpGuardarAvisos(avisos);
+
+  try { if (navigator.vibrate) navigator.vibrate([300, 150, 300]); } catch (e) {}
+  if (window.Swal && !Swal.isVisible()) {
+    const esc = (t) => $("<div>").text(t == null ? "" : String(t)).html();
+    Swal.fire({
+      icon: "warning",
+      title: sacados.length === 1 ? "Te sacaron un servicio" : `Te sacaron ${sacados.length} servicios`,
+      html: "<b>" + sacados.map(esc).join(", ") + "</b> ya no " + (sacados.length === 1 ? "está" : "están") +
+        " en tu recorrido.<br><small>Si lo tenés arriba, devolvelo al depósito.</small>",
+      confirmButtonText: "Entendido",
+    }).then(function () {
+      rpGuardarAvisos(rpLeerAvisos().map((a) => Object.assign(a, { leido: true })));
+    });
+  }
+  if (!$("#card-envio").is(":visible") && typeof paneles === "function") paneles(null, false);
+}
+
 // Campanita: lista de avisos. Devuelve false si no hay avisos y no se pidió forzar (así, con la app
 // sin instalar, la campanita sigue ofreciendo "Instalar app"). La llama pwa.js.
 function abrirAvisosChofer(forzar) {
@@ -131,8 +184,14 @@ function abrirAvisosChofer(forzar) {
   const esc = (t) => $("<div>").text(t == null ? "" : String(t)).html();
   const html = avisos.length
     ? "<ul style='text-align:left;margin:0;padding-left:0;list-style:none'>" + avisos.map(function (a) {
+        // Sacado del recorrido: tachado y con la aclaración en rojo (salvo el aviso que ya lo dice).
+        const tachar = a.sacado && !/^Te sacaron/.test(a.titulo || "");
+        const estilo = tachar ? "text-decoration:line-through;color:#999" : "";
         return "<li style='padding:8px 0;border-bottom:1px solid #eee" + (a.leido ? ";opacity:.6" : "") + "'>" +
-          "<b>" + esc(a.titulo) + "</b> <small style='color:#888'>" + esc(a.hora) + "</small><br><small>" + esc(a.detalle) + "</small></li>";
+          "<b style='" + estilo + "'>" + esc(a.titulo) + "</b> <small style='color:#888'>" + esc(a.hora) + "</small><br>" +
+          "<small style='" + estilo + "'>" + esc(a.detalle) + "</small>" +
+          (tachar ? "<br><small style='color:#fa5c7c;font-weight:700'>Te lo sacaron del recorrido · " + esc(a.sacadoHora || "") + "</small>" : "") +
+          "</li>";
       }).join("") + "</ul>"
     : "<div style='color:#888'>No tenés avisos.</div>";
   Swal.fire({
