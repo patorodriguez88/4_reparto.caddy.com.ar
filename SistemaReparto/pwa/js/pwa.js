@@ -122,8 +122,11 @@ $(document).on("click", "#btnInstallBell", async function (e) {
   e.preventDefault();
   e.stopPropagation();
 
-  // Avisos del chofer (servicios que le sumaron, funciones_hdr.js): si hay, la campanita los muestra.
-  if (typeof abrirAvisosChofer === "function" && abrirAvisosChofer(false)) return;
+  // Avisos del chofer (servicios que le sumaron, avisos.js): si hay, la campanita los muestra. Con la
+  // app instalada no hay nada que instalar: siempre avisos. Fix 23/11/2026: tocando el borde del botón
+  // (no el dibujo .noti-icon, que agarra lockBellClickIfInstalled) ofrecía "Instalar" con la app ya instalada.
+  if (typeof abrirAvisosChofer === "function" && abrirAvisosChofer(isAppInstalled())) return;
+  if (isAppInstalled()) return;
 
   // Marcar cooldown (no insistir 7 días)
   localStorage.setItem("install_offer_last", String(Date.now()));
