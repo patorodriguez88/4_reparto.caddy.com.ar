@@ -296,26 +296,27 @@ if (isset($_POST['Datos'])) {
     );
     $Pendiente = $sqlPendiente->fetch_array(MYSQLI_ASSOC);
 
-    // Servicios abiertos de la orden (23/11/2026): la app compara con los que ya conocía y, si la
-    // oficina le sumó alguno, avisa en el momento (sonido, vibración, cartel y campanita). Mismo
-    // filtro que los contadores de arriba (por orden, que tiene índice). c = código, r = 1 entrega /
-    // 0 retiro, n = cliente, d = dirección.
+    // Servicios de la orden (23/11/2026): la app compara con los que ya conocía y avisa en el momento
+    // si la oficina le sumó alguno (sonido, vibración, cartel y campanita) o si se lo sacó. Van
+    // abiertos Y cerrados: así uno entregado sigue en la lista y solo "desaparece" el que sacaron del
+    // recorrido (cambiarRecorrido le cambia Recorrido y NumerodeOrden a la hoja de ruta). Filtro por
+    // orden, que tiene índice. c = código, r = 1 entrega / 0 retiro, n = cliente, d = dirección,
+    // a = 1 abierto.
     $servicios = [];
     $sqlServ = $mysqli->query(
       "SELECT TransClientes.CodigoSeguimiento AS c, TransClientes.Retirado AS r,
               IF(TransClientes.Retirado = 0, TransClientes.RazonSocial, TransClientes.ClienteDestino) AS n,
-              IF(TransClientes.Retirado = 0, TransClientes.DomicilioOrigen, TransClientes.DomicilioDestino) AS d
+              IF(TransClientes.Retirado = 0, TransClientes.DomicilioOrigen, TransClientes.DomicilioDestino) AS d,
+              HojaDeRuta.Estado = 'Abierto' AS a
        FROM HojaDeRuta
        INNER JOIN TransClientes ON TransClientes.id = HojaDeRuta.idTransClientes
        WHERE HojaDeRuta.Recorrido = '{$Recorrido}'
          AND HojaDeRuta.NumerodeOrden = '{$nOrden}'
          AND HojaDeRuta.Eliminado = 0
-         AND HojaDeRuta.Devuelto = 0
-         AND HojaDeRuta.Estado = 'Abierto'
          AND TransClientes.Eliminado = 0"
     );
     while ($sqlServ && $s = $sqlServ->fetch_assoc()) {
-      $servicios[] = ['c' => (string) $s['c'], 'r' => (int) $s['r'], 'n' => (string) $s['n'], 'd' => (string) $s['d']];
+      $servicios[] = ['c' => (string) $s['c'], 'r' => (int) $s['r'], 'n' => (string) $s['n'], 'd' => (string) $s['d'], 'a' => (int) $s['a']];
     }
 
     $paradasPendientes = (int) $TotalNoEntregados['Cantidad'];
