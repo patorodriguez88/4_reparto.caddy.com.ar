@@ -771,7 +771,7 @@ $(document).ready(function () {
     width: "100%",
   });
 
-  Dropzone.autoDiscover = false;
+  if (window.Dropzone) Dropzone.autoDiscover = false;
 
   // ✅ Chequeo sesión real
   initApp();
@@ -1067,8 +1067,7 @@ $("#boton-entrega-wrong").click(function () {
   $("#receptor-dni").val("");
   $("#receptor-observaciones").val("");
 
-  $(".dz-preview").fadeOut("slow");
-  $(".dz-preview:hidden").remove();
+  if (window.fotosEntrega) window.fotosEntrega.limpiar();
   $("#razones").val("");
 });
 
@@ -1076,8 +1075,7 @@ $("#boton-no-entrega-wrong").click(function () {
   document.getElementById("hdractivas").style.display = "block";
   document.getElementById("card-envio").style.display = "none";
 
-  $(".dz-preview").fadeOut("slow");
-  $(".dz-preview:hidden").remove();
+  if (window.fotosEntrega) window.fotosEntrega.limpiar();
 
   // Limpia observaciones
   $("#receptor-observaciones").val("");
@@ -1085,10 +1083,7 @@ $("#boton-no-entrega-wrong").click(function () {
   $("#receptor-observaciones").val("");
 });
 
-Dropzone.prototype.removeThumbnail = function () {
-  $(".dz-preview").fadeOut("slow");
-  $(".dz-preview:hidden").remove();
-};
+
 
 // ==================================================
 // VER WRONG (NO ENTREGA)
@@ -1174,6 +1169,9 @@ function limpiarInputsEntrega() {
   $("#contacto").html(""); // ✅ NUEVO (card)
   $("#card-seguimiento").html(""); // ✅ NUEVO (card)
   $("#card-receptor-cantidad").html("0"); // ✅ NUEVO
+
+  // Fotos: se vacían al abrir y al cerrar cada tarjeta (antes quedaban de un envío al otro).
+  if (window.fotosEntrega) window.fotosEntrega.limpiar();
 
   $("#prueba").val(null).trigger("change"); // si estás usando select2 para colecta
   // select2 (colecta)

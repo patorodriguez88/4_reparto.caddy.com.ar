@@ -549,3 +549,84 @@ li.select2-selection__choice.rp-choice-ml {
   opacity: 0.9;
 }
 .select2-selection__choice.rp-choice-ml .select2-selection__choice__remove { color: var(--rp-warn) !important; }
+
+/* ===== Fotos de la entrega (25/11/2026, Proceso/js/fotos_entrega.js) =====
+   Hasta 3 fotos en una sola fila, cuadradas y recortadas al centro. Sin fotos: botón grande. */
+.rp-fotos-fila {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.rp-foto {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--rp-line);
+}
+.rp-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.rp-foto-quitar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(20, 16, 24, 0.72);
+  color: #fff;
+  font-size: 18px;
+  line-height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rp-foto-agregar {
+  aspect-ratio: 1 / 1;
+  border: 2px dashed var(--rp-line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--rp-soft);
+  font-family: var(--rp-font);
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+}
+.rp-foto-agregar i {
+  font-size: 28px;
+  line-height: 1;
+  color: var(--rp-ok);
+}
+.rp-foto-agregar:active {
+  background: var(--rp-ok-bg);
+}
+.rp-foto-agregar--grande {
+  grid-column: 1 / -1;
+  aspect-ratio: auto;
+  flex-direction: row;
+  gap: 10px;
+  min-height: 64px;
+  border-color: var(--rp-ok);
+  background: var(--rp-ok-bg);
+  color: var(--rp-ok);
+  font-size: 17px;
+}
+.rp-foto-agregar--grande i {
+  font-size: 30px;
+}
+.rp-foto-agregar--grande small {
+  font-weight: 600;
+  font-size: 12px;
+  opacity: 0.75;
+}

@@ -1,33 +1,46 @@
 /*=============================================
-AGREGAR MULTIMEDIA CON DROPZONE
+FOTOS DE LA ENTREGA (25/11/2026)
+El Dropzone se reemplazó por Proceso/js/fotos_entrega.js (hasta 3 fotos en una fila).
+subirFotosYSeguir() sube TODAS las fotos y recién después confirma, una sola vez. Antes se
+confirmaba una vez por foto y la lista no se vaciaba: la foto pasaba al envío siguiente.
 =============================================*/
-var arrayFiles = [];
+function subirFotosYSeguir(codigo, $boton, seguir, liberar) {
+  const cant = window.fotosEntrega ? window.fotosEntrega.cantidad() : 0;
+  if (!codigo || cant === 0) {
+    seguir();
+    return;
+  }
+  $boton.html(cant > 1 ? "Subiendo fotos..." : "Subiendo foto...");
+  window.fotosEntrega
+    .subir(codigo)
+    .then(function () {
+      seguir();
+    })
+    .catch(function (err) {
+      console.error("Subida de fotos:", err);
+      if (!window.Swal) {
+        alert("No se pudo subir la foto. Probá de nuevo.");
+        liberar();
+        return;
+      }
+      Swal.fire({
+        icon: "warning",
+        title: "No se pudo subir la foto",
+        text: "Puede ser la señal. Podés reintentar o confirmar sin foto.",
+        showCancelButton: true,
+        confirmButtonText: "Confirmar sin foto",
+        cancelButtonText: "Reintentar",
+        confirmButtonColor: "#1c8f61",
+      }).then(function (r) {
+        if (r.isConfirmed) {
+          seguir();
+        } else {
+          liberar();
+        }
+      });
+    });
+}
 
-$(".multimediaFisica").dropzone({
-  url: "Proceso/php/main.php",
-  autoProcessQueue: false, // no subir automáticamente; subimos cuando el usuario confirma
-  paramName: "file",
-  addRemoveLinks: true,
-  acceptedFiles: "image/jpeg, image/png",
-  maxFilesize: 3, //3mb
-  maxFiles: 3, //maximo 3 archivos
-  init: function () {
-    this.on("addedfile", function (file) {
-      arrayFiles.push(file);
-      // 			console.log("arrayFiles", arrayFiles);
-    });
-    this.on("removedfile", function (file) {
-      var index = arrayFiles.indexOf(file);
-      console.log("index", index);
-      arrayFiles.splice(index, 1);
-    });
-  },
-  success: function (file, resp) {
-    // Si por algún motivo se procesa la cola, evitamos romper por respuestas HTML
-    // (igual no debería pasar porque autoProcessQueue=false)
-    // console.log("Dropzone upload response", resp);
-  },
-});
 var multimediaFisica = null;
 
 // Guardas contra doble-tap: bloquean un segundo envío mientras el primero
@@ -49,48 +62,12 @@ $(".guardarProducto").click(function () {
 	PREGUNTAMOS SI LOS CAMPOS OBLIGATORIOS ESTÁN LLENOS
 	=============================================*/
 
-  if ($("#card-seguimiento").html() != "" && arrayFiles != "") {
-    /*=============================================
-	   	PREGUNTAMOS SI VIENEN IMÁGENES PARA MULTIMEDIA O LINK DE YOUTUBE
-	   	=============================================*/
-
-    if (arrayFiles.length > 0) {
-      var listaMultimedia = [];
-      var finalFor = 0;
-
-      for (var i = 0; i < arrayFiles.length; i++) {
-        var datosMultimedia = new FormData();
-        datosMultimedia.append("file", arrayFiles[i]);
-        datosMultimedia.append("tituloProducto", $("#card-seguimiento").html());
-        $.ajax({
-          url: "Proceso/php/main.php",
-          method: "POST",
-          data: datosMultimedia,
-          cache: false,
-          contentType: false,
-          processData: false,
-          beforeSend: function () {
-            $(".guardarProducto").html("Enviando ...");
-          },
-          success: function (respuesta) {
-            listaMultimedia.push({ foto: respuesta });
-            multimediaFisica = JSON.stringify(listaMultimedia);
-            if (finalFor + 1 == arrayFiles.length) {
-              finalFor = 0;
-            }
-            finalFor++;
-            $(".guardarProducto").html("Guardar producto");
-            //CARGA SISTEMA DESPUES DE CARGAR FOTO
-            cargasistema();
-            //BORRAR IMAGEN
-          },
-        });
-      }
-    }
-  } else {
-    //CARGA SISTEMA
-    cargasistema();
-  }
+  subirFotosYSeguir(
+    ($("#card-seguimiento").html() || "").trim(),
+    $(".guardarProducto"),
+    cargasistema,
+    liberarGuardaEntrega,
+  );
 
   function swalToastOk(title) {
     const msg = (title || "Entregado al Cliente").toString();
@@ -396,48 +373,12 @@ $(".guardarNoEntrega").click(function () {
 	PREGUNTAMOS SI LOS CAMPOS OBLIGATORIOS ESTÁN LLENOS
 	=============================================*/
 
-  if ($("#card-seguimiento").html() != "" && arrayFiles != "") {
-    /*=============================================
-	   	PREGUNTAMOS SI VIENEN IMÁGENES PARA MULTIMEDIA O LINK DE YOUTUBE
-	   	=============================================*/
-
-    if (arrayFiles.length > 0) {
-      var listaMultimedia = [];
-      var finalFor = 0;
-
-      for (var i = 0; i < arrayFiles.length; i++) {
-        var datosMultimedia = new FormData();
-        datosMultimedia.append("file", arrayFiles[i]);
-        datosMultimedia.append("tituloProducto", $("#card-seguimiento").html());
-        $.ajax({
-          url: "Proceso/php/main.php",
-          method: "POST",
-          data: datosMultimedia,
-          cache: false,
-          contentType: false,
-          processData: false,
-          beforeSend: function () {
-            $(".guardarProducto").html("Enviando ...");
-          },
-          success: function (respuesta) {
-            listaMultimedia.push({ foto: respuesta });
-            multimediaFisica = JSON.stringify(listaMultimedia);
-            if (finalFor + 1 == arrayFiles.length) {
-              finalFor = 0;
-            }
-
-            finalFor++;
-            $(".guardarProducto").html("Guardar producto");
-            //CARGA SISTEMA DESPUES DE CARGAR FOTO
-            cargasistemaNoEntrega();
-          },
-        });
-      }
-    }
-  } else {
-    //CARGA SISTEMA
-    cargasistemaNoEntrega();
-  }
+  subirFotosYSeguir(
+    ($("#card-seguimiento").html() || "").trim(),
+    $(".guardarNoEntrega"),
+    cargasistemaNoEntrega,
+    liberarGuardaNoEntrega,
+  );
 
   function cargasistemaNoEntrega() {
     var cs = $("#card-seguimiento").html();

@@ -52,7 +52,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
     <link href="css/hdr.css?v=20261028a" rel="stylesheet" type="text/css" />
-    <link href="css/reparto-ui.css?v=20261028a" rel="stylesheet" type="text/css" />
+    <link href="css/reparto-ui.css?v=20261125a" rel="stylesheet" type="text/css" />
   </head>
 
   <body class="loading" data-layout="topnav">
@@ -224,7 +224,7 @@
                       <button type="submit" class="btn btn-caddy mc-login-btn w-100" id="ingreso">Ingresar</button>
                       <!-- Version: mismo formato AA.MM.NN que sistema.caddy.com.ar y plataforma.caddy.com.ar,
                            subir en cada push a main. Única copia (single-page app, sin header aparte). -->
-                      <a class="mc-login-ver" href="#"><small>v.26.11.5</small></a>
+                      <a class="mc-login-ver" href="#"><small>v.26.11.6</small></a>
                     </div>
                   </form>
                 </div>
@@ -378,13 +378,10 @@
                             <!-- end col -->
                           </div>
                           <!-- end row -->
-                          <div class="mb-2 form-group agregarMultimedia" id="zona-multimedia">
-                            <div class="multimediaFisica needsclick dz-clickable">
-                              <div class="dz-message needsclick">
-                                <i class="h1 text-muted mdi mdi-camera-plus"></i>
-                                <h4>Tocá para adjuntar una foto</h4>
-                              </div>
-                            </div>
+                          <!-- Fotos de la entrega (hasta 3, en una fila): Proceso/js/fotos_entrega.js -->
+                          <div class="mb-2 rp-fotos" id="zona-multimedia">
+                            <div class="rp-fotos-fila" id="rp-fotos-fila"></div>
+                            <input type="file" id="rp-foto-input" accept="image/*" multiple hidden />
                           </div>
 
                           <div class="tab-content" id="botones-entrega" style="display: none">
@@ -628,9 +625,10 @@
          cualquiera de estos JS para saltear la cache vieja del proxy. -->
     <script src="pwa/js/pwa.js?v=20261123b"></script>
     <script src="Proceso/js/avisos.js?v=20261123b"></script>
-    <script src="Proceso/js/funciones_hdr.js?v=20261125a"></script>
+    <script src="Proceso/js/funciones_hdr.js?v=20261125b"></script>
     <script src="Proceso/js/mail.js?v=20261028a"></script>
-    <script src="Proceso/js/dropzone.js?v=20261028a"></script>
+    <script src="Proceso/js/fotos_entrega.js?v=20261125a"></script>
+    <script src="Proceso/js/dropzone.js?v=20261125a"></script>
     <script src="Proceso/js/colecta_scan.js?v=20261105a"></script>
     <script src="Proceso/js/app_status.js?v=20261028a"></script>
     <script src="Proceso/js/geo_tracker.js?v=20261028a"></script>
