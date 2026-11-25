@@ -2372,7 +2372,7 @@ $(document).on("click", "#btn-iniciar-recorrido", function () {
 // Candado mientras el login está en curso (25/11/2026): con el servidor lento el chofer tocaba
 // "Ingresar" varias veces y salían hasta 6-7 logins en el mismo segundo (328 en 14 días).
 let ingresoEnCurso = false;
-$(document).on("click", "#ingreso", function (e) {
+$(document).on("click", "#ingreso", function (e, opciones) {
   e.preventDefault();
   e.stopPropagation();
   if (ingresoEnCurso) return;
@@ -2380,6 +2380,7 @@ $(document).on("click", "#ingreso", function (e) {
   var user = $("#user").val();
   var pass = $("#password").val();
   var $btnIngreso = $(this);
+  var confirmado = !!(opciones && opciones.confirmado);
 
   ingresoEnCurso = true;
   $btnIngreso.prop("disabled", true).addClass("disabled");
@@ -2392,8 +2393,39 @@ $(document).on("click", "#ingreso", function (e) {
     },
     type: "POST",
     dataType: "json",
-    data: { Login: 1, user: user, password: pass, device_id: window.CADDY_DEVICE_ID || "" },
+    data: {
+      Login: 1,
+      user: user,
+      password: pass,
+      device_id: window.CADDY_DEVICE_ID || "",
+      Confirmado: confirmado ? 1 : 0,
+    },
     success: function (jsonData) {
+      // El chofer está en la calle con otro teléfono (25/11/2026): ingresar desde acá lo echa
+      // de la app y le corta el recorrido. Se pregunta antes; solo sigue si confirma.
+      if (jsonData && jsonData.confirmar) {
+        Swal.fire({
+          icon: "warning",
+          title: jsonData.titulo || "Este chofer está en la calle",
+          text: jsonData.msg || "Si ingresás desde acá, se le cierra la app en su teléfono.",
+          showCancelButton: true,
+          confirmButtonText: "Ingresar igual",
+          cancelButtonText: "No ingresar",
+          confirmButtonColor: "#c5402f",
+          reverseButtons: true,
+          focusCancel: true,
+          customClass: { container: "caddy-login-swal" },
+        }).then(function (r) {
+          if (r.isConfirmed) {
+            // el candado se libera en complete(); se reintenta después de eso
+            setTimeout(function () {
+              $btnIngreso.trigger("click", [{ confirmado: true }]);
+            }, 0);
+          }
+        });
+        return;
+      }
+
       if (jsonData && jsonData.forceLogout) {
         Swal.fire({
           icon: "warning",

@@ -168,6 +168,53 @@ try {
     $userAgent  = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
     // -----------------------
+    // AVISO: EL CHOFER ESTÁ EN LA CALLE CON OTRO TELÉFONO (25/11/2026)
+    // -----------------------
+    // Una sesión por usuario y por teléfono: ingresar desde otro lado lo echa al chofer de la
+    // app y le corta el recorrido (GPS, Warehouse, lo guardado en su teléfono). Medido: 100
+    // ingresos desde la oficina en 14 días con usuarios de choferes. Si el ingreso viene de OTRO
+    // teléfono y el chofer está en la calle (recorrido iniciado o GPS en los últimos 30 min),
+    // primero se pregunta; solo sigue si el que ingresa confirma (Confirmado=1). Fail-open: ante
+    // un error de base no se pregunta y el login sigue como siempre.
+    $deviceIdPost = substr(preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($_POST['device_id'] ?? ($_COOKIE['caddy_device_id'] ?? ''))), 0, 64);
+    if (empty($_POST['Confirmado'])) {
+        try {
+            $stOtro = $mysqli->prepare("
+                SELECT D.device_id,
+                       (SELECT L.HoraSalidaReal FROM Logistica L
+                         WHERE L.idUsuarioChofer = D.idUsuario AND L.Estado = 'Cargada' AND L.Eliminado = 0
+                         ORDER BY L.id DESC LIMIT 1) AS salida,
+                       (SELECT U.TimeStamp FROM UbicacionRepartidor U WHERE U.idUsuario = D.idUsuario) AS gps
+                FROM DispositivoChofer D
+                WHERE D.idUsuario = ?
+                LIMIT 1
+            ");
+            $stOtro->bind_param("i", $idUsuario);
+            $stOtro->execute();
+            $otro = $stOtro->get_result()->fetch_assoc();
+            $stOtro->close();
+
+            $devRegistrado = (string) ($otro['device_id'] ?? '');
+            $gpsReciente   = !empty($otro['gps']) && strtotime((string) $otro['gps']) >= time() - 30 * 60;
+            $enRuta        = !empty($otro['salida']) || $gpsReciente;
+
+            if ($devRegistrado !== '' && $devRegistrado !== $deviceIdPost && $enRuta) {
+                $detalle = $gpsReciente
+                    ? 'Su teléfono mandó la ubicación a las ' . date('H:i', strtotime((string) $otro['gps'])) . '.'
+                    : 'Tiene el recorrido iniciado.';
+                jsonOk([
+                    'success'   => 0,
+                    'confirmar' => 1,
+                    'titulo'    => 'Este chofer está en la calle',
+                    'msg'       => $detalle . ' Si ingresás desde acá, se le cierra la app en su teléfono y se corta el seguimiento del recorrido. Para ver su recorrido usá el sistema.',
+                ]);
+            }
+        } catch (Throwable $e) {
+            error_log('admision.php aviso en la calle: ' . $e->getMessage());
+        }
+    }
+
+    // -----------------------
     // INSERT LOG DE INGRESO (NO debe romper login)
     // -----------------------
     try {
