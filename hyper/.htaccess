@@ -1,0 +1,11 @@
+# Librerías del template (Bootstrap, jQuery, íconos, fuentes): no cambian entre deploys, así que
+# el teléfono las guarda 30 días en vez de bajarlas en cada cambio de pantalla (25/11/2026).
+# Pisa el no-cache del .htaccess de la raíz solo para esta carpeta. Si algún día se actualiza el
+# template, cambiar el nombre del archivo o agregarle ?v= en las páginas que lo cargan.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|webp|ico)$">
+    Header set Cache-Control "public, max-age=2592000"
+    Header unset Pragma
+    Header unset Expires
+  </FilesMatch>
+</IfModule>
