@@ -1,91 +1,68 @@
 <?php
+ini_set('display_errors', '0');
 date_default_timezone_set('America/Argentina/Buenos_Aires');
-	#RECIBIR ARCHIVOS MULTIMEDIA
-#-----------------------------------------------------------
-	if(isset($_FILES["file"])){
-   // Prefijo del nombre de la foto: fecha y hora (antes 'H:m:s', con el mes en lugar de los minutos y ':' en el nombre).
-   $hora=date('Ymd_His_');
-			/*=============================================
-	SUBIR MULTIMEDIA
-	=============================================*/
-		$aleatorio = mt_rand(100,999);
-		if(isset($_FILES["file"]["tmp_name"]) && !empty($_FILES["file"]["tmp_name"])){
+// Fotos de la entrega: quedan en images/<CodigoSeguimiento>/ (las lista fotos_envio.php para sistema).
+// 25/11/2026: la app ya las manda achicadas (lado mayor 1600 px, JPEG). Acá se guardan sin
+// deformar (antes se estiraban a 1000x1000) y con un formato no soportado se responde error
+// en vez de una respuesta vacía.
 
-			/*=============================================
-			DEFINIMOS LAS MEDIDAS
-			=============================================*/
+function fallar(int $http, string $msg): void
+{
+	http_response_code($http);
+	echo $msg;
+	exit;
+}
 
-			list($ancho, $alto) = getimagesize($_FILES["file"]["tmp_name"]);	
+if (!isset($_FILES["file"]["tmp_name"]) || empty($_FILES["file"]["tmp_name"])) {
+	fallar(400, "No llegó la foto");
+}
 
-			$nuevoAncho = 1000;
-			$nuevoAlto = 1000;
+// tituloProducto es el código de seguimiento (#card-seguimiento): solo alfanumérico,
+// para que no se pueda armar una ruta fuera de images/.
+$codigoFoto = trim(strip_tags($_POST['tituloProducto'] ?? ''));
+if (!preg_match('/^[A-Za-z0-9]{4,40}$/', $codigoFoto)) {
+	fallar(400, "Código de seguimiento inválido");
+}
 
-			/*=============================================
-			CREAMOS EL DIRECTORIO DONDE VAMOS A GUARDAR LA FOTO DE LA MULTIMEDIA
-			=============================================*/
-			// tituloProducto es el código de seguimiento (#card-seguimiento): solo alfanumérico,
-			// para que no se pueda armar una ruta fuera de images/.
-			$codigoFoto = trim(strip_tags($_POST['tituloProducto'] ?? ''));
-			if (!preg_match('/^[A-Za-z0-9]{4,40}$/', $codigoFoto)) {
-				http_response_code(400);
-				echo "Código de seguimiento inválido";
-				exit;
-			}
-			$directorio = "images/".$codigoFoto;
+$tmp  = $_FILES["file"]["tmp_name"];
+$info = @getimagesize($tmp);
+if (!$info) {
+	fallar(415, "El archivo no es una imagen");
+}
+[$ancho, $alto] = $info;
+$tipo = $info['mime'] ?? '';
 
-			/*=============================================
-			PRIMERO PREGUNTAMOS SI EXISTE UN DIRECTORIO DE MULTIMEDIA CON ESTA RUTA
-			=============================================*/
+if ($tipo === 'image/jpeg') {
+	$origen = @imagecreatefromjpeg($tmp);
+} elseif ($tipo === 'image/png') {
+	$origen = @imagecreatefrompng($tmp);
+} elseif ($tipo === 'image/webp' && function_exists('imagecreatefromwebp')) {
+	$origen = @imagecreatefromwebp($tmp);
+} else {
+	fallar(415, "Formato de foto no soportado");
+}
+if (!$origen) {
+	fallar(415, "No se pudo leer la foto");
+}
 
-			if (!file_exists($directorio)){
+$directorio = "images/" . $codigoFoto;
+if (!file_exists($directorio)) {
+	mkdir($directorio, 0755);
+}
 
-				mkdir($directorio, 0755);
-			
-			}
+// Proporción original, lado mayor como máximo 1600 px.
+$escala     = min(1, 1600 / max($ancho, $alto));
+$nuevoAncho = max(1, (int) round($ancho * $escala));
+$nuevoAlto  = max(1, (int) round($alto * $escala));
 
-			/*=============================================
-			DE ACUERDO AL TIPO DE IMAGEN APLICAMOS LAS FUNCIONES POR DEFECTO DE PHP
-			=============================================*/
+$destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
+imagefill($destino, 0, 0, imagecolorallocate($destino, 255, 255, 255)); // PNG con transparencia: fondo blanco
+imagecopyresampled($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
 
-			if($_FILES["file"]["type"] == "image/jpeg"){
+// Nombre: fecha y hora + número al azar (todas en JPEG).
+$rutaMultimedia = $directorio . "/" . date('Ymd_His_') . mt_rand(100, 999) . ".jpg";
+if (!imagejpeg($destino, $rutaMultimedia, 85)) {
+	fallar(500, "No se pudo guardar la foto");
+}
 
-				/*=============================================
-				GUARDAMOS LA IMAGEN EN EL DIRECTORIO
-				=============================================*/
-        
-				$rutaMultimedia = $directorio."/".$hora.$_FILES["file"]["name"];
-          
-        $origen = imagecreatefromjpeg($_FILES["file"]["tmp_name"]);						
-
-				$destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-				imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-				imagejpeg($destino, $rutaMultimedia);
-
-			}
-
-			if($_FILES["file"]["type"] == "image/png"){
-
-				/*=============================================
-				GUARDAMOS LA IMAGEN EN EL DIRECTORIO
-				=============================================*/
-
-				$rutaMultimedia = $directorio."/".$hora.$_FILES["file"]["name"];
-
-				$origen = imagecreatefrompng($_FILES["file"]["tmp_name"]);						
-
-				$destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-				imagealphablending($destino, FALSE);
-		
-				imagesavealpha($destino, TRUE);
-
-				imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-				imagepng($destino, $rutaMultimedia);
-
-			}
-			echo $rutaMultimedia;	
-		}
-	}
+echo $rutaMultimedia;
