@@ -59,8 +59,10 @@ $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
 imagefill($destino, 0, 0, imagecolorallocate($destino, 255, 255, 255)); // PNG con transparencia: fondo blanco
 imagecopyresampled($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
 
-// Nombre: fecha y hora + número al azar (todas en JPEG).
-$rutaMultimedia = $directorio . "/" . date('Ymd_His_') . mt_rand(100, 999) . ".jpg";
+// Nombre: fecha y hora + número de foto (orden en que las sacó el chofer) + número al azar.
+// El listado (fotos_envio.php) ordena por nombre, así que la Foto 1 sale primera.
+$orden = max(0, min(9, (int) ($_POST['orden'] ?? 0)));
+$rutaMultimedia = $directorio . "/" . date('Ymd_His_') . $orden . mt_rand(100, 999) . ".jpg";
 if (!imagejpeg($destino, $rutaMultimedia, 85)) {
 	fallar(500, "No se pudo guardar la foto");
 }

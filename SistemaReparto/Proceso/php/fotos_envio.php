@@ -78,6 +78,7 @@ foreach (scandir($dir) as $archivo) {
     'fecha'  => date('Y-m-d H:i:s', filemtime($dir . '/' . $archivo)),
   ];
 }
-usort($fotos, fn($a, $b) => strcmp($a['fecha'], $b['fecha']));
+// Por fecha y, si son del mismo segundo, por nombre (lleva el número de foto: main.php).
+usort($fotos, fn($a, $b) => strcmp($a['fecha'], $b['fecha']) ?: strcmp($a['nombre'], $b['nombre']));
 
 responder(['success' => 1, 'fotos' => $fotos]);
