@@ -128,17 +128,19 @@
   // Sube todas las fotos del envío a main.php (mismo destino que antes: images/<codigo>/).
   // Una foto ya subida no se repite si la confirmación falla y el chofer vuelve a tocar Aceptar.
   // La carpeta es la del código base (sin _1): main.php solo acepta letras y números.
+  // De a una y en el orden en que se sacaron (antes en paralelo: el servidor las nombraba con
+  // el mismo segundo y la Foto 1 podía quedar segunda en el sistema). "orden" va en el nombre.
   function subir(codigo) {
     codigo = String(codigo || "").split("_")[0].trim();
-    const fotos = lista.filter(function (f) {
-      return !f.subida;
-    });
-    return Promise.all(
-      fotos.map(function (f, i) {
+    let cadena = Promise.resolve();
+    lista.forEach(function (f, i) {
+      if (f.subida) return;
+      cadena = cadena.then(function () {
         return Promise.resolve(f.listo).then(function () {
           const fd = new FormData();
           fd.append("file", f.blob, "foto" + (i + 1) + ".jpg");
           fd.append("tituloProducto", codigo);
+          fd.append("orden", String(i + 1));
           return $.ajax({
             url: "Proceso/php/main.php",
             method: "POST",
@@ -147,14 +149,15 @@
             contentType: false,
             processData: false,
             timeout: 60000,
-          }).then(function (r) {
+          }).then(function () {
             f.subida = true;
-            return r;
           });
         });
-      })
-    );
+      });
+    });
+    return cadena;
   }
+
 
   $(document).on("click", ".rp-foto-agregar", function () {
     const input = document.getElementById("rp-foto-input");
