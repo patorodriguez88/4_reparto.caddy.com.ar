@@ -2371,15 +2371,27 @@ $(document).on("click", "#btn-iniciar-recorrido", function () {
 });
 
 //INGRESO!
+// Candado mientras el login está en curso (25/11/2026): con el servidor lento el chofer tocaba
+// "Ingresar" varias veces y salían hasta 6-7 logins en el mismo segundo (328 en 14 días).
+let ingresoEnCurso = false;
 $(document).on("click", "#ingreso", function (e) {
   e.preventDefault();
   e.stopPropagation();
+  if (ingresoEnCurso) return;
 
   var user = $("#user").val();
   var pass = $("#password").val();
+  var $btnIngreso = $(this);
+
+  ingresoEnCurso = true;
+  $btnIngreso.prop("disabled", true).addClass("disabled");
 
   $.ajax({
     url: "Conexion/admision.php",
+    complete: function () {
+      ingresoEnCurso = false;
+      $btnIngreso.prop("disabled", false).removeClass("disabled");
+    },
     type: "POST",
     dataType: "json",
     data: { Login: 1, user: user, password: pass, device_id: window.CADDY_DEVICE_ID || "" },

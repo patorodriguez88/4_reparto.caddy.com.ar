@@ -121,6 +121,7 @@ try {
     // CERRAR SESIÓN
     // -----------------------
     if (isset($_POST['Salir'])) {
+        recordarBorrar(); // Salir es salir: no se rearma sola desde la cookie "recordar"
         session_destroy();
         jsonOk(['success' => 1]);
     }
@@ -219,37 +220,6 @@ try {
     }
 
     // -----------------------
-    // TRANSPORTISTA (Empleados)
-    // -----------------------
-    // Empleado de planta de Caddy = fila activa en Empleados con Aliados=0.
-    // Cobran sueldo, no por paquete: en Mi Cuenta no se les muestran importes,
-    // solo cantidades (ver funciones_hdr.php?CuentaResumen y funciones_hdr.js).
-    // Los "aliados" (Aliados=1) y los externos sin fila en Empleados SÍ se
-    // liquidan por Externos_rendicion, así que para ellos el flag queda en 0.
-    $nombreCompleto   = '';
-    $esEmpleadoCaddy  = 0;
-    try {
-        $stmtEmp = $mysqli->prepare("
-            SELECT NombreCompleto, Aliados
-            FROM Empleados
-            WHERE Usuario = ?
-            AND Inactivo=0
-            LIMIT 1
-        ");
-        $stmtEmp->bind_param("i", $idUsuario);
-        $stmtEmp->execute();
-        $resEmp = $stmtEmp->get_result();
-        $emp = $resEmp ? $resEmp->fetch_assoc() : null;
-        $stmtEmp->close();
-        $nombreCompleto  = $emp['NombreCompleto'] ?? 'Sin Nombre';
-        $esEmpleadoCaddy = ($emp && (int) ($emp['Aliados'] ?? 1) === 0) ? 1 : 0;
-    } catch (Throwable $e) {
-        // no rompemos login
-        $nombreCompleto  = '';
-        $esEmpleadoCaddy = 0;
-    }
-
-    // -----------------------
     // BUSCO RECORRIDO ASIGNADO (Logistica)
     // -----------------------
     $recorridoAsignado = '';
@@ -278,18 +248,12 @@ try {
     }
 
     // -----------------------
-    // SESIÓN
+    // SESIÓN (misma función que usa la restauración desde la cookie "recordar")
     // -----------------------
-    $_SESSION['Transportista']      = $nombreCompleto;
-    $_SESSION['EsEmpleadoCaddy']    = $esEmpleadoCaddy; // 1 = planta (sueldo, sin importes en Mi Cuenta)
-    $_SESSION['idusuario']          = $idUsuario;
-    $_SESSION['ingreso']            = $row['Usuario'] ?? '';
-    $_SESSION['NCliente']           = $row['NdeCliente'] ?? '';
-    $_SESSION['Nivel']              = $row['NIVEL'] ?? '';
-    $_SESSION['Direccion']          = $row['Direccion'] ?? '';
-    $_SESSION['NombreUsuario']      = $row['Nombre'] ?? '';
-    $_SESSION['Usuario']            = $row['Usuario'] ?? '';
-    $_SESSION['Sucursal']           = $row['Sucursal'] ?? '';
+    armarSesionChofer($mysqli, $row, $deviceId);
+    $nombreCompleto = (string) ($_SESSION['Transportista'] ?? '');
+    // Cookie "recordar" de 30 días: si la sesión se pierde en la calle, se rearma sola.
+    recordarEmitir($idUsuario, $deviceId, (string) ($row['PASSWORD'] ?? ''));
 
     $_SESSION['RecorridoAsignado']  = $recorridoAsignado;
     $_SESSION['hdr']                = $numeroOrden;

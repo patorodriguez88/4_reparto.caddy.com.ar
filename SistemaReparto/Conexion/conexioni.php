@@ -8,8 +8,11 @@
 // (host-only, nunca el padre) corta el cruce sin depender de la config del hosting.
 if (session_status() === PHP_SESSION_NONE) {
     session_name('CADDY_REPARTO_SESSID');
+    // 25/11/2026: la cookie de sesión dura 30 días (antes 0 = se borraba cuando Android cerraba
+    // la app, por ejemplo al abrir la cámara). Si igual se pierde, la rearma sesion_chofer.php.
+    @ini_set('session.gc_maxlifetime', '43200');
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => 30 * 86400,
         'path' => '/',
         'domain' => '', // host-only: nunca .caddy.com.ar
         'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
@@ -108,6 +111,9 @@ class Conexion
         $database = $datos['database'] ?? '';
         $port     = isset($datos['port']) ? intval($datos['port']) : 3306;
         $socket   = !empty($datos['socket']) ? $datos['socket'] : null;
+        // Base de la clave que firma la cookie "recordar" (sesion_chofer.php): sale de la
+        // configuración del servidor, que no está en el repo, y es distinta por entorno.
+        $GLOBALS['CADDY_REPARTO_CLAVE_BASE'] = $password . '|' . $database . '|' . $server;
 
         // El socket se usa SOLO en entorno local (dev por XAMPP) cuando el
         // config lo define. En producción el flujo es igual que siempre:
@@ -192,6 +198,8 @@ class Conexion
 $miConexion = new Conexion();
 $mysqli = $miConexion->obtenerConexion();
 
+require_once __DIR__ . '/sesion_chofer.php';
+
 // =============================
 // Validación de sesión
 // =============================
@@ -199,14 +207,25 @@ $tiempoMaximo = 5400;
 $archivoActual = basename($_SERVER['PHP_SELF']);
 $excepciones = ['hdr.html'];
 
+// Sin sesión (Android cerró la app, el hosting limpió la sesión, etc.): si el teléfono tiene la
+// cookie "recordar", se rearma acá y el pedido sigue normal. Vale también para los endpoints con
+// ALLOW_NO_SESSION (tarjetas, entregas). admision.php (ingresar / salir) no la usa.
+if ($archivoActual !== 'admision.php' && empty($_SESSION['Usuario'])) {
+    restaurarSesionChofer($mysqli);
+}
+
 if (!defined('ALLOW_NO_SESSION') || ALLOW_NO_SESSION !== true) {
 
     if (!in_array($archivoActual, $excepciones)) {
 
-        // Expiración por inactividad
+        // Expiración por inactividad: con la cookie "recordar" vigente la sesión se rearma en
+        // vez de mandar al login (el chofer en la calle no tiene que volver a ingresar).
         if (isset($_SESSION['tiempo']) && (time() - $_SESSION['tiempo']) > $tiempoMaximo) {
-            destruirSesionSegura();
-            redirigirAlLogin('sesion-expirada');
+            $_SESSION = [];
+            if (!restaurarSesionChofer($mysqli)) {
+                destruirSesionSegura();
+                redirigirAlLogin('sesion-expirada');
+            }
         }
 
         // Sin sesión válida
@@ -228,6 +247,7 @@ if (!defined('ALLOW_NO_SESSION') || ALLOW_NO_SESSION !== true) {
                     $devActivo = ($rDev && $rDev->num_rows) ? (string) $rDev->fetch_assoc()['device_id'] : '';
                     if ($devActivo !== '' && $devActivo !== (string) $_SESSION['device_id']) {
                         destruirSesionSegura();
+                        recordarBorrar();
                         $esAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
                             && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
                         if ($esAjax) {

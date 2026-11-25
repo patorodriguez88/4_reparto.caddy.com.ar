@@ -7,10 +7,21 @@ Options -Indexes
 # versión vieja de hdr.html incluso después de deployar cambios nuevos.
 # JS/CSS no llevan hash en el nombre, así que también los excluimos del
 # cacheo largo para no repetir el mismo problema en el próximo deploy.
+#
+# 25/11/2026 (velocidad entre pantallas): el HTML sigue sin guardarse nunca (no-store), pero
+# nuestros JS/CSS pasan a "no-cache": el teléfono los guarda y en cada uso pregunta si
+# cambiaron (Last-Modified). Si no cambiaron el servidor responde 304 sin mandar el archivo; si
+# cambiaron, baja el nuevo. Antes se bajaba todo de nuevo en cada cambio de pantalla (~18
+# archivos, ~1 s cada uno). Las librerías de hyper/ se guardan 30 días (ver hyper/.htaccess).
 <IfModule mod_headers.c>
-  <FilesMatch "\.(html|js|css)$">
+  <FilesMatch "\.html$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Pragma "no-cache"
     Header set Expires "0"
+  </FilesMatch>
+  <FilesMatch "\.(js|css)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+    Header unset Pragma
+    Header unset Expires
   </FilesMatch>
 </IfModule>
